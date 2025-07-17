@@ -26,7 +26,7 @@ class LoginService extends GetxService {
   // Constructor to receive the Dio instance and GetStorage box
   LoginService(this._dio, this.box);
 
-  final String _baseUrl = 'https://mobiking-e-commerce-backend.vercel.app/api/v1/users'; // Base URL for user-related endpoints
+  final String _baseUrl = 'https://mobiking-e-commerce-backend-prod.vercel.app/api/v1/users'; // Base URL for user-related endpoints
 
   // --- Login Method ---
   // Returns Future<dio.Response> as per your original code, but with improved error handling.

@@ -1,5 +1,8 @@
 plugins {
     id("com.android.application")
+    // START: FlutterFire Configuration
+    id("com.google.gms.google-services")
+    // END: FlutterFire Configuration
     id("kotlin-android")
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id("dev.flutter.flutter-gradle-plugin")
@@ -28,6 +31,9 @@ android {
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
+
+        // >>> YOU MUST ADD THIS LINE HERE <<<
+        multiDexEnabled = true
     }
 
     buildTypes {
@@ -41,4 +47,10 @@ android {
 
 flutter {
     source = "../.."
+}
+
+// >>> YOU MUST ADD THIS ENTIRE BLOCK HERE, OUTSIDE the 'android { ... }' block <<<
+dependencies {
+    // Required for core library desugaring (Java 8+ API support on older Android)
+    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:1.1.5")
 }

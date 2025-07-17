@@ -14,7 +14,8 @@ import '../../controllers/cart_controller.dart';
 import '../../controllers/order_controller.dart';
 import '../../data/AddressModel.dart';
 import '../../data/product_model.dart';
-import '../../themes/app_theme.dart'; // Import your AppTheme and AppColors
+import '../../themes/app_theme.dart';
+import '../home/widgets/ProductCard.dart'; // Import your AppTheme and AppColors
 // Import your new screen
 
 class CheckoutScreen extends StatelessWidget {
@@ -102,7 +103,7 @@ class CheckoutScreen extends StatelessWidget {
             groupIds: [],
             totalStock: 0,
             variants: {},
-            images: [],
+            images: [], descriptionPoints: [], keyInformation: [],
           );
           final quantity = item['quantity'] as int? ?? 1;
           final variantName = item['variantName'] as String? ?? 'Default';
@@ -212,15 +213,33 @@ class CheckoutScreen extends StatelessWidget {
               ),
               const SizedBox(height: 12),
               SizedBox(
-                height: 220, // Increased height for suggested products to give them more space
+                height: 250, // Increased height for suggested products to give them more space
                 child: ListView.builder(
                   scrollDirection: Axis.horizontal,
                   itemCount: cartProductsWithDetails.length, // Using cart products as dummy data for suggestions
                   itemBuilder: (context, index) {
                     return Padding(
                       padding: const EdgeInsets.only(right: 14), // Space between cards
-                      child: SuggestedProductCard(
-                          product: cartProductsWithDetails[index]['product'] as ProductModel),
+                      child: ProductCards(
+                        product: cartProductsWithDetails[index]['product'] as ProductModel,
+                        // It is CRUCIAL to pass a unique heroTag here to avoid "multiple heroes" error.
+                        // The tag should be unique across all ProductCards visible on screen simultaneously.
+                        heroTag: 'product_image_checkout_suggested_${cartProductsWithDetails[index]['product']}_$index', // Example unique tag
+                        onTap: (tappedProduct) {
+                          // You can define specific navigation logic here if needed,
+                          // or let ProductCards handle it using its internal Get.to() as configured.
+                          // If ProductCards handles navigation, ensure it passes the correct heroTag.
+                          // Example of explicit navigation:
+                          // Get.to(
+                          //   () => ProductPage(
+                          //     product: tappedProduct,
+                          //     heroTag: 'product_image_checkout_suggested_${tappedProduct.id}_$index',
+                          //   ),
+                          //   transition: Transition.fadeIn,
+                          //   duration: const Duration(milliseconds: 300),
+                          // );
+                        },
+                      ),
                     );
                   },
                 ),
@@ -390,7 +409,7 @@ class CheckoutScreen extends StatelessWidget {
                               orderController.isLoading.value
                                   ? "Processing..."
                                   : (_selectedPaymentMethod.value.isEmpty ? "Pay Using" : _selectedPaymentMethod.value), // Show selected method
-                              style: textTheme.labelLarge?.copyWith( // labelLarge for button text
+                              style: textTheme.bodyMedium?.copyWith( // labelLarge for button text
                                 color: AppColors.white,
                                 fontWeight: FontWeight.w600,
                               ),
@@ -427,7 +446,7 @@ class CheckoutScreen extends StatelessWidget {
                           stockIds: [],
                           orderIds: [],
                           groupIds: [],
-                          totalStock: 0);
+                          totalStock: 0, descriptionPoints: [], keyInformation: []);
                       final quantity = item['quantity'] ?? 1;
                       double itemPrice = 0.0;
                       if (product.sellingPrice.isNotEmpty &&
@@ -553,7 +572,7 @@ class CheckoutScreen extends StatelessWidget {
                                 children: [
                                   Text(
                                     "₹${displayTotal.toStringAsFixed(0)}",
-                                    style: textTheme.titleMedium?.copyWith( // TitleMedium for total amount
+                                    style: textTheme.bodyMedium?.copyWith( // TitleMedium for total amount
                                       color: AppColors.white,
                                       fontWeight: FontWeight.bold,
                                     ),
@@ -578,7 +597,7 @@ class CheckoutScreen extends StatelessWidget {
                                   else
                                     Text(
                                       "Place Order",
-                                      style: textTheme.labelLarge?.copyWith( // labelLarge for "Place Order" text
+                                      style: textTheme.bodyMedium?.copyWith( // labelLarge for "Place Order" text
                                         color: AppColors.white,
                                         fontWeight: FontWeight.w600,
                                       ),

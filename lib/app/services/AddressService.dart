@@ -27,12 +27,19 @@ class AddressService extends GetxService {
   final dio.Dio _dio;
 
   AddressService(this._dio, this._box);
+/*
 
   final String _addUrl = 'https://mobiking-e-commerce-backend.vercel.app/api/v1/users/address/add';
   final String _viewUrl = 'https://mobiking-e-commerce-backend.vercel.app/api/v1/users/address/view';
   final String _deleteBaseUrl = 'https://mobiking-e-commerce-backend.vercel.app/api/v1/users/address/';
   // New base URL for update operations (PUT request)
   final String _updateBaseUrl = 'https://mobiking-e-commerce-backend.vercel.app/api/v1/users/address/';
+*/
+
+  final String _addUrl = 'https://mobiking-e-commerce-backend-prod.vercel.app/api/v1/users/address/add';
+  final String _viewUrl = 'https://mobiking-e-commerce-backend-prod.vercel.app/api/v1/users/address/view';
+  final String _deleteBaseUrl = 'https://mobiking-e-commerce-backend-prod.vercel.app/api/v1/users/address/';
+  final String _updateBaseUrl = 'https://mobiking-e-commerce-backend-prod.vercel.app/api/v1/users/address/';
 
 
   String? _getAccessToken() {

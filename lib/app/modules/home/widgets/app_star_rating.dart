@@ -36,18 +36,23 @@ class AppStarRating extends StatelessWidget {
       }
     }
 
-    return Row(
-      mainAxisSize: MainAxisSize.min,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        ...stars,
-        const SizedBox(width: 4),
-        Text(
-          rating.toStringAsFixed(1),
-          style: textTheme.labelSmall?.copyWith(
-            color: AppColors.textDark,
-            fontWeight: FontWeight.w600,
-            fontSize: 10,
-          ),
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ...stars,
+            const SizedBox(width: 4),
+            Text(
+              rating.toStringAsFixed(1),
+              style: textTheme.labelSmall?.copyWith(
+                color: AppColors.textDark,
+                fontWeight: FontWeight.w600,
+                fontSize: 10,
+              ),
+            ),
+          ],
         ),
         Text(
           ' ($ratingCount)',

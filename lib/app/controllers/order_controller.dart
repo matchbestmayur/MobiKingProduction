@@ -1,18 +1,15 @@
 // app/controllers/order_controller.dart
-
 import 'package:get/get.dart';
 import 'package:get_storage/get_storage.dart';
 import 'package:flutter/material.dart';
-
+import 'package:mobiking/app/controllers/connectivity_controller.dart';
 import 'package:mobiking/app/modules/Order_confirmation/Confirmation_screen.dart';
 import 'package:razorpay_flutter/razorpay_flutter.dart';
-
 // Import your data models
 import '../data/AddressModel.dart';
 import '../data/Order_get_data.dart'; // Contains CreateOrderRequestModel
 import '../data/order_model.dart'; // The full OrderModel (Response Model) - CRUCIAL to have 'requests' field
 import '../data/razor_pay.dart'; // Contains RazorpayVerifyRequest
-
 // Import your controllers and services
 import '../controllers/cart_controller.dart';
 import '../controllers/address_controller.dart';
@@ -21,7 +18,7 @@ import '../modules/checkout/widget/user_info_dialog_content.dart';
 import '../services/order_service.dart';
 import '../themes/app_theme.dart';
 
-// Helper function for themed snackbars (defined once, globally accessible)
+// Helper function for themed snackbars
 void _showModernSnackbar(String title, String message, {
   IconData? icon,
   Color? backgroundColor,
@@ -32,11 +29,7 @@ void _showModernSnackbar(String title, String message, {
   double? borderRadius,
   bool isError = false,
 }) {
-  // Dismiss any existing snackbar to prevent overlap
-  if (Get.isSnackbarOpen) {
-    Get.back();
-  }
-
+  if (Get.isSnackbarOpen) Get.back();
   Get.snackbar(
     title,
     message,
@@ -57,36 +50,29 @@ void _showModernSnackbar(String title, String message, {
 class OrderController extends GetxController {
   final GetStorage _box = GetStorage();
   final OrderService _orderService = Get.find<OrderService>();
-
+  final ConnectivityController _connectivityController = Get.find<ConnectivityController>();
   final CartController _cartController = Get.find<CartController>();
   final AddressController _addressController = Get.find<AddressController>();
-
-  var isLoading = false.obs; // General loading for actions like placing order/sending requests
+  var isLoading = false.obs;
   var orderHistory = <OrderModel>[].obs;
-
   var isLoadingOrderHistory = false.obs;
   var orderHistoryErrorMessage = ''.obs;
   late Razorpay _razorpay;
-
   String? _currentBackendOrderId;
   String? _currentRazorpayOrderId;
 
-  // Define STATUS_PROGRESS based on your backend's order statuses
-  // IMPORTANT: These strings MUST exactly match the 'orderStatus' and 'shippingStatus' values from your backend.
   static const List<String> STATUS_PROGRESS = [
     "Picked Up",
     "IN TRANSIT",
     "Shipped",
     "Delivered",
     "Returned",
-    "CANCELLED", // Case-sensitive
-    "Cancelled", // Case-sensitive
+    "CANCELLED",
+    "Cancelled",
   ];
 
-  // New RxString for selected reason
   var selectedReasonForRequest = ''.obs;
 
-  // List of predefined reasons from the image
   final List<String> predefinedReasons = [
     'Ordered wrong item',
     'Found cheaper price',
@@ -104,6 +90,17 @@ class OrderController extends GetxController {
     _razorpay.on(Razorpay.EVENT_PAYMENT_ERROR, _handlePaymentError);
     _razorpay.on(Razorpay.EVENT_EXTERNAL_WALLET, _handleExternalWallet);
     print('Razorpay initialized and listeners registered.');
+
+    ever(_connectivityController.isConnected, (bool isConnected) {
+      if (isConnected) {
+        _handleConnectionRestored();
+      }
+    });
+  }
+
+  Future<void> _handleConnectionRestored() async {
+    print('OrderController: Internet connection restored. Re-fetching order history...');
+    await fetchOrderHistory();
   }
 
   double _calculateSubtotal() {
@@ -143,21 +140,17 @@ class OrderController extends GetxController {
         );
         return;
       }
-
       final verifyRequest = RazorpayVerifyRequest(
         razorpayPaymentId: response.paymentId!,
         razorpayOrderId: response.orderId!,
         razorpaySignature: response.signature!,
         orderId: _currentBackendOrderId!,
       );
-
       print('Calling backend for payment verification...');
       final verifiedOrder = await _orderService.verifyRazorpayPayment(verifyRequest);
       print('Backend verification successful for order: ${verifiedOrder.orderId}');
-
       await _box.write('last_placed_order', verifiedOrder.toJson());
       _cartController.clearCartData();
-
       _showModernSnackbar(
         'Order Placed!',
         'Your order ID ${verifiedOrder.orderId ?? 'N/A'} has been placed successfully!',
@@ -166,9 +159,7 @@ class OrderController extends GetxController {
         backgroundColor: Colors.green.shade600,
         snackPosition: SnackPosition.TOP,
       );
-      Get.offAll(() => OrderConfirmationScreen()); // Navigate to confirmation after successful order
-      // Removed isLoading.value = false here as it's handled in finally block, to prevent premature hiding if navigation is fast
-
+      Get.offAll(() => OrderConfirmationScreen());
     } on OrderServiceException catch (e) {
       _showModernSnackbar(
         'Payment Verification Failed!',
@@ -256,10 +247,8 @@ class OrderController extends GetxController {
     String? phone = user['phoneNo'] ?? user['phone'];
 
     bool userInfoIncomplete = [userId, name, email, phone].any((e) => e == null || e.toString().trim().isEmpty);
-
     if (userInfoIncomplete) {
       final bool detailsConfirmed = await _promptUserInfo();
-
       if (!detailsConfirmed) {
         _showModernSnackbar(
           'Details Not Saved',
@@ -271,13 +260,11 @@ class OrderController extends GetxController {
         );
         return;
       }
-
       user = Map<String, dynamic>.from(_box.read('user') ?? {});
       userId = user['_id'];
       name = user['name'];
       email = user['email'];
       phone = user['phoneNo'] ?? user['phone'];
-
       if ([userId, name, email, phone].any((e) => e == null || e.toString().trim().isEmpty)) {
         _showModernSnackbar(
           'User Info Incomplete!',
@@ -312,36 +299,30 @@ class OrderController extends GetxController {
 
     final double subtotal = _calculateSubtotal();
     const double deliveryCharge = 45.0;
-    final double gst = 0.0; // Assuming GST is a double for calculation here before conversion to String for OrderModel
+    final double gst = 0.0;
     final double total = subtotal + deliveryCharge;
 
     final List<CreateOrderItemRequestModel> orderItemsRequest = [];
     for (var cartItem in _cartController.cartItems) {
       final productData = cartItem['productId'] as Map<String, dynamic>?;
       final variantName = cartItem['variantName'] as String? ?? 'Default';
-      final quantity = (cartItem['quantity'] as num?)?.toInt() ?? 1;
-
+      final int quantity = (cartItem['quantity'] as num?)?.toInt() ?? 1;
       if (productData == null) {
         print('Error: Product data is null for cart item: $cartItem');
         continue;
       }
-
       final String productIdString = productData['_id'] as String? ?? '';
       if (productIdString.isEmpty) {
         print('Error: Product ID missing for cart item: $cartItem');
         continue;
       }
-
       double itemPrice = 0.0;
       if (productData.containsKey('sellingPrice') && productData['sellingPrice'] is List) {
-        // Corrected: productData['sellingPrice'] is a List, not a Map
         final List<dynamic> sellingPricesList = productData['sellingPrice'];
         if (sellingPricesList.isNotEmpty && sellingPricesList[0] is Map<String, dynamic>) {
           itemPrice = (sellingPricesList[0]['price'] as num?)?.toDouble() ?? 0.0;
         }
       }
-
-
       orderItemsRequest.add(CreateOrderItemRequestModel(
         productId: productIdString,
         variantName: variantName,
@@ -365,7 +346,7 @@ class OrderController extends GetxController {
       orderAmount: total,
       discount: 0,
       deliveryCharge: deliveryCharge,
-      gst: gst, // Passed as double here, OrderModel expects String
+      gst: gst,
       subtotal: subtotal,
       address: '${address.street}, ${address.city}, ${address.state}, ${address.pinCode}',
       method: method,
@@ -375,23 +356,22 @@ class OrderController extends GetxController {
 
     try {
       isLoading.value = true;
-
       if (method == 'COD') {
         final createdOrder = await _orderService.placeCodOrder(createOrderRequest);
-
         await _box.write('last_placed_order', createdOrder.toJson());
         _cartController.clearCartData();
 
         _showModernSnackbar(
-          'Order Placed!',
-          'Your order ID ${createdOrder.orderId ?? 'N/A'} has been placed successfully!',
+          'Order Placed! Awaiting Confirmation Call',
+          'You will receive a call for confirmation shortly. If the call is not picked up, your order will be cancelled automatically.',
           isError: false,
-          icon: Icons.receipt_long_outlined,
-          backgroundColor: Colors.green.shade600,
+          icon: Icons.phone_callback_outlined,
+          backgroundColor: Colors.blueAccent.shade400,
           snackPosition: SnackPosition.TOP,
+          duration: const Duration(seconds: 7),
         );
+
         Get.offAll(() => OrderConfirmationScreen());
-        // Removed isLoading.value = false here as it's handled in finally block, to prevent premature hiding if navigation is fast
       } else if (method == 'Online') {
         print('Initiating online payment with backend...');
         final Map<String, dynamic> initiateResponse = await _orderService.initiateOnlineOrder(createOrderRequest);
@@ -431,9 +411,9 @@ class OrderController extends GetxController {
             'color': '#3399FF'
           },
         };
+
         print('Opening Razorpay checkout with options: $options');
         _razorpay.open(options);
-
       } else {
         isLoading.value = false;
         _showModernSnackbar(
@@ -476,7 +456,6 @@ class OrderController extends GetxController {
     orderHistoryErrorMessage.value = '';
     try {
       final List<OrderModel> fetchedOrders = await _orderService.getUserOrders();
-
       if (fetchedOrders.isNotEmpty) {
         fetchedOrders.sort((a, b) => b.createdAt?.compareTo(a.createdAt ?? DateTime(0)) ?? 0);
         orderHistory.assignAll(fetchedOrders);
@@ -526,10 +505,13 @@ class OrderController extends GetxController {
     }
   }
 
+  OrderModel? getOrderById(String orderId) {
+    return orderHistory.firstWhereOrNull((order) => order.id == orderId);
+  }
+
   Future<bool> _promptUserInfo() async {
     final GetStorage _box = GetStorage();
     final user = _box.read('user') ?? {};
-
     final bool? result = await Get.to<bool?>(
           () => UserInfoScreen(initialUser: user),
       fullscreenDialog: true,
@@ -538,92 +520,66 @@ class OrderController extends GetxController {
     return result ?? false;
   }
 
-  // --- NEW METHODS FOR ORDER REQUESTS ---
-
-  /// Handles the process of sending a cancel, warranty, or return request for an order.
-  /// `requestType` can be 'Cancel', 'Warranty', or 'Return'.
   Future<void> sendOrderRequest(String orderId, String requestType) async {
-    // Reset selected reason each time a new request dialog is opened
     selectedReasonForRequest.value = '';
-    final TextEditingController reasonController = TextEditingController(); // For "Other" option
+    final TextEditingController reasonController = TextEditingController();
 
     final bool? dialogResult = await Get.dialog<bool>(
       GestureDetector(
-        onTap: () => FocusScope.of(Get.context!).unfocus(), // Tap outside to dismiss keyboard
+        onTap: () => FocusScope.of(Get.context!).unfocus(),
         child: AlertDialog(
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12), // Slightly less rounded for consistency with image
-          ),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           backgroundColor: AppColors.white,
-          // Removed contentPadding and actionsPadding to allow more flexible sizing like the image
-          // buttonPadding: EdgeInsets.zero, // Default button padding is often fine for a single button
-
-          titlePadding: const EdgeInsets.fromLTRB(24, 20, 10, 0), // Adjusted title padding
-          contentPadding: const EdgeInsets.fromLTRB(0, 10, 0, 0), // Adjust content padding for radio tiles
-
+          titlePadding: const EdgeInsets.fromLTRB(24, 20, 10, 0),
+          contentPadding: const EdgeInsets.fromLTRB(0, 10, 0, 0),
           title: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween, // Align title and close icon
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Expanded( // Take remaining space for title
+              Expanded(
                 child: Text(
-                  '${requestType.capitalizeFirst} Request', // Title matches image
-                  style: Get.textTheme.titleMedium?.copyWith( // Smaller title as in image
-                    color: AppColors.textDark,
-                    fontWeight: FontWeight.w700,
-                  ),
+                  '${requestType.capitalizeFirst} Request',
+                  style: Get.textTheme.titleMedium?.copyWith(color: AppColors.textDark, fontWeight: FontWeight.w700),
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
               IconButton(
-                icon: Icon(Icons.close, color: AppColors.textLight), // Close icon as in image
-                onPressed: () {
-                  Get.back(result: false);
-                },
-                splashRadius: 20, // Smaller splash radius for close icon
+                icon: Icon(Icons.close, color: AppColors.textLight),
+                onPressed: () => Get.back(result: false),
+                splashRadius: 20,
               ),
             ],
           ),
-
-          content: Obx(() => SingleChildScrollView( // Use Obx to react to selectedReasonForRequest
+          content: Obx(() => SingleChildScrollView(
             child: Column(
-              mainAxisSize: MainAxisSize.min, // Essential for dynamic content
+              mainAxisSize: MainAxisSize.min,
               children: [
-                // List of Radio Tiles for reasons
                 Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 10.0), // Padding to align with title
+                  padding: const EdgeInsets.symmetric(horizontal: 10.0),
                   child: Text(
-                    'Select a reason for your ${requestType.toLowerCase()}:', // Helper text
-                    style: Get.textTheme.bodyMedium?.copyWith(
-                      color: AppColors.textMedium,
-                      fontSize: 14,
-                    ),
+                    'Select a reason for your ${requestType.toLowerCase()}:',
+                    style: Get.textTheme.bodyMedium?.copyWith(color: AppColors.textMedium, fontSize: 14),
                   ),
                 ),
                 const SizedBox(height: 10),
-                ...predefinedReasons.map((reasonOption) { // Use predefinedReasons from the controller
+                ...predefinedReasons.map((reasonOption) {
                   return RadioListTile<String>(
                     title: Text(
                       reasonOption,
-                      style: Get.textTheme.bodyMedium?.copyWith(
-                        color: AppColors.textDark,
-                        fontWeight: FontWeight.w500,
-                      ),
+                      style: Get.textTheme.bodyMedium?.copyWith(color: AppColors.textDark, fontWeight: FontWeight.w500),
                     ),
                     value: reasonOption,
-                    groupValue: selectedReasonForRequest.value, // Use controller's RxString
+                    groupValue: selectedReasonForRequest.value,
                     onChanged: (String? value) {
-                      selectedReasonForRequest.value = value!; // Update controller's RxString
+                      selectedReasonForRequest.value = value!;
                     },
-                    activeColor: AppColors.primaryPurple, // Accent color for selected radio
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 10.0), // Padding for list tile
-                    visualDensity: VisualDensity.compact, // Reduce vertical spacing
+                    activeColor: AppColors.primaryPurple,
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 10.0),
+                    visualDensity: VisualDensity.compact,
                   );
                 }).toList(),
-
-                // Conditional TextField for 'Other' reason
-                if (selectedReasonForRequest.value == 'Other (please specify)') // Check against the exact "Other" text
+                if (selectedReasonForRequest.value == 'Other (please specify)')
                   Padding(
-                    padding: const EdgeInsets.fromLTRB(20, 0, 20, 10), // Adjusted padding for text field
+                    padding: const EdgeInsets.fromLTRB(20, 0, 20, 10),
                     child: TextField(
                       controller: reasonController,
                       maxLines: 3,
@@ -633,10 +589,7 @@ class OrderController extends GetxController {
                       style: Get.textTheme.bodyLarge?.copyWith(color: AppColors.textDark),
                       decoration: InputDecoration(
                         hintText: 'Please specify your reason here...',
-                        hintStyle: Get.textTheme.bodyMedium?.copyWith(
-                          color: AppColors.textLight,
-                          fontStyle: FontStyle.italic,
-                        ),
+                        hintStyle: Get.textTheme.bodyMedium?.copyWith(color: AppColors.textLight, fontStyle: FontStyle.italic),
                         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(10),
@@ -658,23 +611,15 @@ class OrderController extends GetxController {
               ],
             ),
           )),
-
-          // Single action button at the bottom
           actions: [
-            Center( // Center the button
+            Center(
               child: SizedBox(
-                width: double.infinity, // Full width button
+                width: double.infinity,
                 child: ElevatedButton(
                   onPressed: () {
-                    String currentReason = selectedReasonForRequest.value; // Use controller's RxString
+                    String currentReason = selectedReasonForRequest.value;
                     if (currentReason.isEmpty) {
-                      _showModernSnackbar(
-                        'Reason Required',
-                        'Please select a reason.',
-                        isError: true,
-                        icon: Icons.info_outline,
-                        backgroundColor: Colors.orange,
-                      );
+                      _showModernSnackbar('Reason Required', 'Please select a reason.', isError: true, icon: Icons.info_outline, backgroundColor: Colors.orange);
                     } else if (currentReason == 'Other (please specify)' && (reasonController.text.trim().isEmpty || reasonController.text.trim().length < 10)) {
                       _showModernSnackbar(
                         'Reason Required',
@@ -684,37 +629,35 @@ class OrderController extends GetxController {
                         backgroundColor: Colors.orange,
                       );
                     } else {
-                      Get.back(result: true); // Valid reason, dismiss with true
+                      Get.back(result: true);
                     }
                   },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.primaryPurple,
                     foregroundColor: AppColors.white,
-                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14), // Larger padding
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                     elevation: 3,
                   ),
                   child: Text(
-                    'Place Request', // Text from image
+                    'Place Request',
                     style: Get.textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w600, color: AppColors.white),
                   ),
                 ),
               ),
             ),
           ],
-          actionsPadding: const EdgeInsets.fromLTRB(20, 0, 20, 20), // Padding around the action button
+          actionsPadding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
         ),
       ),
     );
 
-    reasonController.dispose(); // Dispose the controller when dialog closes
-
+    reasonController.dispose();
     if (dialogResult == null || !dialogResult) {
       print('$requestType request cancelled by user or no reason provided.');
-      return; // User cancelled or didn't provide a reason
+      return;
     }
 
-    // Determine the final reason to send to the backend
     String finalReasonToSend;
     if (selectedReasonForRequest.value == 'Other (please specify)') {
       finalReasonToSend = reasonController.text.trim();
@@ -722,19 +665,14 @@ class OrderController extends GetxController {
       finalReasonToSend = selectedReasonForRequest.value;
     }
 
-    isLoading.value = true; // Show loading indicator
+    isLoading.value = true;
     try {
       Map<String, dynamic> response;
       String successMessage;
-
       switch (requestType) {
         case 'Cancel':
           response = await _orderService.requestCancel(orderId, finalReasonToSend);
           successMessage = 'Cancel request sent successfully!';
-          break;
-        case 'Warranty':
-          response = await _orderService.requestWarranty(orderId, finalReasonToSend);
-          successMessage = 'Warranty request sent successfully!';
           break;
         case 'Return':
           response = await _orderService.requestReturn(orderId, finalReasonToSend);
@@ -744,120 +682,48 @@ class OrderController extends GetxController {
           throw Exception('Invalid request type: $requestType');
       }
 
-      _showModernSnackbar(
-        'Success',
-        successMessage,
-        isError: false,
-        icon: Icons.check_circle_outline,
-        backgroundColor: Colors.green,
-      );
-      print('$requestType request for Order $orderId successful: $response');
-      // Refresh order history to reflect the new request status
-      // This is crucial for button visibility logic to update.
+      _showModernSnackbar('Success', successMessage, isError: false, icon: Icons.check_circle_outline, backgroundColor: Colors.green);
       await fetchOrderHistory();
-
     } on OrderServiceException catch (e) {
-      _showModernSnackbar(
-        'Request Failed',
-        e.message,
-        isError: true,
-        icon: Icons.error_outline,
-        backgroundColor: Colors.red,
-      );
-      print('Service Error for $requestType request: ${e.message}');
+      _showModernSnackbar('Request Failed', e.message, isError: true, icon: Icons.error_outline, backgroundColor: Colors.red);
     } catch (e) {
-      _showModernSnackbar(
-        'Error',
-        'An unexpected error occurred: $e',
-        isError: true,
-        icon: Icons.error_outline,
-        backgroundColor: Colors.red,
-      );
-      print('Unexpected Error for $requestType request: $e');
+      _showModernSnackbar('Error', 'An unexpected error occurred: $e', isError: true, icon: Icons.error_outline, backgroundColor: Colors.red);
     } finally {
-      isLoading.value = false; // Hide loading indicator
+      isLoading.value = false;
     }
   }
 
-  // --- Helper Methods for Button Visibility Logic ---
-
-  /// Checks if a request of a specific type has been raised and is active (not rejected/resolved).
-  /// This ensures "only one request of each type can be placed at most" (Rule 1 & 5 for same type)
-  /// and also that a request, once raised, makes the button for that type disappear.
   bool _isSpecificRequestActive(OrderModel order, String type) {
-    if (order.requests == null || order.requests!.isEmpty) {
-      return false;
-    }
+    if (order.requests == null || order.requests!.isEmpty) return false;
     return order.requests!.any((r) {
-      final requestType = r.type; // Access RequestModel property
-      final isRaised = r.isRaised; // Access RequestModel property
-      final status = r.status.toLowerCase(); // Access RequestModel property
-      // An active request is one that is raised and NOT explicitly rejected or resolved/completed.
-      // 'Accepted' is a type of active state that also blocks further requests.
-      return requestType.toLowerCase() == type.toLowerCase() && isRaised && status != "rejected" && status != "resolved";
+      final requestType = r.type.toLowerCase();
+      final status = r.status.toLowerCase();
+      return requestType == type.toLowerCase() &&
+          status != 'rejected' &&
+          status != 'resolved' &&
+          status != 'completed';
     });
   }
 
-  /// Checks if ANY request (Cancel, Return, Warranty) is currently active or accepted.
-  /// This implements Rules 3 and 4: "If a request is placed and is unresolved/pending
-  /// or accepted, then no other requests can be placed."
-  bool _isAnyRequestActiveOrAccepted(OrderModel order) {
-    if (order.requests == null || order.requests!.isEmpty) {
-      return false;
-    }
-    return order.requests!.any((r) {
-      final isRaised = r.isRaised; // Access RequestModel property
-      final status = r.status.toLowerCase(); // Access RequestModel property
-
-      // If a request is raised AND its status is not 'rejected' and not 'resolved',
-      // then it's considered active and blocks other requests.
-      return isRaised && status != "rejected" && status != "resolved";
-    });
-  }
-
-  // --- Display Logic for Buttons on Order Item (Aligned with original pseudo-code and new rules) ---
-
-  /// Determines if the 'Cancel' button should be shown for a given order.
   bool showCancelButton(OrderModel order) {
-    // Rule: Can only be shown if the order status is "New" or "Accepted".
-    final bool isEligibleStatus = order.status.toLowerCase() == 'new' ||
-        order.status.toLowerCase() == 'accepted';
-
-    // Rule: Cannot be shown if a "Cancel" request is already active.
+    final bool isOrderCancellable = ['new', 'accepted'].contains(order.status.toLowerCase());
     final bool hasActiveCancelRequest = _isSpecificRequestActive(order, 'Cancel');
-
-    // Rule: Cannot be shown if *any* other request (Cancel, Return, Warranty) is already active/accepted.
-    // This is a broader check to prevent multiple simultaneous requests of any type.
-    final bool hasAnyActiveRequest = _isAnyRequestActiveOrAccepted(order);
-
-    return isEligibleStatus && !hasActiveCancelRequest && !hasAnyActiveRequest;
+    return isOrderCancellable && !hasActiveCancelRequest;
   }
 
-  /// Determines if the 'Warranty' button should be shown for a given order.
-  bool showWarrantyButton(OrderModel order) {
-    // Rule: Can only be shown if the order status is "Delivered".
-    final bool isEligibleStatus = order.status.toLowerCase() == 'delivered';
-
-    // Rule: Cannot be shown if a "Warranty" request is already active.
-    final bool hasActiveWarrantyRequest = _isSpecificRequestActive(order, 'Warranty');
-
-    // Rule: Cannot be shown if *any* other request (Cancel, Return, Warranty) is already active/accepted.
-    final bool hasAnyActiveRequest = _isAnyRequestActiveOrAccepted(order);
-
-    return isEligibleStatus && !hasActiveWarrantyRequest && !hasAnyActiveRequest;
-  }
-
-  /// Determines if the 'Return' button should be shown for a given order.
   bool showReturnButton(OrderModel order) {
-    // Rule: Can only be shown if the order status is "Delivered".
-    final bool isEligibleStatus = order.status.toLowerCase() == 'delivered';
-
-    // Rule: Cannot be shown if a "Return" request is already active.
+    final bool isOrderDelivered = order.status.toLowerCase() == 'delivered';
+    final bool withinReturnPeriod = isOrderDelivered && order.deliveredAt != null &&
+        DateTime.now().difference(DateTime.tryParse(order.deliveredAt!) ?? DateTime(0)).inDays <= 7;
     final bool hasActiveReturnRequest = _isSpecificRequestActive(order, 'Return');
-
-    // Rule: Cannot be shown if *any* other request (Cancel, Return, Warranty) is already active/accepted.
-    final bool hasAnyActiveRequest = _isAnyRequestActiveOrAccepted(order);
-
-    return isEligibleStatus && !hasActiveReturnRequest && !hasAnyActiveRequest;
+    return withinReturnPeriod && !hasActiveReturnRequest;
   }
+}
+
+class OrderServiceException implements Exception {
+  final String message;
+  final int? statusCode;
+  OrderServiceException(this.message, {this.statusCode});
+  @override
+  String toString() => 'OrderServiceException: $message (Status: $statusCode)';
 }

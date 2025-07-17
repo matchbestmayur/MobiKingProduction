@@ -22,7 +22,6 @@ class CategoryTile extends StatelessWidget {
       child: Container(
         width: 90, // Fixed width for each tile in the horizontal list
         decoration: BoxDecoration(
-          color: AppColors.white, // White background for each tile
           borderRadius: BorderRadius.circular(10), // Slightly rounded corners
           // No shadow or border here, let the parent list manage separation
         ),

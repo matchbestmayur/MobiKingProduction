@@ -6,150 +6,98 @@ import '../../../controllers/query_getx_controller.dart';
 import '../../../themes/app_theme.dart'; // Import AppColors and AppTheme
 
 class RaiseQueryDialog extends StatefulWidget {
+  // NEW: Add an optional orderId field
+  final String? orderId;
+
   // The onAddQuery callback is no longer needed here as the dialog directly
   // interacts with the QueryGetXController to submit the query.
-  const RaiseQueryDialog({super.key});
+  // UPDATED: Constructor now accepts orderId
+  const RaiseQueryDialog({
+    super.key,
+    this.orderId, // Make orderId optional
+  });
 
   @override
   State<RaiseQueryDialog> createState() => _RaiseQueryDialogState();
 }
 
 class _RaiseQueryDialogState extends State<RaiseQueryDialog> {
-  // Text editing controllers for the title and message input fields.
-  // These controllers are used to read the current text entered by the user.
   final TextEditingController _titleController = TextEditingController();
   final TextEditingController _messageController = TextEditingController();
-
-  // A GlobalKey is used to access the FormState of the Form widget.
-  // This allows us to call methods like validate() on the form.
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
-
-  // Get the instance of your QueryGetXController.
-  // This assumes that the QueryGetXController has been registered
-  // with GetX's dependency injection (e.g., using Get.put() in main.dart or a binding).
   final QueryGetXController queryController = Get.find<QueryGetXController>();
 
   @override
+  void initState() {
+    super.initState();
+    // Pre-fill the title with the order ID if provided, for user convenience.
+    if (widget.orderId != null && widget.orderId!.isNotEmpty) {
+      _titleController.text = 'Query for Order ID: ${widget.orderId}';
+    }
+  }
+
+
+  @override
   void dispose() {
-    // It's crucial to dispose of TextEditingControllers when the widget
-    // is removed from the widget tree to prevent memory leaks.
     _titleController.dispose();
     _messageController.dispose();
     super.dispose();
   }
 
   /// This method is called when the "Submit Query" button is pressed.
-  /// It first validates the form input and then delegates the query submission
-  /// logic to the QueryGetXController.
+  /// It now passes the widget's orderId to the controller.
   Future<void> _submitQuery() async {
-    // Validate the form. If all validators return null, the form is valid.
     if (_formKey.currentState?.validate() ?? false) {
-      // Added a print statement to confirm _submitQuery is being called
       print('RaiseQueryDialog: _submitQuery called. Attempting to raise query...');
 
-      // Call the raiseQuery method from the QueryGetXController.
-      // This method handles the API call, updates the state, and shows snackbars.
       await queryController.raiseQuery(
-        title: _titleController.text.trim(),   // Get trimmed text from title field
-        message: _messageController.text.trim(), // Get trimmed text from message field
+        title: _titleController.text.trim(),
+        message: _messageController.text.trim(),
+        orderId: widget.orderId, // NEW: Pass the orderId from the widget
       );
 
-      // After the query has been submitted (and the controller has provided feedback),
-      // close the dialog using GetX's navigation system.
       Get.back();
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    // Obtain the current TextTheme from the application's theme.
-    // This ensures consistent typography across the app based on your AppTheme.
     final TextTheme textTheme = Theme.of(context).textTheme;
 
     return GestureDetector(
-      // Adding a GestureDetector allows us to dismiss the keyboard
-      // when the user taps outside of any text input fields within the dialog.
       onTap: () {
-        FocusScope.of(context).unfocus(); // Request focus to be removed from any focused widget
+        FocusScope.of(context).unfocus();
       },
       child: AlertDialog(
-        backgroundColor: AppColors.white, // Set dialog background color using AppColors
+        backgroundColor: AppColors.white,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(20), // Apply rounded corners to the dialog
+          borderRadius: BorderRadius.circular(20),
         ),
-        titlePadding: const EdgeInsets.fromLTRB(24, 28, 24, 0), // Custom padding for the title
+        titlePadding: const EdgeInsets.fromLTRB(24, 28, 24, 0),
         title: Text(
           'Raise a Query',
           textAlign: TextAlign.center,
-          // Apply text style using the theme's headlineSmall, with overrides for specific properties.
           style: textTheme.headlineSmall?.copyWith(
-            fontSize: 24, // Explicit font size for the title
-            fontWeight: FontWeight.bold, // Bold font weight
-            color: AppColors.darkPurple, // Specific title color from AppColors
+            fontSize: 24,
+            fontWeight: FontWeight.bold,
+            color: AppColors.darkPurple,
           ),
         ),
-        contentPadding: const EdgeInsets.fromLTRB(24, 20, 24, 0), // Consistent horizontal padding for content
+        contentPadding: const EdgeInsets.fromLTRB(24, 20, 24, 0),
         content: Form(
-          key: _formKey, // Associate the GlobalKey with the Form
-          child: SingleChildScrollView( // Allows content to scroll if it overflows
+          key: _formKey,
+          child: SingleChildScrollView(
             child: Column(
-              mainAxisSize: MainAxisSize.min, // Column takes minimum space needed vertically
+              mainAxisSize: MainAxisSize.min,
               children: [
-                // Text input field for the query title
                 TextFormField(
-                  controller: _titleController, // Link to the title controller
-                  cursorColor: AppColors.primaryPurple, // Custom cursor color
+                  controller: _titleController,
+                  cursorColor: AppColors.primaryPurple,
                   decoration: InputDecoration(
-                    labelText: 'Query Title', // Label for the input field
-                    hintText: 'e.g., Issue with delivery of order #12345', // Hint text
-                    // Styling for label and hint text using theme's styles and AppColors.
+                    labelText: 'Query Title',
+                    hintText: 'e.g., Issue with delivery of order #12345',
                     labelStyle: textTheme.labelLarge?.copyWith(color: AppColors.textLight.withOpacity(0.9), fontSize: 15),
                     hintStyle: textTheme.bodyMedium?.copyWith(color: AppColors.textLight.withOpacity(0.6), fontSize: 15),
-                    // Define various border states for the input field.
-                    border: OutlineInputBorder( // Default border
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide(color: AppColors.lightPurple, width: 1.0),
-                    ),
-                    enabledBorder: OutlineInputBorder( // Border when enabled but not focused
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide(color: AppColors.lightPurple.withOpacity(0.7), width: 1.0),
-                    ),
-                    focusedBorder: OutlineInputBorder( // Border when focused
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide(color: AppColors.primaryPurple, width: 2), // Highlight with primary color
-                    ),
-                    errorBorder: OutlineInputBorder( // Border when an error occurs
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide(color: AppColors.danger, width: 2),
-                    ),
-                    focusedErrorBorder: OutlineInputBorder( // Border when focused with an error
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide(color: AppColors.danger, width: 2),
-                    ),
-                    filled: true, // Fill the background of the input field
-                    fillColor: AppColors.neutralBackground, // Background fill color
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14), // Internal padding
-                  ),
-                  style: textTheme.bodyMedium?.copyWith(color: AppColors.textDark, fontSize: 16), // Input text style
-                  validator: (value) {
-                    // Validator function for input validation.
-                    if (value == null || value.trim().isEmpty) {
-                      return 'Title cannot be empty.'; // Error message if invalid
-                    }
-                    return null; // No error
-                  },
-                ),
-                const SizedBox(height: 20.0), // Spacing between input fields
-                // Text input field for the detailed message
-                TextFormField(
-                  controller: _messageController, // Link to the message controller
-                  cursorColor: AppColors.primaryPurple, // Custom cursor color
-                  decoration: InputDecoration(
-                    labelText: 'Detailed Message',
-                    hintText: 'Please describe your query in detail, including any relevant dates or order numbers.',
-                    labelStyle: textTheme.labelLarge?.copyWith(color: AppColors.textLight.withOpacity(0.9), fontSize: 15),
-                    hintStyle: textTheme.bodyMedium?.copyWith(color: AppColors.textLight.withOpacity(0.6), fontSize: 15),
-                    alignLabelWithHint: true, // Aligns label to top for multiline input
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
                       borderSide: BorderSide(color: AppColors.lightPurple, width: 1.0),
@@ -175,8 +123,50 @@ class _RaiseQueryDialogState extends State<RaiseQueryDialog> {
                     contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                   ),
                   style: textTheme.bodyMedium?.copyWith(color: AppColors.textDark, fontSize: 16),
-                  maxLines: 7, // Allow up to 7 lines of input
-                  minLines: 4, // Ensure a minimum height of 4 lines
+                  validator: (value) {
+                    if (value == null || value.trim().isEmpty) {
+                      return 'Title cannot be empty.';
+                    }
+                    return null;
+                  },
+                ),
+                const SizedBox(height: 20.0),
+                TextFormField(
+                  controller: _messageController,
+                  cursorColor: AppColors.primaryPurple,
+                  decoration: InputDecoration(
+                    labelText: 'Detailed Message',
+                    hintText: 'Please describe your query in detail, including any relevant dates or order numbers.',
+                    labelStyle: textTheme.labelLarge?.copyWith(color: AppColors.textLight.withOpacity(0.9), fontSize: 15),
+                    hintStyle: textTheme.bodyMedium?.copyWith(color: AppColors.textLight.withOpacity(0.6), fontSize: 15),
+                    alignLabelWithHint: true,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(color: AppColors.lightPurple, width: 1.0),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(color: AppColors.lightPurple.withOpacity(0.7), width: 1.0),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(color: AppColors.primaryPurple, width: 2),
+                    ),
+                    errorBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(color: AppColors.danger, width: 2),
+                    ),
+                    focusedErrorBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(color: AppColors.danger, width: 2),
+                    ),
+                    filled: true,
+                    fillColor: AppColors.neutralBackground,
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                  ),
+                  style: textTheme.bodyMedium?.copyWith(color: AppColors.textDark, fontSize: 16),
+                  maxLines: 7,
+                  minLines: 4,
                   validator: (value) {
                     if (value == null || value.trim().isEmpty) {
                       return 'Message cannot be empty.';
@@ -188,56 +178,49 @@ class _RaiseQueryDialogState extends State<RaiseQueryDialog> {
             ),
           ),
         ),
-        actionsPadding: const EdgeInsets.fromLTRB(24, 20, 24, 24), // Padding for action buttons
+        actionsPadding: const EdgeInsets.fromLTRB(24, 20, 24, 24),
         actions: [
-          // Cancel button
           TextButton(
             onPressed: () {
-              Get.back(); // Close the dialog without submitting
+              Get.back();
             },
             style: TextButton.styleFrom(
-              foregroundColor: AppColors.textLight, // Text color for the button
+              foregroundColor: AppColors.textLight,
               textStyle: textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w500, fontSize: 15),
               padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12), // Match input field radius
+                borderRadius: BorderRadius.circular(12),
               ),
             ),
             child: const Text('Cancel'),
           ),
-          // Submit Query button
           ElevatedButton(
-            // onPressed callback.
-            // It checks queryController.isLoading to prevent multiple submissions
-            // while a query is already being processed.
             onPressed: () {
-              if (!queryController.isLoading) { // Access value property for RxBool
-                _submitQuery(); // Call the local method to handle form validation and controller interaction
+              if (!queryController.isLoading) {
+                _submitQuery();
               }
             },
             style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.darkPurple, // Background color of the button
-              foregroundColor: AppColors.white, // Text color of the button
+              backgroundColor: AppColors.darkPurple,
+              foregroundColor: AppColors.white,
               textStyle: textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w600, fontSize: 16),
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12), // Match input field border radius
+                borderRadius: BorderRadius.circular(12),
               ),
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-              elevation: 6, // Add a slight shadow for a lifted effect
+              elevation: 6,
             ),
-            // Obx widget makes the child reactive to changes in queryController.isLoading.
-            // When isLoading is true, a CircularProgressIndicator is shown; otherwise, "Submit Query" text.
             child: Obx(
-                  () => queryController.isLoading // Access value property for RxBool
+                  () => queryController.isLoading
                   ? const SizedBox(
-                height: 20, // Size of the loading indicator
+                height: 20,
                 width: 20,
                 child: CircularProgressIndicator(
-                  color: AppColors.white, // Color of the loading indicator
-                  strokeWidth: 2, // Thickness of the loading indicator line
+                  color: AppColors.white,
+                  strokeWidth: 2,
                 ),
               )
-                  : const Text('Submit Query'), // Default text when not loading
+                  : const Text('Submit Query'),
             ),
           ),
         ],

@@ -82,13 +82,13 @@ class ProfileScreen extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(height: 4),
-                    if (userContact.isNotEmpty)
+                    /*if (userContact.isNotEmpty)
                       Text(
                         userContact,
                         style: textTheme.bodyLarge?.copyWith( // Contact info
                           color: AppColors.textMedium,
                         ),
-                      ),
+                      ),*/
                   ],
                 );
               }),
@@ -157,7 +157,7 @@ class ProfileScreen extends StatelessWidget {
                   );
                 },
               ),
-              ProfileListTile(
+              /*ProfileListTile(
                 icon: Icons.message_outlined, // Keep Query icon consistent
                 title: 'My Queries', // Renamed for consistency
                 onTap: () {
@@ -167,7 +167,7 @@ class ProfileScreen extends StatelessWidget {
                     duration: const Duration(milliseconds: 300),
                   );
                 },
-              ),
+              ),*/
               ProfileListTile(
                 icon: Icons.share_outlined,
                 title: 'Share The App',

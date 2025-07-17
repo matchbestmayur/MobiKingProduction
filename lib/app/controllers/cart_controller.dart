@@ -1,7 +1,10 @@
-import 'package:flutter/material.dart'; // Keep for Colors, IconData
+import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:get_storage/get_storage.dart';
+
 import '../services/cart_service.dart';
+import 'package:mobiking/app/controllers/connectivity_controller.dart'; // Import ConnectivityController
+
 
 class CartController extends GetxController {
 
@@ -9,51 +12,106 @@ class CartController extends GetxController {
   var isLoading = false.obs;
   final box = GetStorage();
 
-  // --- REMOVED: All animation-related fields and methods ---
+  final ConnectivityController _connectivityController = Get.find<ConnectivityController>();
 
 
   @override
   void onInit() {
     super.onInit();
-    loadCartData();
+    // Initial load: This will fetch the latest cart data, ideally from the backend.
+    fetchAndLoadCartData();
+
+    // Listen for connectivity changes to re-fetch cart data when online
+    ever(_connectivityController.isConnected, (bool isConnected) {
+      if (isConnected) {
+        _handleConnectionRestored();
+      }
+    });
   }
 
-  // --- Core Cart Data Loading ---
-  void loadCartData() {
-    print('🛒 CartController: Attempting to load cart data from storage...');
+  // Centralized method to fetch from service/storage and update observable
+  // This is the core logic that makes it "stream-like" by always getting fresh data.
+  Future<void> fetchAndLoadCartData() async {
+    print('🛒 CartController: Attempting to fetch and load cart data...');
+    isLoading.value = true; // Set loading to true while fetching/loading
+
+    try {
+      final String? userId = box.read('user')?['_id'];
+      if (userId == null) {
+        print('🛒 CartController: User ID not found, cannot fetch cart from backend. Loading from local storage fallback.');
+        _loadCartDataFromLocalStorage(); // Fallback if user is not logged in or ID is missing
+        return;
+      }
+
+      // This is where you would call your backend API to get the latest cart
+      final apiResponse = await CartService().fetchCart(cartId: cartData.value['_id']);
+      print('🛒 CartController: Fetched cart from backend: $apiResponse');
+
+      if (apiResponse != null && apiResponse['success'] == true && apiResponse['data']?['cart'] is Map) {
+        final Map<String, dynamic> fetchedCart = Map<String, dynamic>.from(apiResponse['data']['cart']);
+        cartData.value = fetchedCart; // Update observable with fresh data
+        // Also update the user object in GetStorage with the latest cart
+        var userInStorage = box.read('user') as Map<String, dynamic>?;
+        if (userInStorage != null) {
+          userInStorage['cart'] = fetchedCart;
+          await box.write('user', userInStorage);
+        }
+        print('🛒 CartController: Cart data updated from backend: ${cartData.value}');
+      } else {
+        print('🛒 CartController: Backend cart fetch failed or returned invalid data. Loading from local storage fallback.');
+        _loadCartDataFromLocalStorage(); // Fallback if backend response is not as expected
+      }
+    } catch (e) {
+      print('🛒 CartController: Error fetching cart from backend: $e. Loading from local storage fallback.');
+      _loadCartDataFromLocalStorage(); // Fallback if API call itself throws an error
+    } finally {
+      isLoading.value = false; // Always hide loading indicator
+      print('🛒 CartController: Current totalCartItemsCount after _fetchAndLoadCartData: ${totalCartItemsCount}');
+    }
+  }
+
+  // Helper method to load cart data from GetStorage
+  void _loadCartDataFromLocalStorage() {
+    print('🛒 CartController: Loading cart data from local storage (fallback)...');
     try {
       final Map<String, dynamic>? user = box.read('user');
 
       if (user != null && user.containsKey('cart') && user['cart'] is Map) {
         cartData.value = Map<String, dynamic>.from(user['cart']);
-        print('🛒 CartController: Cart data loaded from storage: ${cartData.value}');
+        print('🛒 CartController: Cart data loaded from local storage: ${cartData.value}');
       } else {
         // Initialize an empty cart if no valid data is found
         cartData.value = {
           'items': [],
           'totalCartValue': 0.0,
         };
-        print('🛒 CartController: No valid cart data found in stored user object, initializing to empty structure.');
+        print('🛒 CartController: No valid cart data found in stored user object locally, initializing to empty structure.');
       }
     } catch (e) {
-      print('🛒 CartController: Error loading cart data from storage: $e');
+      print('🛒 CartController: Error loading cart data from local storage: $e');
       // Fallback to empty cart on error
       cartData.value = {
         'items': [],
         'totalCartValue': 0.0,
       };
     }
-    print('🛒 CartController: Current totalCartItemsCount after loadData: ${totalCartItemsCount}'); // Added print for clarity
   }
+
+  // Method to handle actions when internet connection is restored
+  Future<void> _handleConnectionRestored() async {
+    print('🛒 CartController: Internet connection restored. Re-fetching cart data...');
+    // When connection is restored, immediately try to fetch the latest from the backend
+    await fetchAndLoadCartData();
+  }
+
 
   // --- Getters for Cart Data ---
   List<Map<String, dynamic>> get cartItems {
     try {
-      // Ensure 'items' key exists and is a List
       if (cartData.containsKey('items') && cartData['items'] is List) {
         return (cartData['items'] as List).map((item) => Map<String, dynamic>.from(item)).toList();
       }
-      return []; // Return empty list if 'items' is missing or not a List
+      return [];
     } catch (e) {
       print('🛒 CartController: Error getting cartItems: $e');
       return [];
@@ -65,7 +123,7 @@ class CartController extends GetxController {
     for (var item in cartItems) {
       final itemProductId = item['productId']?['_id'];
       if (itemProductId == productId) {
-        final itemVariantName = item['variantName'] as String? ?? 'Default'; // Use 'Default' or handle as needed
+        final itemVariantName = item['variantName'] as String? ?? 'Default';
         final int quantity = item['quantity'] as int? ?? 0;
         if (quantity > 0) {
           productVariantsInCart[itemVariantName] = quantity;
@@ -82,13 +140,13 @@ class CartController extends GetxController {
       final itemVariantName = item['variantName'];
 
       if (itemProductId == productId && itemVariantName == variantName) {
-        final int quantity = item['quantity'] as int? ?? 0; // **Directly reading 'quantity'**
+        final int quantity = item['quantity'] as int? ?? 0;
         print('🛒 CartController: Found quantity for ProductID: $productId, Variant: $variantName -> $quantity');
         return quantity;
       }
     }
     print('🛒 CartController: No item found for ProductID: $productId, Variant: $variantName. Quantity -> 0');
-    return 0; // Return 0 if the item is not found in the cart
+    return 0;
   }
 
   int getTotalQuantityForProduct({required String productId}) {
@@ -96,7 +154,7 @@ class CartController extends GetxController {
     for (var item in cartItems) {
       final itemProductId = item['productId']?['_id'];
       if (itemProductId == productId) {
-        totalQuantity += item['quantity'] as int? ?? 0; // **Summing 'quantity' directly**
+        totalQuantity += item['quantity'] as int? ?? 0;
       }
     }
     print('🛒 CartController: Calculated total quantity for product $productId -> $totalQuantity');
@@ -106,9 +164,9 @@ class CartController extends GetxController {
   int get totalCartItemsCount {
     int totalCount = 0;
     for (var item in cartItems) {
-      totalCount += item['quantity'] as int? ?? 0; // **Summing 'quantity' directly**
+      totalCount += item['quantity'] as int? ?? 0;
     }
-    print('🛒 CartController: Calculating totalCartItemsCount (sum of quantities from backend): $totalCount');
+    print('🛒 CartController: Calculating totalCartItemsCount: $totalCount');
     return totalCount;
   }
 
@@ -117,14 +175,13 @@ class CartController extends GetxController {
     for (var item in cartItems) {
       final itemPrice = (item['price'] as num?)?.toDouble() ?? 0.0;
       final int itemQuantity = item['quantity'] as int? ?? 0;
-      total += itemPrice * itemQuantity; // **Multiplying price by 'quantity'**
+      total += itemPrice * itemQuantity;
     }
-    print('🛒 CartController: Calculating totalCartValue (frontend from backend data): $total');
+    print('🛒 CartController: Calculating totalCartValue: $total');
     return total;
   }
 
   // --- Cart Operations ---
-  // MODIFIED: Removed animation-related parameters from addToCart
   Future<bool> addToCart({
     required String productId,
     required String variantName,
@@ -136,7 +193,7 @@ class CartController extends GetxController {
     }
     print('🛒 CartController: Adding to cart: productId=$productId, variantName=$variantName, cartId=$cartId');
 
-    isLoading.value = true; // Start loading state
+    isLoading.value = true;
     try {
       final response = await CartService().addToCart(
         productId: productId,
@@ -157,7 +214,7 @@ class CartController extends GetxController {
       _showSnackbar('Cart Error', 'Something went wrong while adding to cart. Please try again.', Colors.red, Icons.cloud_off_outlined);
       return false;
     } finally {
-      isLoading.value = false; // End loading state
+      isLoading.value = false;
     }
   }
 
@@ -172,7 +229,7 @@ class CartController extends GetxController {
     }
     print('🛒 CartController: Removing from cart: productId=$productId, variantName=$variantName, cartId=$cartId');
 
-    isLoading.value = true; // Start loading state
+    isLoading.value = true;
     try {
       final response = await CartService().removeFromCart(
         productId: productId,
@@ -190,7 +247,7 @@ class CartController extends GetxController {
       print("🛒 CartController: Remove from cart error: $e");
       _showSnackbar('Cart Error', 'Something went wrong while removing from cart. Please try again.', Colors.red, Icons.cloud_off_outlined);
     } finally {
-      isLoading.value = false; // End loading state
+      isLoading.value = false;
     }
   }
 
@@ -211,12 +268,10 @@ class CartController extends GetxController {
         cartData.value = Map<String, dynamic>.from(updatedCart);
         print('🛒 CartController: Updated cartData.value observable with latest cart: ${cartData.value}');
       } else {
-        // Fallback: If 'cart' is missing or invalid in the updated user, reset local cart.
         _resetLocalCartData();
         print('🛒 CartController: Warning: Updated user object from API did not contain a valid "cart". Local cartData reset.');
       }
     } else {
-      // Fallback: If 'user' itself is missing or invalid, reset local cart.
       _resetLocalCartData();
       print('🛒 CartController: Warning: No updated user data (apiResponse[\'data\'][\'user\']) in cart response. Local cartData reset.');
     }
@@ -233,19 +288,16 @@ class CartController extends GetxController {
   void clearCartData() async {
     print('🛒 CartController: Clearing cart data...');
 
-    // Update the stored user object with an empty cart
     var userInStorage = box.read('user');
     if (userInStorage != null && userInStorage is Map) {
-      userInStorage['cart'] = {'items': [], 'totalCartValue': 0.0}; // Explicitly set 'cart' to an empty structure
+      userInStorage['cart'] = {'items': [], 'totalCartValue': 0.0};
       await box.write('user', userInStorage);
       print('🛒 CartController: Stored user object in GetStorage updated with cleared cart.');
     } else {
-      // If no user object, just ensure a minimal cart structure is set in storage
       await box.write('user', {'cart': {'items': [], 'totalCartValue': 0.0}});
       print('🛒 CartController: No existing user/cart in storage, set to empty cart in storage.');
     }
 
-    // Reset the local reactive cartData
     _resetLocalCartData();
     print('🛒 CartController: Local cartData observable cleared.');
 

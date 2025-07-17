@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-// No need for google_fonts anymore
+import 'package:google_fonts/google_fonts.dart'; // Import google_fonts
 
 class AppColors {
   static const Color primaryPurple = Color(0xFF5F13C5);
@@ -16,12 +16,16 @@ class AppColors {
   static const Color lightGreen = Color(0xFFE6FFF9); // A lighter shade of green for backgrounds/chips
   static const Color discountGreen = Color(0xFFE0F7FA); // A very light, almost white green for discount badges
 
-  static const Color success = Color(0xFF00C48C);
+  static const Color success = Color(0xFF328616);
   static const Color danger = Color(0xFFFF4C61);
   static const Color gradientStart = Color(0xFF5F13C5);
   static const Color gradientEnd = Color(0xFFFF4C61);
 
   static const Color white = Colors.white;
+
+  // Add the new Blinkit Green color
+  static const Color blinkitGreen = Color(0xFF328616); // This is the new color
+
 
   // Add a gold-like color for ratings, as seen in Blinkit
   static const Color ratingGold = Color(0xFFFFC107); // A standard amber/gold often used for stars
@@ -31,124 +35,108 @@ class AppColors {
   static const Color accentOrange = Color(0xFFFF8C00); // A vibrant orange for highlights/discounts (based on the previous screenshot)
   static const Color info = Color(0xFF2196F3); // A standard blue for informational messages
 }
+
 class AppTheme {
   static ThemeData get lightTheme {
     return ThemeData(
       scaffoldBackgroundColor: AppColors.neutralBackground,
       primaryColor: AppColors.primaryPurple,
-      fontFamily: 'Gilroy', // Must match the family name in pubspec.yaml
+      // Removed top-level fontFamily as each TextStyle will specify it
 
-      appBarTheme: const AppBarTheme(
+      appBarTheme: AppBarTheme(
         backgroundColor: AppColors.primaryPurple,
         foregroundColor: AppColors.white,
         elevation: 0,
         centerTitle: true,
-        titleTextStyle: TextStyle( // AppBar title
-          fontFamily: 'Gilroy',
+        titleTextStyle: GoogleFonts.inter( // Using Inter
           fontSize: 20,
-          fontWeight: FontWeight.w800, // Use ExtraBold for app bar title
+          fontWeight: FontWeight.w800, // ExtraBold
           color: AppColors.white,
         ),
       ),
-      textTheme: const TextTheme(
+      textTheme: TextTheme(
         // DISPLAY TEXT: Use ExtraBold for highest impact titles
-        displayLarge: TextStyle(
-          fontFamily: 'Gilroy',
+        displayLarge: GoogleFonts.inter(
           fontSize: 32,
           fontWeight: FontWeight.w800, // ExtraBold
           color: AppColors.textDark,
         ),
-        displayMedium: TextStyle(
-          fontFamily: 'Gilroy',
+        displayMedium: GoogleFonts.inter(
           fontSize: 28,
           fontWeight: FontWeight.w800, // ExtraBold
           color: AppColors.textDark,
         ),
-        displaySmall: TextStyle(
-          fontFamily: 'Gilroy',
+        displaySmall: GoogleFonts.inter(
           fontSize: 24,
           fontWeight: FontWeight.w800, // ExtraBold
           color: AppColors.textDark,
         ),
 
         // HEADLINE TEXT: Still quite prominent, use ExtraBold
-        headlineLarge: TextStyle(
-          fontFamily: 'Gilroy',
+        headlineLarge: GoogleFonts.inter(
           fontSize: 22,
           fontWeight: FontWeight.w800, // ExtraBold
           color: AppColors.textDark,
         ),
-        headlineMedium: TextStyle(
-          fontFamily: 'Gilroy',
+        headlineMedium: GoogleFonts.inter(
           fontSize: 18,
           fontWeight: FontWeight.w800, // ExtraBold
           color: AppColors.textDark,
         ),
-        headlineSmall: TextStyle(
-          fontFamily: 'Gilroy',
+        headlineSmall: GoogleFonts.inter(
           fontSize: 16,
           fontWeight: FontWeight.w800, // ExtraBold
           color: AppColors.textDark,
         ),
 
         // TITLE TEXT: For item names, product titles. Can be ExtraBold for emphasis or Light for softer look
-        // I'm choosing ExtraBold here to maintain some hierarchy.
-        titleLarge: TextStyle(
-          fontFamily: 'Gilroy',
+        titleLarge: GoogleFonts.inter(
           fontSize: 18,
           fontWeight: FontWeight.w800, // ExtraBold
           color: AppColors.textDark,
         ),
-        titleMedium: TextStyle(
-          fontFamily: 'Gilroy',
+        titleMedium: GoogleFonts.inter(
           fontSize: 16,
           fontWeight: FontWeight.w800, // ExtraBold
           color: AppColors.textDark,
         ),
-        titleSmall: TextStyle(
-          fontFamily: 'Gilroy',
+        titleSmall: GoogleFonts.inter(
           fontSize: 14,
           fontWeight: FontWeight.w800, // ExtraBold
           color: AppColors.textDark,
         ),
 
-        // BODY TEXT: This is where we consistently use Gilroy Light for readability.
-        bodyLarge: TextStyle(
-          fontFamily: 'Gilroy',
+        // BODY TEXT: Consistently use Inter Light for readability.
+        bodyLarge: GoogleFonts.inter(
           fontSize: 15,
           fontWeight: FontWeight.w300, // Light
           color: AppColors.textMedium,
           height: 1.5,
         ),
-        bodyMedium: TextStyle(
-          fontFamily: 'Gilroy',
+        bodyMedium: GoogleFonts.inter(
           fontSize: 13,
           fontWeight: FontWeight.w300, // Light
           color: AppColors.textLight,
           height: 1.4,
         ),
-        bodySmall: TextStyle(
-          fontFamily: 'Gilroy',
+        bodySmall: GoogleFonts.inter(
           fontSize: 11,
           fontWeight: FontWeight.w300, // Light
           color: AppColors.textLight,
         ),
 
         // LABEL TEXT: Buttons, tags, input labels. Buttons are usually prominent, so ExtraBold.
-        labelLarge: TextStyle( // Buttons
-          fontFamily: 'Gilroy',
+        labelLarge: GoogleFonts.inter( // Buttons
           fontSize: 16,
           fontWeight: FontWeight.w800, // ExtraBold
           color: AppColors.white,
         ),
-        labelMedium: TextStyle( // Input field labels, chips, filters
-          fontFamily: 'Gilroy',
+        labelMedium: GoogleFonts.inter( // Input field labels, chips, filters
           fontSize: 14,
           fontWeight: FontWeight.w300, // Light
           color: AppColors.textMedium,
         ),
-        labelSmall: TextStyle( // Very small labels, badges, timestamps
-          fontFamily: 'Gilroy',
+        labelSmall: GoogleFonts.inter( // Very small labels, badges, timestamps
           fontSize: 10,
           fontWeight: FontWeight.w300, // Light
           color: AppColors.textLight,
@@ -162,8 +150,7 @@ class AppTheme {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
           ),
-          textStyle: const TextStyle(
-            fontFamily: 'Gilroy',
+          textStyle: GoogleFonts.inter( // Using Inter for buttons
             fontWeight: FontWeight.w800, // ExtraBold for buttons
             fontSize: 16,
           ),
@@ -181,13 +168,11 @@ class AppTheme {
           borderRadius: BorderRadius.circular(12),
           borderSide: const BorderSide(color: AppColors.primaryPurple),
         ),
-        hintStyle: const TextStyle(
-          fontFamily: 'Gilroy',
+        hintStyle: GoogleFonts.inter( // Using Inter for hints
           color: AppColors.textLight,
           fontWeight: FontWeight.w300, // Light for hints
         ),
-        labelStyle: const TextStyle(
-          fontFamily: 'Gilroy',
+        labelStyle: GoogleFonts.inter( // Using Inter for input labels
           color: AppColors.textMedium,
           fontWeight: FontWeight.w300, // Light for input labels
         ),
@@ -199,22 +184,20 @@ class AppTheme {
         background: AppColors.neutralBackground,
       ),
 
-      // --- ADDITIONS START HERE ---
-
       checkboxTheme: CheckboxThemeData(
         fillColor: MaterialStateProperty.resolveWith((states) {
           if (states.contains(MaterialState.selected)) {
-            return AppColors.primaryPurple; // Checked state
+            return AppColors.primaryPurple;
           }
-          return AppColors.textLight; // Unchecked state (border color)
+          return AppColors.textLight;
         }),
-        checkColor: MaterialStateProperty.all(AppColors.white), // Color of the check mark
-        splashRadius: 16, // Smaller splash radius for a cleaner look
+        checkColor: MaterialStateProperty.all(AppColors.white),
+        splashRadius: 16,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(4), // Slightly rounded square
+          borderRadius: BorderRadius.circular(4),
         ),
         side: BorderSide(
-          color: AppColors.textLight, // Border color for unchecked
+          color: AppColors.textLight,
           width: 2,
         ),
       ),
@@ -222,9 +205,9 @@ class AppTheme {
       radioTheme: RadioThemeData(
         fillColor: MaterialStateProperty.resolveWith((states) {
           if (states.contains(MaterialState.selected)) {
-            return AppColors.primaryPurple; // Selected state
+            return AppColors.primaryPurple;
           }
-          return AppColors.textLight; // Unselected state
+          return AppColors.textLight;
         }),
         splashRadius: 16,
       ),
@@ -232,15 +215,15 @@ class AppTheme {
       switchTheme: SwitchThemeData(
         thumbColor: MaterialStateProperty.resolveWith((states) {
           if (states.contains(MaterialState.selected)) {
-            return AppColors.white; // Thumb color when ON
+            return AppColors.white;
           }
-          return AppColors.white; // Thumb color when OFF
+          return AppColors.white;
         }),
         trackColor: MaterialStateProperty.resolveWith((states) {
           if (states.contains(MaterialState.selected)) {
-            return AppColors.primaryPurple.withOpacity(0.8); // Track color when ON
+            return AppColors.primaryPurple.withOpacity(0.8);
           }
-          return AppColors.textLight.withOpacity(0.5); // Track color when OFF
+          return AppColors.textLight.withOpacity(0.5);
         }),
         splashRadius: 16,
       ),
@@ -249,21 +232,17 @@ class AppTheme {
         activeTrackColor: AppColors.primaryPurple,
         inactiveTrackColor: AppColors.lightPurple.withOpacity(0.5),
         thumbColor: AppColors.primaryPurple,
-        overlayColor: AppColors.primaryPurple.withOpacity(0.2), // Light overlay on tap
-        valueIndicatorColor: AppColors.primaryPurple, // Color of the pop-up value indicator
-        valueIndicatorTextStyle: const TextStyle(
-          fontFamily: 'Gilroy', // Use Gilroy for the value indicator
+        overlayColor: AppColors.primaryPurple.withOpacity(0.2),
+        valueIndicatorColor: AppColors.primaryPurple,
+        valueIndicatorTextStyle: GoogleFonts.inter( // Using Inter for slider value
           color: AppColors.white,
           fontWeight: FontWeight.w800, // ExtraBold for clear value
           fontSize: 14,
         ),
-        // Customizing track and thumb shapes for a cleaner look
-        trackHeight: 4.0, // Thinner track
-        thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 10.0), // Standard round thumb
-        overlayShape: const RoundSliderOverlayShape(overlayRadius: 24.0), // Larger overlay for touch
+        trackHeight: 4.0,
+        thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 10.0),
+        overlayShape: const RoundSliderOverlayShape(overlayRadius: 24.0),
       ),
-
-      // --- ADDITIONS END HERE ---
     );
   }
 }

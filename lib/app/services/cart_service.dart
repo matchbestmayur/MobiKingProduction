@@ -4,7 +4,7 @@ import 'package:get_storage/get_storage.dart';
 import 'package:get/get.dart'; // Import GetX for potential error handling/navigation
 
 class CartService {
-  final String baseUrl = 'https://mobiking-e-commerce-backend.vercel.app/api/v1';
+  final String baseUrl = 'https://mobiking-e-commerce-backend-prod.vercel.app/api/v1';
   final box = GetStorage();
 
   // Helper to get common headers

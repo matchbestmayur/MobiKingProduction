@@ -1,11 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:google_fonts/google_fonts.dart'; // Keep if AppTheme still relies on it
-import 'package:mobiking/app/modules/home/widgets/ProductCard.dart'; // Corrected import
+import 'package:google_fonts/google_fonts.dart';
+import 'package:mobiking/app/modules/home/widgets/ProductCard.dart';
 import '../../../data/group_model.dart';
-import '../../../themes/app_theme.dart'; // Ensure this path is correct
+import '../../../themes/app_theme.dart';
 import '../../Product_page/product_page.dart';
-// import '_ProductCart.dart'; // This import seems to be for a different widget, removed if not directly used here
 
 class GroupProductsScreen extends StatelessWidget {
   final GroupModel group;
@@ -14,69 +13,81 @@ class GroupProductsScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+
     return Scaffold(
-      backgroundColor: AppColors.neutralBackground, // Light background for the screen
+      backgroundColor: AppColors.neutralBackground,
       appBar: AppBar(
-        backgroundColor: AppColors.white, // Blinkit often has a white app bar
-        foregroundColor: AppColors.textDark, // Dark text for app bar title
-        elevation: 1, // Subtle shadow for AppBar
+        backgroundColor: AppColors.white,
+        foregroundColor: AppColors.textDark,
+        elevation: 1,
         centerTitle: true,
         title: Text(
           group.name,
-          style: GoogleFonts.poppins( // Using Poppins as per your current setup
+          style: GoogleFonts.poppins(
             fontSize: 20,
-            fontWeight: FontWeight.w600, // Slightly less bold than w700
-            color: AppColors.textDark, // Consistent dark text color
+            fontWeight: FontWeight.w600,
+            color: AppColors.textDark,
           ),
         ),
-        iconTheme: const IconThemeData(color: AppColors.textDark), // Dark back button
+        iconTheme: const IconThemeData(color: AppColors.textDark),
       ),
-      body: group.products.isEmpty
-          ? Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.shopping_bag_outlined, size: 80, color: AppColors.textLight.withOpacity(0.6)),
-            const SizedBox(height: 16),
-            Text(
-              'No products available for "${group.name}".',
-              textAlign: TextAlign.center,
-              style: GoogleFonts.poppins(
-                fontSize: 18,
-                color: AppColors.textLight,
-                fontWeight: FontWeight.w500,
+      body: SafeArea(
+        child: group.products.isEmpty
+            ? Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.shopping_bag_outlined, size: 80, color: AppColors.textLight.withOpacity(0.6)),
+              const SizedBox(height: 16),
+              Text(
+                'No products available for "${group.name}".',
+                textAlign: TextAlign.center,
+                style: GoogleFonts.poppins(
+                  fontSize: 18,
+                  color: AppColors.textLight,
+                  fontWeight: FontWeight.w500,
+                ),
               ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Please check back later!',
-              style: GoogleFonts.poppins(
-                fontSize: 14,
-                color: AppColors.textLight.withOpacity(0.7),
+              const SizedBox(height: 8),
+              Text(
+                'Please check back later!',
+                style: GoogleFonts.poppins(
+                  fontSize: 14,
+                  color: AppColors.textLight.withOpacity(0.7),
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
+        )
+            : GridView.builder(
+          physics: const BouncingScrollPhysics(),
+          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 2,
+            childAspectRatio: 0.85,  // Lower ratio = taller cards; tweak this
+          ),
+          itemCount: group.products.length,
+          itemBuilder: (context, index) {
+            final product = group.products[index];
+            final String productHeroTag = 'product_image_group_${group.id}_${product.id}_$index';
+
+            return ProductCards(
+              product: product,
+              heroTag: productHeroTag,
+              onTap: (tappedProduct) {
+                Get.to(
+                      () => ProductPage(
+                    product: tappedProduct,
+                    heroTag: productHeroTag,
+                  ),
+                  transition: Transition.fadeIn,
+                  duration: const Duration(milliseconds: 300),
+                );
+                debugPrint('Navigating to product page for: ${tappedProduct.name}');
+              },
+            );
+          },
         ),
-      )
-          : GridView.builder(
-        padding: const EdgeInsets.all(12.0), // Slightly adjusted padding
-        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: 2,
-          crossAxisSpacing: 12.0, // Increased spacing between columns
-          mainAxisSpacing: 16.0, // Increased spacing between rows
-          childAspectRatio: 0.61, // Adjusted aspect ratio to better fit content like Blinkit
-        ),
-        itemCount: group.products.length,
-        itemBuilder: (context, index) {
-          final product = group.products[index];
-          return ProductCards(
-            product: product,
-            onTap: (tappedProduct) {
-              Get.to(() => ProductPage(product: tappedProduct));
-              debugPrint('Navigating to product page for: ${tappedProduct.name}');
-            },
-          );
-        },
       ),
     );
   }

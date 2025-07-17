@@ -1,22 +1,30 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:intl/intl.dart'; // Import for date formatting
+import 'package:mobiking/app/modules/profile/query/Raise_query.dart'; // Ensure this is the correct path for RaiseQueryDialog
+import 'package:flutter_svg/flutter_svg.dart'; // Import flutter_svg
+
+import 'package:mobiking/app/modules/profile/query/query_screen.dart';
 
 import '../../controllers/order_controller.dart'; // Adjust path if necessary
+import '../../controllers/query_getx_controller.dart'; // Import QueryGetXController
 import '../../data/order_model.dart'; // Ensure OrderModel and OrderItemModel are correctly defined here
 
 import '../../themes/app_theme.dart'; // Your custom AppColors and AppTheme
 import '../home/home_screen.dart'; // To navigate back to home - Adjust path if necessary
+import '../profile/query/Query_Detail_Screen.dart';
 import 'shipping_details_screen.dart'; // IMPORT THE NEW SCREEN HERE - Adjust path if necessary
+// import '../profile/query/query_screen.dart'; // REMOVED: No longer navigating to a separate QueriesScreen
 
 class OrderHistoryScreen extends StatelessWidget {
   OrderHistoryScreen({super.key});
 
+  // Get the QueryGetXController instance (still needed to check existing queries if stored there)
+  final QueryGetXController queryController = Get.find<QueryGetXController>();
+
   @override
   Widget build(BuildContext context) {
     final TextTheme textTheme = Theme.of(context).textTheme;
-    // Ensure the OrderController is initialized and available
-    // Get.put(OrderController()); // You might put it in an init binding or main.dart
 
     return Scaffold(
       backgroundColor: AppColors.neutralBackground,
@@ -32,6 +40,10 @@ class OrderHistoryScreen extends StatelessWidget {
         elevation: 0.5,
         centerTitle: false,
         iconTheme: const IconThemeData(color: AppColors.textDark),
+        // REMOVED: The entire Stack and IconButton for global queries
+        actions: const [
+          SizedBox(width: 8), // Keep a small space if desired, or remove actions entirely if no other actions
+        ],
       ),
       body: GetX<OrderController>(
         builder: (controller) {
@@ -72,7 +84,7 @@ class OrderHistoryScreen extends StatelessWidget {
                     const SizedBox(height: 24),
                     ElevatedButton.icon(
                       onPressed: controller.fetchOrderHistory,
-                      icon: const Icon(Icons.refresh, size: 20, color: AppColors.white),
+                      icon: const Icon(Icons.refresh_rounded, color: AppColors.white),
                       label: Text(
                         'Try Again',
                         style: textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w600, color: AppColors.white),
@@ -140,8 +152,8 @@ class OrderHistoryScreen extends StatelessWidget {
                 itemCount: controller.orderHistory.length,
                 itemBuilder: (context, index) {
                   final order = controller.orderHistory[index];
-                  // Render each order using the _OrderCard widget
-                  return _OrderCard(order: order, controller: controller);
+                  // Pass the queryController to the _OrderCard
+                  return _OrderCard(order: order, controller: controller, queryController: queryController);
                 },
               ),
             );
@@ -152,12 +164,27 @@ class OrderHistoryScreen extends StatelessWidget {
   }
 }
 
-// --- Extracted Order Card Widget ---
 class _OrderCard extends StatelessWidget {
   final OrderModel order;
   final OrderController controller;
+  final QueryGetXController queryController; // Accept QueryGetXController
 
-  const _OrderCard({required this.order, required this.controller});
+  const _OrderCard({
+    required this.order,
+    required this.controller,
+    required this.queryController,
+  });
+
+  // Define the query raise limit in days as 3 days from delivered date
+  static const int _QUERY_RAISE_DAYS_LIMIT_AFTER_DELIVERY = 3;
+
+  // Helper to check if a query already exists for this order
+  bool _hasExistingQuery(String? orderId) {
+    if (orderId == null) return false;
+    final bool exists = queryController.myQueries.any((query) => query.orderId == orderId);
+    print('DEBUG: _hasExistingQuery for Order ID ${orderId}: $exists');
+    return exists;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -165,28 +192,27 @@ class _OrderCard extends StatelessWidget {
 
     Color statusBadgeColor;
     Color statusTextColor;
-    String orderMainStatusText = order.status.capitalizeFirst ?? 'Unknown'; // Use order.status for main status
+    String orderMainStatusText = order.status.capitalizeFirst ?? 'Unknown';
 
-    // Enhanced status color logic for main order status
     switch (order.status.toLowerCase()) {
       case 'new':
       case 'accepted':
-        statusBadgeColor = AppColors.danger.withOpacity(0.15); // Unfulfilled, but accepted
+        statusBadgeColor = AppColors.danger.withOpacity(0.15);
         statusTextColor = AppColors.danger;
         break;
       case 'shipped':
       case 'delivered':
-        statusBadgeColor = AppColors.success.withOpacity(0.15); // Shipped/Delivered are positive
+        statusBadgeColor = AppColors.success.withOpacity(0.15);
         statusTextColor = AppColors.success;
         break;
       case 'cancelled':
       case 'rejected':
       case 'returned':
-        statusBadgeColor = AppColors.textLight.withOpacity(0.1); // Terminal non-success states
+        statusBadgeColor = AppColors.textLight.withOpacity(0.1);
         statusTextColor = AppColors.textLight;
         break;
       case 'hold':
-        statusBadgeColor = AppColors.accentOrange.withOpacity(0.15); // On hold
+        statusBadgeColor = AppColors.accentOrange.withOpacity(0.15);
         statusTextColor = AppColors.accentOrange;
         break;
       default:
@@ -198,6 +224,21 @@ class _OrderCard extends StatelessWidget {
     if (order.createdAt != null) {
       orderDate = DateFormat('dd MMM, hh:mm a').format(order.createdAt!.toLocal());
     }
+
+    // --- MODIFIED LOGIC FOR canRaiseQuery ---
+    bool canRaiseQuery = false;
+    print('DEBUG: Order ID: ${order.id}, Status: ${order.status}');
+
+    // Simple condition: only check if status is 'delivered' and order.id is not null
+    if (order.status.toLowerCase() == 'delivered' && order.id != null) {
+      canRaiseQuery = true;
+      print('DEBUG: Status is "Delivered" and Order ID exists. canRaiseQuery set to TRUE.');
+    } else {
+      print('DEBUG: Status is not "Delivered" or Order ID is null. canRaiseQuery remains FALSE.');
+    }
+    print('DEBUG: Final canRaiseQuery value: $canRaiseQuery');
+    // --- END MODIFIED LOGIC ---
+
 
     return Container(
       margin: const EdgeInsets.only(bottom: 16.0),
@@ -223,7 +264,7 @@ class _OrderCard extends StatelessWidget {
               children: [
                 Flexible(
                   child: Text(
-                    'Order ID: #${order.orderId}', // Using order.orderId from OrderModel
+                    'Order ID: #${order.orderId}',
                     style: textTheme.titleMedium?.copyWith(
                       fontWeight: FontWeight.w700,
                       color: AppColors.textDark,
@@ -263,7 +304,6 @@ class _OrderCard extends StatelessWidget {
               itemCount: order.items.length,
               itemBuilder: (context, itemIndex) {
                 final item = order.items[itemIndex];
-                // Accessing product details from the nested object in OrderItemModel
                 final String? imageUrl = item.productDetails?.images?.isNotEmpty == true ? item.productDetails!.images!.first : null;
                 final String productName = item.productDetails?.fullName ?? 'N/A';
                 final String variantText = (item.variantName != null && item.variantName.isNotEmpty && item.variantName != 'Default')
@@ -352,11 +392,10 @@ class _OrderCard extends StatelessWidget {
             /// Order Summary
             _OrderCard.buildSummaryRow(context, 'Subtotal', '₹${order.subtotal?.toStringAsFixed(0) ?? '0'}'),
             _OrderCard.buildSummaryRow(context, 'Delivery Charge', '₹${order.deliveryCharge.toStringAsFixed(0)}'),
-            // Assuming GST is a string from backend, you might need to parse it if it's a number
             _OrderCard.buildSummaryRow(context, 'GST', '₹${order.gst ?? '0'}'),
             const SizedBox(height: 12),
 
-            // Total Amount row - visually distinct
+            // Total Amount row
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 4.0),
               child: Row(
@@ -381,7 +420,7 @@ class _OrderCard extends StatelessWidget {
             ),
             const SizedBox(height: 16),
 
-            // --- Shipping Details Section ---
+            // Shipping Details Section
             Text(
               'Shipping & Delivery Details',
               style: textTheme.titleMedium?.copyWith(
@@ -399,13 +438,13 @@ class _OrderCard extends StatelessWidget {
               _OrderCard.buildDetailRow(
                 context,
                 'Expected Delivery',
-                DateFormat('dd MMM yyyy').format(DateTime.tryParse(order.expectedDeliveryDate!) ?? DateTime.now()),
+                DateFormat('dd MMM, hh:mm a').format(DateTime.tryParse(order.expectedDeliveryDate!) ?? DateTime.now()),
               ),
             if (order.deliveredAt != null && order.deliveredAt!.isNotEmpty)
               _OrderCard.buildDetailRow(
                 context,
                 'Delivered On',
-                DateFormat('dd MMM yyyy, hh:mm a').format(DateTime.tryParse(order.deliveredAt!) ?? DateTime.now()),
+                DateFormat('dd MMM, hh:mm a').format(DateTime.tryParse(order.deliveredAt!) ?? DateTime.now()),
               ),
             _OrderCard.buildDetailRow(context, 'Payment Method', order.method.capitalizeFirst ?? 'N/A'),
             if (order.razorpayPaymentId != null && order.razorpayPaymentId!.isNotEmpty)
@@ -417,55 +456,59 @@ class _OrderCard extends StatelessWidget {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Expanded(
-                  child: ElevatedButton.icon(
+                // Minimal "Track Shipment" button
+                if (order.status == "Accepted")
+                  OutlinedButton(
                     onPressed: () {
-                      // Pass the order details to the ShippingDetailsScreen if needed
-                      Get.to(() => const ShippingDetailsScreen(), arguments: order);
+                      Get.to(() => ShippingDetailsScreen(order: order));
                     },
-                    icon: const Icon(Icons.local_shipping_outlined, size: 20, color: AppColors.info),
-                    label: Text(
+                    style: OutlinedButton.styleFrom(
+                      side: BorderSide(color: AppColors.info),
+                      foregroundColor: AppColors.info,
+                      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 18),
+                      minimumSize: Size.zero,
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      visualDensity: VisualDensity.compact,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                    ),
+                    child: Text(
                       'Track Shipment',
-                      style: textTheme.labelLarge?.copyWith(
+                      style: textTheme.labelSmall?.copyWith(
                         fontWeight: FontWeight.w600,
                         color: AppColors.info,
                       ),
                     ),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.info.withOpacity(0.15),
-                      foregroundColor: AppColors.info,
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                      elevation: 0,
-                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
+
+                if (order.status == "Accepted") const SizedBox(width: 12),
+
+                // Minimal "Paid via" tag
+                if (order.status == "Accepted")
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: AppColors.neutralBackground,
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Text(
+                      'Paid via ${order.method.capitalizeFirst ?? 'N/A'}',
+                      style: textTheme.labelSmall?.copyWith(
+                        fontWeight: FontWeight.w500,
+                        color: AppColors.textMedium,
+                      ),
                     ),
                   ),
-                ),
-                const SizedBox(width: 16),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                  decoration: BoxDecoration(
-                    color: AppColors.neutralBackground,
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Text(
-                    'Paid via ${order.method.capitalizeFirst ?? 'N/A'}',
-                    style: textTheme.bodySmall?.copyWith(
-                      fontWeight: FontWeight.w600,
-                      color: AppColors.textMedium,
-                    ),
-                  ),
-                ),
               ],
             ),
             const SizedBox(height: 16),
 
-            // --- Action Buttons for Cancel, Warranty, Return ---
+            // --- Action Buttons for Query, Cancel, Warranty, Return ---
             if (order.id != null)
               Builder(
                   builder: (innerContext) {
                     bool showAnyActionButton = controller.showCancelButton(order) ||
-                        controller.showWarrantyButton(order) ||
                         controller.showReturnButton(order);
 
                     // Check for any active requests that are not rejected/resolved
@@ -474,15 +517,29 @@ class _OrderCard extends StatelessWidget {
                       return status != 'rejected' && status != 'resolved';
                     }).toList() ?? [];
 
-                    if (!showAnyActionButton && activeRequests.isEmpty) {
-                      return const SizedBox.shrink(); // Hide the whole section if no active buttons and no active requests
+                    // Determine if "View Query" button should be visible (if any query, even resolved/rejected, existed)
+                    // This is for displaying "View Query" if *any* query has been made for this order.
+                    bool hasActiveOrResolvedQuery = order.requests?.any((req) => req.type.toLowerCase() == 'query' && (req.status.toLowerCase() != 'rejected' && req.status.toLowerCase() != 'cancelled')) ?? false;
+
+
+                    // Check for any active requests that are queries and not rejected/resolved
+                    final activeQueries = order.requests?.where((req) {
+                      final String type = req.type.toLowerCase();
+                      final String status = req.status.toLowerCase();
+                      return type == 'query' && status != 'rejected' && status != 'resolved' && status != 'cancelled';
+                    }).toList() ?? [];
+
+
+                    if (!showAnyActionButton && activeRequests.isEmpty && !canRaiseQuery && !hasActiveOrResolvedQuery) {
+                      print('DEBUG: No action buttons or query options to display. Hiding section.'); // LOG
+                      return const SizedBox.shrink(); // Hide the whole section if no active buttons, requests, or query options
                     }
 
                     return Column(
                       crossAxisAlignment: CrossAxisAlignment.start, // Align text to start
                       children: [
                         const Divider(height: 24, thickness: 1, color: AppColors.neutralBackground),
-                        // Display active requests
+                        // Display active requests (other than queries, as queries will have a specific button)
                         if (activeRequests.isNotEmpty) ...[
                           Text(
                             'Active Requests:',
@@ -509,38 +566,106 @@ class _OrderCard extends StatelessWidget {
                           const SizedBox(height: 12), // Spacing before action buttons if requests are present
                         ],
 
-                        if (showAnyActionButton) ...[
-                          if (activeRequests.isNotEmpty) // Add a divider if both requests and buttons are present
-                            const Divider(height: 24, thickness: 1, color: AppColors.neutralBackground),
+                        // Add a divider if active requests are shown AND there will be action buttons below
+                        if (activeRequests.isNotEmpty && (showAnyActionButton || canRaiseQuery || hasActiveOrResolvedQuery))
+                          const Divider(height: 24, thickness: 1, color: AppColors.neutralBackground),
 
-                          if (controller.showCancelButton(order))
-                            _OrderCard.buildActionButton(
-                              innerContext,
-                              label: 'Cancel Order',
-                              icon: Icons.cancel_outlined,
-                              color: AppColors.danger,
-                              onPressed: () => controller.sendOrderRequest(order.id, 'Cancel'),
-                              isLoadingObservable: controller.isLoading, // Assuming controller.isLoading for general processing
-                            ),
-                          if (controller.showWarrantyButton(order))
-                            _OrderCard.buildActionButton(
-                              innerContext,
-                              label: 'Request Warranty',
-                              icon: Icons.verified_user_outlined,
-                              color: AppColors.primaryPurple,
-                              onPressed: () => controller.sendOrderRequest(order.id, 'Warranty'),
-                              isLoadingObservable: controller.isLoading,
-                            ),
-                          if (controller.showReturnButton(order))
-                            _OrderCard.buildActionButton(
-                              innerContext,
-                              label: 'Request Return',
-                              icon: Icons.keyboard_return_outlined,
-                              color: AppColors.info,
-                              onPressed: () => controller.sendOrderRequest(order.id, 'Return'),
-                              isLoadingObservable: controller.isLoading,
-                            ),
-                        ]
+                        // NEW: Conditionally display "Raise Query" or "View Query" button
+                        if (order.id != null) // Ensure order ID exists for query logic
+                          Obx(() { // Wrap with Obx to react to queryController.myQueries changes
+                            final bool hasQueryForThisOrder = queryController.myQueries.any((query) => query.orderId == order.id);
+                            print('DEBUG: Inside Obx for Query Button. hasQueryForThisOrder: $hasQueryForThisOrder, canRaiseQuery: $canRaiseQuery'); // LOG
+                            print('DEBUG: queryController.myQueries: ${queryController.myQueries.map((q) => q.orderId).toList()}'); // LOG all order IDs in myQueries
+
+                            if (hasQueryForThisOrder) {
+                              return Padding(
+                                padding: const EdgeInsets.symmetric(vertical: 6.0),
+                                child: SizedBox(
+                                  width: double.infinity,
+                                  child: ElevatedButton.icon(
+                                    onPressed: () {
+                                      Get.to(() => QueryDetailScreen(orderId: order.id));
+                                      Get.snackbar(
+                                        'Query Already Raised',
+                                        'A query has already been raised for this order. You can view it in your query history.',
+                                        snackPosition: SnackPosition.BOTTOM,
+                                        backgroundColor: AppColors.info.withOpacity(0.9),
+                                        colorText: AppColors.white,
+                                      );
+                                    },
+                                    icon: Icon(Icons.info_outline, size: 20, color: AppColors.white),
+                                    label: Text(
+                                      'View Query', // Changed label
+                                      style: textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w600, color: AppColors.white),
+                                    ),
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: AppColors.info, // Changed color
+                                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                                      elevation: 2,
+                                    ),
+                                  ),
+                                ),
+                              );
+                            } else if (canRaiseQuery) {
+                              return Padding(
+                                padding: const EdgeInsets.symmetric(vertical: 6.0),
+                                child: SizedBox(
+                                  width: double.infinity,
+                                  child: ElevatedButton.icon(
+                                    onPressed: () {
+                                      // Open the RaiseQueryDialog and pass the order ID
+                                      Get.dialog(
+                                        RaiseQueryDialog(orderId: order.id),
+                                      );
+                                    },
+                                    icon: Icon(Icons.chat_bubble_outline, size: 20, color: AppColors.white),
+                                    label: Text(
+                                      'Raise Query',
+                                      style: textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w600, color: AppColors.white),
+                                    ),
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: AppColors.darkPurple,
+                                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                                      elevation: 2,
+                                    ),
+                                  ),
+                                ),
+                              );
+                            } else {
+                              return const SizedBox.shrink(); // Hide if no query raised and cannot raise
+                            }
+                          }),
+
+                        // Existing Cancel, Warranty, Return buttons
+                        if (controller.showCancelButton(order))
+                          _OrderCard.buildActionButton(
+                            innerContext,
+                            label: 'Cancel Order',
+                            icon: Icons.cancel_outlined,
+                            color: AppColors.danger,
+                            onPressed: () => controller.sendOrderRequest(order.id, 'Cancel'),
+                            isLoadingObservable: controller.isLoading, // Assuming controller.isLoading for general processing
+                          ),
+                       /* if (controller.showWarrantyButton(order))
+                          _OrderCard.buildActionButton(
+                            innerContext,
+                            label: 'Request Warranty',
+                            icon: Icons.verified_user_outlined,
+                            color: AppColors.primaryPurple,
+                            onPressed: () => controller.sendOrderRequest(order.id, 'Warranty'),
+                            isLoadingObservable: controller.isLoading,
+                          ),*/
+                        if (controller.showReturnButton(order))
+                          _OrderCard.buildActionButton(
+                            innerContext,
+                            label: 'Request Return',
+                            icon: Icons.keyboard_return_outlined,
+                            color: AppColors.info,
+                            onPressed: () => controller.sendOrderRequest(order.id, 'Return'),
+                            isLoadingObservable: controller.isLoading,
+                          ),
                       ],
                     );
                   }
@@ -576,7 +701,7 @@ class _OrderCard extends StatelessWidget {
   static Widget buildDetailRow(BuildContext context, String label, String value) {
     final TextTheme textTheme = Theme.of(context).textTheme;
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 2.0), // Reduced vertical padding
+      padding: const EdgeInsets.symmetric(vertical: 2.0),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -622,15 +747,18 @@ class _OrderCard extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: 6.0),
       child: SizedBox(
         width: double.infinity,
-        child: Obx(() { // This Obx now ONLY wraps the ElevatedButton and reacts to isLoadingObservable
-          final bool isLoading = isLoadingObservable.value; // Access the value inside Obx
+        child: Obx(() {
+          final bool isLoading = isLoadingObservable.value;
           return ElevatedButton.icon(
-            onPressed: isLoading ? null : onPressed,
+            onPressed: isLoading ? null : onPressed, // Disable button if loading
             icon: isLoading
-                ? const SizedBox(
-              height: 16,
-              width: 16,
-              child: CircularProgressIndicator(color: AppColors.white, strokeWidth: 2),
+                ? SizedBox(
+              width: 20,
+              height: 20,
+              child: CircularProgressIndicator(
+                color: AppColors.white,
+                strokeWidth: 2,
+              ),
             )
                 : Icon(icon, size: 20, color: AppColors.white),
             label: Text(

@@ -25,7 +25,7 @@ class _CartScreenState extends State<CartScreen> {
     SchedulerBinding.instance.addPostFrameCallback((_) {
       // Ensure cart data is loaded after the frame is rendered,
       // which is useful if the cart data fetching is asynchronous.
-      cartController.loadCartData();
+      cartController.fetchAndLoadCartData();
     });
   }
 
@@ -37,6 +37,12 @@ class _CartScreenState extends State<CartScreen> {
     return Scaffold(
       backgroundColor: AppColors.neutralBackground, // Consistent background from AppTheme
       appBar: AppBar(
+        leading: GestureDetector(
+            onTap: (){
+              Get.back();
+            },
+            child: Icon(Icons.arrow_back_ios, color: AppColors.textDark)),
+        automaticallyImplyLeading: false,
         elevation: 0, // Flat app bar for a cleaner look
         backgroundColor: AppColors.white, // AppBar background often remains white or a light color
         title: Text(

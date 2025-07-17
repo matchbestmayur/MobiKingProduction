@@ -45,7 +45,7 @@ class CartItemCard extends StatelessWidget {
       groupIds: [],
       totalStock: 0,
       variants: {},
-      images: [],
+      images: [], descriptionPoints: [], keyInformation: [],
     );
     final int quantity = cartItem['quantity'] as int? ?? 1;
     final String variantName = cartItem['variantName'] as String? ?? 'Default';
@@ -57,7 +57,7 @@ class CartItemCard extends StatelessWidget {
     // Price logic based on your current ProductModel (Map<String, int> variants)
     // If you ever change ProductModel.variants to include price, this logic needs update.
     if (product.sellingPrice.isNotEmpty) {
-      displayPrice = product.sellingPrice[0].price!.toDouble();
+      displayPrice = product.sellingPrice.last.price!.toDouble();
     } else {
       displayPrice = 0.0; // Default price if no sellingPrice is found
     }

@@ -1,0 +1,147 @@
+class GetAllProductssModel {
+  final int statusCode;
+  final List<ProductsModel> data;
+
+  GetAllProductssModel({
+    required this.statusCode,
+    required this.data,
+  });
+
+  factory GetAllProductssModel.fromJson(Map<String, dynamic> json) {
+    return GetAllProductssModel(
+      statusCode: json['statusCode'] ?? 0,
+      data: (json['data'] as List<dynamic>? ?? [])
+          .map((e) => ProductsModel.fromJson(e))
+          .toList(),
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+    'statusCode': statusCode,
+    'data': data.map((e) => e.toJson()).toList(),
+  };
+}
+
+class ProductsModel {
+  final String id;
+  final String name;
+  final String fullName;
+  final String slug;
+  final String description;
+  final bool active;
+  final bool newArrival;
+  final bool liked;
+  final bool bestSeller;
+  final bool recommended;
+  final List<SellingPricesModel> sellingPrice;
+  final CategorysModel category;
+
+  ProductsModel({
+    required this.id,
+    required this.name,
+    required this.fullName,
+    required this.slug,
+    required this.description,
+    required this.active,
+    required this.newArrival,
+    required this.liked,
+    required this.bestSeller,
+    required this.recommended,
+    required this.sellingPrice,
+    required this.category,
+  });
+
+  factory ProductsModel.fromJson(Map<String, dynamic> json) {
+    return ProductsModel(
+      id: json['_id'] ?? '',
+      name: json['name'] ?? '',
+      fullName: json['fullName'] ?? '',
+      slug: json['slug'] ?? '',
+      description: json['description'] ?? '',
+      active: json['active'] ?? false,
+      newArrival: json['newArrival'] ?? false,
+      liked: json['liked'] ?? false,
+      bestSeller: json['bestSeller'] ?? false,
+      recommended: json['recommended'] ?? false,
+      sellingPrice: (json['sellingPrice'] as List<dynamic>? ?? [])
+          .map((e) => SellingPricesModel.fromJson(e))
+          .toList(),
+      category: CategorysModel.fromJson(json['category'] ?? {}),
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+    '_id': id,
+    'name': name,
+    'fullName': fullName,
+    'slug': slug,
+    'description': description,
+    'active': active,
+    'newArrival': newArrival,
+    'liked': liked,
+    'bestSeller': bestSeller,
+    'recommended': recommended,
+    'sellingPrice': sellingPrice.map((e) => e.toJson()).toList(),
+    'category': category.toJson(),
+  };
+}
+
+class CategorysModel {
+  final String id;
+  final String name;
+  final String slug;
+
+  CategorysModel({
+    required this.id,
+    required this.name,
+    required this.slug,
+  });
+
+  factory CategorysModel.fromJson(Map<String, dynamic> json) {
+    return CategorysModel(
+      id: json['_id'] ?? '',
+      name: json['name'] ?? '',
+      slug: json['slug'] ?? '',
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+    '_id': id,
+    'name': name,
+    'slug': slug,
+  };
+}
+
+class SellingPricesModel {
+  final String id;
+  final int price;
+  final DateTime? createdAt;
+  final DateTime? updatedAt;
+
+  SellingPricesModel({
+    required this.id,
+    required this.price,
+    this.createdAt,
+    this.updatedAt,
+  });
+
+  factory SellingPricesModel.fromJson(Map<String, dynamic> json) {
+    return SellingPricesModel(
+      id: json['_id'] ?? '',
+      price: json['price'] ?? 0,
+      createdAt: json['createdAt'] != null
+          ? DateTime.tryParse(json['createdAt'])
+          : null,
+      updatedAt: json['updatedAt'] != null
+          ? DateTime.tryParse(json['updatedAt'])
+          : null,
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+    '_id': id,
+    'price': price,
+    if (createdAt != null) 'createdAt': createdAt!.toIso8601String(),
+    if (updatedAt != null) 'updatedAt': updatedAt!.toIso8601String(),
+  };
+}

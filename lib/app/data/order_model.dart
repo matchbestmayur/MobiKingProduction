@@ -1,8 +1,11 @@
 // lib/app/data/product_model.dart
 
+
 // Assuming SellingPrice and ProductModel are defined here,
 // or defined globally if used elsewhere and not part of this file.
 // If SellingPrice is not defined, you'll need to define it as below:
+import 'package:mobiking/app/data/scan_model.dart';
+
 class SellingPrice {
   final String id;
   final String variantName;
@@ -297,7 +300,7 @@ class OrderModel {
   final String status; // Main order status
   final String? holdReason;
   final String shippingStatus; // Shipping status
-  final List<dynamic>? scans; // Mongoose Mixed type, can be flexible
+  final List<Scan>? scans; // **UPDATED: Changed from List<dynamic>? to List<Scan>?**
   final String paymentStatus;
 
   // Shiprocket Fields
@@ -360,7 +363,7 @@ class OrderModel {
     required this.status,
     this.holdReason,
     required this.shippingStatus,
-    this.scans,
+    this.scans, // **UPDATED: Passed to constructor**
     required this.paymentStatus,
     this.shipmentId,
     this.shiprocketOrderId,
@@ -407,7 +410,10 @@ class OrderModel {
       status: json['status'] as String? ?? 'New',
       holdReason: json['holdReason'] as String?,
       shippingStatus: json['shippingStatus'] as String? ?? 'Pending',
-      scans: json['scans'] as List<dynamic>?, // Mixed type
+      // **UPDATED: Parse 'scans' into List<Scan>**
+      scans: (json['scans'] as List<dynamic>?)
+          ?.map((e) => Scan.fromJson(e as Map<String, dynamic>))
+          .toList(),
       paymentStatus: json['paymentStatus'] as String? ?? 'Pending',
 
       shipmentId: json['shipmentId'] as String?,
@@ -469,7 +475,7 @@ class OrderModel {
       'status': status,
       'holdReason': holdReason,
       'shippingStatus': shippingStatus,
-      'scans': scans,
+      'scans': scans?.map((e) => e.toJson()).toList(), // **UPDATED: Convert List<Scan> to JSON**
       'paymentStatus': paymentStatus,
       'shipmentId': shipmentId,
       'shiprocketOrderId': shiprocketOrderId,

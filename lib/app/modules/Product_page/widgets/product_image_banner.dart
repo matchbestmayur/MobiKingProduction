@@ -1,19 +1,32 @@
 import 'package:flutter/material.dart';
+import 'package:get/get.dart'; // Useful for GetX navigation if you use it in onBack
+// import 'package:like_button/like_button.dart'; // Keep if used elsewhere, not strictly needed for Hero
+
+import '../../home/widgets/favorite_toggle_button.dart'; // Your custom favorite button
+import '../../../themes/app_theme.dart'; // Assuming AppColors are defined here
 
 class ProductImageBanner extends StatefulWidget {
   final List<String> imageUrls;
-  final String badgeText;
+  final String? badgeText; // Changed to nullable
+  final String productId;
   final VoidCallback? onBack;
-  final VoidCallback? onFavorite; // Callback when favorite button is tapped
-  final bool isFavorite; // New: indicates if the product is currently favorited
+  final VoidCallback? onFavorite;
+  final bool isFavorite;
+  final String heroTag;
+  final bool showZoomButton; // New: control visibility of zoom button
+  final bool showShareButton; // New: control visibility of share button
 
   const ProductImageBanner({
     super.key,
     required this.imageUrls,
-    required this.badgeText,
+    this.badgeText, // Now nullable
+    required this.productId,
     this.onBack,
     this.onFavorite,
-    this.isFavorite = false, // Default to not favorited
+    this.isFavorite = false,
+    required this.heroTag,
+    this.showZoomButton = true, // Default to true as per request
+    this.showShareButton = true, // Default to true as per request
   });
 
   @override
@@ -25,103 +38,180 @@ class _ProductImageBannerState extends State<ProductImageBanner> {
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox( // Wrapped in SizedBox to give it a defined height, as Stack doesn't inherently
-      height: 300, // Explicit height for the banner
+    return SizedBox(
+      height: 350, // Slightly increased height for better visual impact
       width: double.infinity,
       child: Stack(
         children: [
-          // Image slider
-          PageView.builder(
-            itemCount: widget.imageUrls.length,
-            onPageChanged: (index) {
-              setState(() {
-                _currentIndex = index;
-              });
-            },
-            itemBuilder: (_, index) {
-              return Container(
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(12),
-                  image: DecorationImage(
-                    image: NetworkImage(widget.imageUrls[index]),
-                    fit: BoxFit.cover,
+          // --- Main Image (Hero Animation & PageView) ---
+          Hero(
+            tag: widget.heroTag,
+            child: PageView.builder(
+              itemCount: widget.imageUrls.isEmpty ? 1 : widget.imageUrls.length, // Handle empty imageUrls list
+              onPageChanged: (index) {
+                setState(() {
+                  _currentIndex = index;
+                });
+              },
+              itemBuilder: (_, index) {
+                final String imageUrl = widget.imageUrls.isNotEmpty ? widget.imageUrls[index] : '';
+                return Container(
+                  decoration: BoxDecoration(
+                    color: AppColors.neutralBackground, // Fallback background color
+                    // Ensure borderRadius is consistent if used in parent widget like ClipRRect
+                    // or remove it if the parent already clips
                   ),
-                ),
-              );
-            },
+                  child: imageUrl.isNotEmpty
+                      ? Image.network(
+                    imageUrl,
+                    fit: BoxFit.cover,
+                    loadingBuilder: (context, child, loadingProgress) {
+                      if (loadingProgress == null) return child;
+                      return Center(
+                        child: CircularProgressIndicator(
+                          color: AppColors.primaryPurple, // Theme color for loader
+                          strokeWidth: 2,
+                        ),
+                      );
+                    },
+                    errorBuilder: (context, error, stackTrace) =>
+                        Center(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(Icons.broken_image, size: 40, color: AppColors.textLight.withOpacity(0.7)),
+                              const SizedBox(height: 8),
+                              Text('Image Load Error', style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppColors.textLight.withOpacity(0.7))),
+                            ],
+                          ),
+                        ),
+                  )
+                      : Center(
+                    child: Icon(Icons.image_not_supported, size: 60, color: AppColors.textLight.withOpacity(0.7)),
+                  ),
+                );
+              },
+            ),
           ),
 
-          // Share button
+          // --- Top Left: Back button ---
           Positioned(
-            bottom: 12,
-            right: 12,
-            child: Container(
-              decoration: const BoxDecoration(
-                color: Colors.white,
-                shape: BoxShape.circle,
+            top: 16, // Consistent top padding
+            left: 16, // Consistent left padding
+            child: SafeArea( // Ensures buttons are not hidden by notch/status bar
+              child: GestureDetector(
+                onTap: widget.onBack ?? () => Get.back(), // Use Get.back() for consistency
+                child: Container(
+                  width: 32, // Fixed size for consistent tap area
+                  height: 32,
+                  decoration: BoxDecoration(
+                    color: Colors.black.withOpacity(0.4), // Softer opacity
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.arrow_back_ios_new, size: 18, color: Colors.white),
+                ),
               ),
-              child: IconButton(
-                icon: const Icon(Icons.ios_share, color: Colors.black),
-                onPressed: () {
-                  // TODO: Add sharing logic
-                  print('Share button tapped');
+            ),
+          ),
+
+          // --- Top Right: Favorite button ---
+          Positioned(
+            top: 16, // Consistent top padding
+            right: 16, // Consistent right padding
+            child: SafeArea( // Ensures buttons are not hidden by notch/status bar
+              child: FavoriteToggleButton(
+                productId: widget.productId,
+                iconSize: 22, // Slightly larger icon
+                padding: 6, // More padding for better visual
+                containerOpacity: 0.4, // Softer container background
+                onChanged: (isFavorite) {
+                  widget.onFavorite?.call();
                 },
               ),
             ),
           ),
 
-          // Favorite button (Dynamic)
-          Positioned(
-            top: 12,
-            right: 20,
-            child: GestureDetector(
-              onTap: widget.onFavorite, // Use the provided callback
-              child: CircleAvatar(
-                radius: 15,
-                backgroundColor: Colors.black.withOpacity(0.6), // Slightly transparent background
-                child: Icon(
-                  widget.isFavorite // Dynamic icon based on isFavorite
-                      ? Icons.favorite // Filled heart
-                      : Icons.favorite_border_outlined, // Outline heart
-                  size: 18, // Slightly larger icon for visibility
-                  color: widget.isFavorite ? Colors.red.shade400 : Colors.white, // Red for favorited, white otherwise
+        /*  // --- Bottom Right: Share button (Floating Icon) ---
+          if (widget.showShareButton)
+            Positioned(
+              bottom: 16, // Distance from bottom
+              right: 16, // Distance from right
+              child: FloatingActionButton.small(
+                heroTag: 'share_button_${widget.productId}', // Unique heroTag
+                onPressed: () {
+                  // TODO: Implement actual sharing logic (e.g., using share_plus package)
+                  Get.snackbar(
+                    'Share',
+                    'Sharing product: ${widget.imageUrls.first}',
+                    snackPosition: SnackPosition.BOTTOM,
+                    backgroundColor: AppColors.success.withOpacity(0.8),
+                    colorText: Colors.white,
+                  );
+                  debugPrint('Share button tapped');
+                },
+                backgroundColor: AppColors.primaryPurple.withOpacity(0.8), // Theme-consistent color
+                foregroundColor: Colors.white, // Icon color
+                elevation: 4, // Subtle shadow
+                child: const Icon(Icons.share_rounded, size: 20), // Rounded icon
+              ),
+            ),
+
+          // --- Bottom Right: Zoom button (Floating Icon) ---
+          if (widget.showZoomButton)
+            Positioned(
+              bottom: 16,
+              right: 76, // Positioned to the left of the share button (16 + 56 (FAB size) + 4 padding)
+              child: FloatingActionButton.small(
+                heroTag: 'zoom_button_${widget.productId}', // Unique heroTag
+                onPressed: () {
+                  // TODO: Implement image zoom functionality (e.g., navigate to a full-screen image viewer)
+                  Get.snackbar(
+                    'Zoom',
+                    'Zooming into product image',
+                    snackPosition: SnackPosition.BOTTOM,
+                    backgroundColor: AppColors.info.withOpacity(0.8),
+                    colorText: Colors.white,
+                  );
+                  debugPrint('Zoom button tapped');
+                },
+                backgroundColor: AppColors.primaryPurple.withOpacity(0.8), // Theme-consistent color
+                foregroundColor: Colors.white,
+                elevation: 4,
+                child: const Icon(Icons.zoom_in_map_rounded, size: 20), // Rounded icon
+              ),
+            ),*/
+
+          // --- Discount Badge (Dynamic Visibility and Styling) ---
+          if (widget.badgeText != null && widget.badgeText!.isNotEmpty)
+            Positioned(
+              top: 16,
+              left: 16, // Positioned to the left, slightly below top-left corner
+              child: SafeArea(
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: AppColors.accentOrange, // Use an accent color for badges
+                    borderRadius: BorderRadius.circular(6), // Slightly rounded corners
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.2),
+                        blurRadius: 4,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 10), // More padding
+                  child: Text(
+                    widget.badgeText!,
+                    style: Theme.of(context).textTheme.labelMedium?.copyWith( // Use app theme's label style
+                      color: AppColors.white,
+                      fontWeight: FontWeight.w700, // Make text bold
+                    ),
+                  ),
                 ),
               ),
             ),
-          ),
 
-          // Back button
-          Positioned(
-            top: 12,
-            left: 20,
-            child: GestureDetector(
-              onTap: widget.onBack ?? () => Navigator.pop(context),
-              child: CircleAvatar(
-                radius: 15,
-                backgroundColor: Colors.black.withOpacity(0.6), // Consistent background
-                child: const Icon(Icons.arrow_back_ios_new, size: 18, color: Colors.white), // Larger icon
-              ),
-            ),
-          ),
-
-          // Badge
-          Positioned(
-            top: 12,
-            left: 120, // Adjust position as needed, or calculate dynamically
-            child: Container(
-              decoration: BoxDecoration(
-                color: Colors.black.withOpacity(0.7),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
-              child: Text(
-                widget.badgeText,
-                style: const TextStyle(color: Colors.white, fontSize: 12), // Added font size
-              ),
-            ),
-          ),
-
-          // Dots indicator
+          // --- Dots indicator ---
           Positioned(
             bottom: 10,
             left: 0,
@@ -131,12 +221,12 @@ class _ProductImageBannerState extends State<ProductImageBanner> {
               children: List.generate(
                 widget.imageUrls.length,
                     (index) => Container(
-                  width: 8,
-                  height: 8,
-                  margin: const EdgeInsets.symmetric(horizontal: 4),
+                  width: _currentIndex == index ? 10 : 6, // Active dot slightly larger
+                  height: 6,
+                  margin: const EdgeInsets.symmetric(horizontal: 3),
                   decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: _currentIndex == index ? Colors.white : Colors.white.withOpacity(0.4),
+                    borderRadius: BorderRadius.circular(3), // Rounded rect for dots
+                    color: _currentIndex == index ? AppColors.white : AppColors.white.withOpacity(0.5),
                   ),
                 ),
               ),

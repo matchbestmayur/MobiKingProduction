@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "959874165382",
+    "project_id": "aaaa-769c6",
+    "storage_bucket": "aaaa-769c6.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:959874165382:android:0fed79f57dc483d9aaff07",
+        "android_client_info": {
+          "package_name": "com.example.mobiking"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBSI5_Dgey1uPHcwBYFx7ubrsnWb8-Pu3k"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

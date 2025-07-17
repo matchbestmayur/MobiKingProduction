@@ -3,7 +3,7 @@ import 'package:http/http.dart' as http;
 import '../data/sub_category_model.dart';
 
 class SubCategoryService {
-  final String baseUrl = 'https://mobiking-e-commerce-backend.vercel.app/api/v1/categories/';
+  final String baseUrl = 'https://mobiking-e-commerce-backend-prod.vercel.app/api/v1/categories/';
 
   Future<List<SubCategory>> fetchSubCategories() async {
     final url = Uri.parse('${baseUrl}subCategories');

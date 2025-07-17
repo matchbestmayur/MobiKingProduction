@@ -1,3 +1,25 @@
+class KeyInformation {
+  final String title;
+  final String content;
+
+  KeyInformation({
+    required this.title,
+    required this.content,
+  });
+
+  factory KeyInformation.fromJson(Map<String, dynamic> json) {
+    return KeyInformation(
+      title: json['title'] ?? '',
+      content: json['content'] ?? '',
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+    'title': title,
+    'content': content,
+  };
+}
+
 class SellingPrice {
   final String? id;
   final int price;
@@ -14,7 +36,7 @@ class SellingPrice {
   factory SellingPrice.fromJson(Map<String, dynamic> json) {
     return SellingPrice(
       id: json['_id'] as String?,
-      price: json['price'] ?? 0,
+      price: (json['price'] as num?)?.toInt() ?? 0,
       createdAt: json['createdAt'] != null ? DateTime.parse(json['createdAt']) : null,
       updatedAt: json['updatedAt'] != null ? DateTime.parse(json['updatedAt']) : null,
     );
@@ -47,6 +69,9 @@ class ProductModel {
   final int totalStock;
   final Map<String, int> variants;
   final List<String> images;
+  final List<String> descriptionPoints;
+  final List<KeyInformation> keyInformation;
+  final int? regularPrice; // <--- NEW FIELD: Added as nullable int
 
   ProductModel({
     required this.id,
@@ -67,6 +92,9 @@ class ProductModel {
     required this.totalStock,
     required this.variants,
     required this.images,
+    required this.descriptionPoints,
+    required this.keyInformation,
+    this.regularPrice, // <--- ADDED to constructor
   });
 
   factory ProductModel.fromJson(Map<String, dynamic> json) {
@@ -84,18 +112,31 @@ class ProductModel {
       sellingPrice: (json['sellingPrice'] as List<dynamic>? ?? [])
           .map((e) => SellingPrice.fromJson(e))
           .toList(),
-      categoryId: (json['category'] is Map && json['category'] != null)
-          ? json['category']['_id'] ?? ''
-          : (json['category'] is String ? json['category'] : ''),
-      images: List<String>.from(json['images'] ?? []),
-      stockIds: List<String>.from((json['stock'] ?? []).map((e) => e.toString())),
-      orderIds: List<String>.from((json['orders'] ?? []).map((e) => e.toString())),
-      groupIds: List<String>.from((json['groups'] ?? []).map((e) => e.toString())),
+      categoryId: (json['category'] != null && json['category'] is Map)
+          ? (json['category']['_id'] as String? ?? '')
+          : (json['category'] is String ? json['category'] as String : ''),
+      stockIds: (json['stock'] as List<dynamic>? ?? [])
+          .map((e) => e is Map ? (e['_id'] as String? ?? '') : e.toString())
+          .where((id) => id.isNotEmpty)
+          .toList(),
+      orderIds: (json['orders'] as List<dynamic>? ?? [])
+          .map((e) => e is Map ? (e['_id'] as String? ?? '') : e.toString())
+          .where((id) => id.isNotEmpty)
+          .toList(),
+      groupIds: (json['groups'] as List<dynamic>? ?? [])
+          .map((e) => e is Map ? (e['_id'] as String? ?? '') : e.toString())
+          .where((id) => id.isNotEmpty)
+          .toList(),
       totalStock: json['totalStock'] ?? 0,
-      variants: Map<String, int>.from(json['variants']?.map((key, value) => MapEntry(key, value as int)) ?? {}),
+      variants: Map<String, int>.from(json['variants'] as Map? ?? {}),
+      images: List<String>.from(json['images'] ?? []),
+      descriptionPoints: List<String>.from(json['descriptionPoints'] ?? []),
+      keyInformation: (json['keyInformation'] as List<dynamic>? ?? [])
+          .map((e) => KeyInformation.fromJson(e))
+          .toList(),
+      regularPrice: (json['regularPrice'] as num?)?.toInt(),
     );
   }
-
 
   Map<String, dynamic> toJson() {
     return {
@@ -111,12 +152,15 @@ class ProductModel {
       'recommended': recommended,
       'sellingPrice': sellingPrice.map((e) => e.toJson()).toList(),
       'categoryId': categoryId,
-      'images': images,
       'stockIds': stockIds,
       'orderIds': orderIds,
       'groupIds': groupIds,
       'totalStock': totalStock,
       'variants': variants,
+      'images': images,
+      'descriptionPoints': descriptionPoints,
+      'keyInformation': keyInformation.map((e) => e.toJson()).toList(),
+      if (regularPrice != null) 'regularPrice': regularPrice, // <--- ADDED to toJson, conditionally
     };
   }
 }

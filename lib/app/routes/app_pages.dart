@@ -50,11 +50,6 @@ class AppPages {
       binding: OrderBinding(),
     ),*/
     GetPage(
-      name: '/product',
-      page: () => ProfileScreen(),
-      binding: ProductBinding(),
-    ),
-    GetPage(
       name: '/stock',
       page: () => HomeScreen(),
       binding: StockBinding(),

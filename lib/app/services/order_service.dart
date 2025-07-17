@@ -21,8 +21,8 @@ class OrderServiceException implements Exception {
 }
 
 class OrderService extends GetxService {
-  static const String _baseUrl = 'https://mobiking-e-commerce-backend.vercel.app/api/v1/orders'; // Your actual base URL
-  static const String _userRequestBaseUrl = 'https://mobiking-e-commerce-backend.vercel.app/api/v1/users/request'; // Base URL for user requests
+  static const String _baseUrl = 'https://mobiking-e-commerce-backend-prod.vercel.app/api/v1/orders'; // Your actual base URL
+  static const String _userRequestBaseUrl = 'https://mobiking-e-commerce-backend-prod.vercel.app/api/v1/users/request'; // Base URL for user requests
   final GetStorage _box = GetStorage();
 
   String? get _accessToken => _box.read('accessToken');

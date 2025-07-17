@@ -2,9 +2,13 @@
 
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:intl/intl.dart'; // For date formatting in details
+import 'package:intl/intl.dart'; // For date formatting
+import 'package:mobiking/app/data/scan_model.dart';
 
+import '../../data/order_model.dart';
 import '../../themes/app_theme.dart'; // Ensure this path is correct
+// Import your OrderModel and ScanEntry classes
+
 
 // Only import MilestoneTimeline and its Milestone model
 import 'package:animated_milestone/view/milestone_timeline.dart';
@@ -12,130 +16,67 @@ import 'package:animated_milestone/model/milestone.dart' as am_milestone; // Ali
 
 
 class ShippingDetailsScreen extends StatelessWidget {
-  const ShippingDetailsScreen({Key? key}) : super(key: key);
+  // Make the OrderModel a required parameter
+  final OrderModel order;
 
-  static final DateTime now = DateTime.now();
-  static final Map<String, dynamic> dummyTrackingData = {
-  "scans": [
-  {
-  "date": DateFormat("yyyy-MM-dd HH:mm:ss").format(now.subtract(const Duration(days: 3, hours: 10, minutes: 30))),
-  "status": "ORDER_PLACED",
-  "activity": "Order Confirmed - Your order has been placed successfully.",
-  "location": "Online Store",
-  "sr-status": "10",
-  "sr-status-label": "ORDER PLACED"
-  },
-  {
-  "date": DateFormat("yyyy-MM-dd HH:mm:ss").format(now.subtract(const Duration(days: 3, hours: 8, minutes: 15))),
-  "status": "MANIFESTED",
-  "activity": "Manifested - Package details updated for shipment.",
-  "location": "Warehouse, Delhi (India)",
-  "sr-status": "5",
-  "sr-status-label": "MANIFEST GENERATED"
-  },
-  {
-  "date": DateFormat("yyyy-MM-dd HH:mm:ss").format(now.subtract(const Duration(days: 3, hours: 6, minutes: 45))),
-  "status": "PICKED_UP",
-  "activity": "In Transit - Shipment picked up from sender.",
-  "location": "Warehouse, Delhi (India)",
-  "sr-status": "42",
-  "sr-status-label": "PICKED UP"
-  },
-  {
-  "date": DateFormat("yyyy-MM-dd HH:mm:ss").format(now.subtract(const Duration(days: 2, hours: 23, minutes: 0))),
-  "status": "IN_TRANSIT_ORIGIN_SORT",
-  "activity": "In Transit - Arrived at origin sorting facility.",
-  "location": "Delhi Sorting Center (India)",
-  "sr-status": "6",
-  "sr-status-label": "SHIPPED"
-  },
-  {
-  "date": DateFormat("yyyy-MM-dd HH:mm:ss").format(now.subtract(const Duration(days: 2, hours: 18, minutes: 0))),
-  "status": "DEPARTED_ORIGIN_SORT",
-  "activity": "In Transit - Departed origin sorting facility.",
-  "location": "Delhi Sorting Center (India)",
-  "sr-status": "18",
-  "sr-status-label": "IN TRANSIT"
-  },
-  {
-  "date": DateFormat("yyyy-MM-dd HH:mm:ss").format(now.subtract(const Duration(days: 1, hours: 15, minutes: 0))),
-  "status": "IN_TRANSIT_HUB",
-  "activity": "In Transit - Arrived at transit hub.",
-  "location": "Mumbai Transit Hub (Maharashtra)",
-  "sr-status": "18",
-  "sr-status-label": "IN TRANSIT"
-  },
-  {
-  "date": DateFormat("yyyy-MM-dd HH:mm:ss").format(now.subtract(const Duration(days: 1, hours: 8, minutes: 0))),
-  "status": "DEPARTED_HUB",
-  "activity": "In Transit - Departed transit hub.",
-  "location": "Mumbai Transit Hub (Maharashtra)",
-  "sr-status": "18",
-  "sr-status-label": "IN TRANSIT"
-  },
-  {
-  "date": DateFormat("yyyy-MM-dd HH:mm:ss").format(now.subtract(const Duration(hours: 20, minutes: 0))),
-  "status": "IN_TRANSIT_DEST_SORT",
-  "activity": "In Transit - Arrived at destination sorting facility.",
-  "location": "Jhabua Sorting Center (Madhya Pradesh)",
-  "sr-status": "18",
-  "sr-status-label": "IN TRANSIT"
-  },
-  {
-  "date": DateFormat("yyyy-MM-dd HH:mm:ss").format(now.subtract(const Duration(hours: 4, minutes: 30))),
-  "status": "OUT_FOR_DELIVERY",
-  "activity": "Out for Delivery - Package handed over to local courier for delivery.",
-  "location": "Jhabua Local Delivery (Madhya Pradesh)",
-  "sr-status": "21",
-  "sr-status-label": "OUT FOR DELIVERY"
-  },
-  {
-  "date": DateFormat("yyyy-MM-dd HH:mm:ss").format(now.subtract(const Duration(minutes: 5))), // Very recent
-  "status": "DELIVERED",
-  "activity": "Delivered - Package successfully delivered to recipient.",
-  "location": "Jhabua, Madhya Pradesh (India)",
-  "sr-status": "3",
-  "sr-status-label": "DELIVERED"
-  }
-  ],
-  "is_return": 0,
-  "channel_id": 3422553,
-  "pod_status": "Delivered - Signed by Customer", // More realistic for a delivered status
-  "pod": "Available" // Now it's available
-  };
+  const ShippingDetailsScreen({Key? key, required this.order}) : super(key: key); // Make it required
+
   @override
   Widget build(BuildContext context) {
     final TextTheme textTheme = Theme.of(context).textTheme;
 
-    // Determine the current tracking status for display
-    String currentActivity = dummyTrackingData['scans'].last['activity'];
-    String currentLocation = dummyTrackingData['scans'].last['location'];
-    String currentStatusLabel = dummyTrackingData['scans'].last['sr-status-label'];
+    // Access the scans directly from the 'order' property
+    final List<Scan>? scans = order.scans;
 
-    // Map your tracking statuses to the Amazon-like milestones for the overall progress
+    // Default values if no scans are available
+    String currentActivity = 'No updates yet.';
+    String currentLocation = 'N/A';
+    String currentStatusLabel = 'Pending';
+    DateTime? lastScanDateTime;
+
+    // Get the latest scan details if available
+    if (scans!.isNotEmpty) {
+      final Scan lastScan = scans.last;
+      currentActivity = lastScan.activity;
+      currentLocation = lastScan.location;
+      currentStatusLabel = lastScan.srStatusLabel;
+      try {
+        lastScanDateTime = DateTime.parse(lastScan.date);
+      } catch (e) {
+        debugPrint('Error parsing date for last scan: ${lastScan.date} - $e');
+      }
+    }
+
+    // Map your tracking statuses to the Amazon-like overall milestones
     final List<String> overallMilestones = [
       'Order Placed',
       'Shipped',
       'In Transit',
-      'Out for Delivery', // You'll need specific status for this
-      'Delivered', // You'll need specific status for this
+      'Out for Delivery',
+      'Delivered',
     ];
 
-    // Determine which overall milestone is active based on the latest scan
-    int currentOverallMilestoneIndex = 0;
-    if (currentStatusLabel.contains('MANIFEST GENERATED') || currentStatusLabel.contains('PICKED UP')) {
-      currentOverallMilestoneIndex = 0; // Order Placed
-    } else if (currentStatusLabel.contains('SHIPPED') || currentActivity.contains('Origin Center')) {
-      currentOverallMilestoneIndex = 1; // Shipped
-    } else if (currentStatusLabel.contains('IN TRANSIT') || currentActivity.contains('Trip Arrived') || currentActivity.contains('Received at Facility') || currentActivity.contains('Added to Bag')) {
-      currentOverallMilestoneIndex = 2; // In Transit
+    // Determine which overall milestone is active based on the latest scan status
+    int currentOverallMilestoneIndex = 0; // Default to 'Order Placed'
+
+    if (scans.isNotEmpty) {
+      final String latestSrStatusLabel = scans.last.srStatusLabel.toUpperCase();
+      final String latestStatus = scans.last.status.toUpperCase();
+      final String latestActivity = scans.last.activity.toUpperCase();
+
+      if (latestSrStatusLabel.contains('DELIVERED') || latestStatus.contains('DELIVERED')) {
+        currentOverallMilestoneIndex = 4; // Delivered
+      } else if (latestSrStatusLabel.contains('OUT FOR DELIVERY') || latestStatus.contains('OUT_FOR_DELIVERY')) {
+        currentOverallMilestoneIndex = 3; // Out for Delivery
+      } else if (latestSrStatusLabel.contains('IN TRANSIT') || latestStatus.contains('IN_TRANSIT') || latestActivity.contains('HUB')) {
+        currentOverallMilestoneIndex = 2; // In Transit
+      } else if (latestSrStatusLabel.contains('PICKED UP') || latestStatus.contains('PICKED_UP')) {
+        currentOverallMilestoneIndex = 1; // Shipped
+      } else if (latestSrStatusLabel.contains('MANIFEST GENERATED') || latestStatus.contains('MANIFESTED') || latestStatus.contains('ORDER_PLACED')) {
+        currentOverallMilestoneIndex = 0; // Order Placed (or Manifested)
+      }
     }
-    // Add specific conditions for 'Out for Delivery' and 'Delivered'
-    // For now, it will likely stop at 'In Transit' given the dummy data.
 
-
-    // Prepare data for MilestoneTimeline (combining overall and detailed views)
-    // We'll create milestones for the overall progress, and then append the detailed scans.
 
     List<am_milestone.Milestone> combinedMilestones = [];
 
@@ -144,6 +85,15 @@ class ShippingDetailsScreen extends StatelessWidget {
       String milestoneTitle = overallMilestones[i];
       bool isActive = i <= currentOverallMilestoneIndex; // Highlight up to the current overall status
 
+      // Only add detailed description for the *current* active overall milestone
+      String? milestoneDescription;
+      if (i == currentOverallMilestoneIndex) {
+        milestoneDescription = 'Your package is $currentActivity at $currentLocation.';
+      } else if (i < currentOverallMilestoneIndex) {
+        // Optionally, you can add a brief 'completed' message for past milestones
+        milestoneDescription = 'Completed.';
+      }
+
       combinedMilestones.add(
         am_milestone.Milestone(
           isActive: isActive,
@@ -151,62 +101,95 @@ class ShippingDetailsScreen extends StatelessWidget {
             milestoneTitle,
             style: textTheme.titleMedium?.copyWith(
               fontWeight: FontWeight.w700,
-              color: isActive ? AppColors.textDark : AppColors.textLight, // Darker for active, lighter for inactive
+              color: isActive ? AppColors.textDark : AppColors.textLight,
             ),
           ),
-          child: i == currentOverallMilestoneIndex // Add a description only for the current active milestone
+          child: milestoneDescription != null
               ? Text(
-            'Your package is $currentActivity at $currentLocation.',
+            milestoneDescription,
             style: textTheme.bodyMedium?.copyWith(color: AppColors.textMedium),
           )
-              : const SizedBox.shrink(), // No description for inactive overall milestones
-          // You could also add an icon for completed states here:
-          // icon: i < currentOverallMilestoneIndex ? Icon(Icons.check_circle_rounded, color: AppColors.success) : null,
+              : const SizedBox.shrink(),
+          icon: i < currentOverallMilestoneIndex // Use check icon for completed overall milestones
+              ? Icon(Icons.check_circle_rounded, color: AppColors.success, size: 20)
+              : null,
         ),
       );
-      // If this is the current active overall milestone, we might want to break here
-      // or add a separator before the detailed history starts.
-      if (i == currentOverallMilestoneIndex && dummyTrackingData['scans'].isNotEmpty) {
-        combinedMilestones.add(
-          am_milestone.Milestone( // Adding a "spacer" or "start of details" milestone
-            isActive: true, // Always active as it's the start of the detailed log
-            title: Text(
-              'Detailed History:',
-              style: textTheme.bodyLarge?.copyWith(
-                fontWeight: FontWeight.w700,
-                color: AppColors.textDark,
-              ),
+    }
+
+    // Add a separator/header for Detailed History if there are scans
+    if (scans.isNotEmpty) {
+      combinedMilestones.add(
+        am_milestone.Milestone( // Adding a "start of details" milestone
+          isActive: true, // Always active as it's the start of the detailed log
+          title: Text(
+            'Detailed History:',
+            style: textTheme.bodyLarge?.copyWith(
+              fontWeight: FontWeight.w700,
+              color: AppColors.textDark,
             ),
-            child: const SizedBox.shrink(), // No content for this separator
           ),
-        );
-      }
+          child: const SizedBox.shrink(),
+          icon: Icon(Icons.history, color: AppColors.textDark, size: 20), // Icon for history
+        ),
+      );
     }
 
 
     // 2. Append detailed scan history (reversed to show newest first)
-    final List<Map<String, dynamic>> reversedScans = dummyTrackingData['scans'].reversed.toList().cast<Map<String, dynamic>>();
+    // Filter out initial placeholder scans if they are purely "order placed" and we have more detailed ones
+    final List<Scan> filteredScans = scans.where((scan) {
+      // You might want to filter out very generic 'order placed' if more specific scans follow
+      return !(scan.status.toUpperCase() == 'ORDER_PLACED' && scans.length > 1);
+    }).toList().reversed.toList(); // Reverse to show newest first
 
-    for (int i = 0; i < reversedScans.length; i++) {
-      final scan = reversedScans[i];
-      final String date = scan['date'];
-      final String activity = scan['activity'];
-      final String location = scan['location'];
+    if (filteredScans.isEmpty && scans.isNotEmpty) {
+      // If filtering resulted in empty but original scans existed, just show all original scans
+      // This handles cases where only 'ORDER_PLACED' scan might be present initially
+      filteredScans.addAll(scans.reversed);
+    } else if (scans.isEmpty) {
+      // If there are no scans at all, add a single placeholder milestone
+      combinedMilestones.add(
+        am_milestone.Milestone(
+          isActive: true,
+          title: Text(
+            'No tracking information available yet.',
+            style: textTheme.bodyMedium?.copyWith(fontStyle: FontStyle.italic),
+          ),
+          child: const SizedBox.shrink(),
+        ),
+      );
+    }
 
-      DateTime scanDateTime = DateTime.parse(date);
-      String formattedDate = DateFormat('dd MMM, hh:mm a').format(scanDateTime.toLocal());
 
-      bool isLastScan = (i == 0); // The first item in reversed list is the latest scan
+    for (int i = 0; i < filteredScans.length; i++) {
+      final Scan scan = filteredScans[i];
+      final String activity = scan.activity;
+      final String location = scan.location;
+
+      DateTime scanDateTime;
+      String formattedDate = 'N/A';
+      try {
+        scanDateTime = DateTime.parse(scan.date);
+        formattedDate = DateFormat('dd MMM, hh:mm a').format(scanDateTime.toLocal());
+      } catch (e) {
+        debugPrint('Error parsing date for scan: ${scan.date} - $e');
+      }
+
+      bool isLatestDetailedScan = (i == 0); // The first item in reversed/filtered list is the very latest detailed scan
 
       combinedMilestones.add(
         am_milestone.Milestone(
-          isActive: isLastScan, // Highlight only the very latest detailed scan
-          icon: isLastScan ? const Icon(Icons.location_on, color: AppColors.success, size: 20) : null, // Custom icon for latest
+          isActive: isLatestDetailedScan, // Highlight only the very latest detailed scan
+          // Only show custom icon if not delivered (last overall milestone)
+          icon: isLatestDetailedScan && currentOverallMilestoneIndex < overallMilestones.length - 1
+              ? const Icon(Icons.circle, color: AppColors.info, size: 12) // Small dot for detailed scans
+              : null,
           title: Text(
             activity,
             style: textTheme.bodyMedium?.copyWith(
               fontWeight: FontWeight.w600,
-              overflow: TextOverflow.ellipsis, // Applied here
+              overflow: TextOverflow.ellipsis,
               color: AppColors.textDark,
             ),
           ),
@@ -221,13 +204,25 @@ class ShippingDetailsScreen extends StatelessWidget {
                 location,
                 style: textTheme.bodySmall?.copyWith(
                     color: AppColors.textMedium,
-                    overflow: TextOverflow.ellipsis // Applied here
+                    overflow: TextOverflow.ellipsis
                 ),
               ),
             ],
           ),
         ),
       );
+    }
+
+    // Determine estimated delivery date (dummy for now, based on current overall milestone)
+    String estimatedDelivery = 'Not available';
+    if (currentOverallMilestoneIndex < overallMilestones.length - 1) { // If not yet delivered
+      // Placeholder: In a real app, this would come from the API or a more complex calculation
+      estimatedDelivery = DateFormat('EEEE, MMM d, y').format(
+          DateTime.now().add(const Duration(days: 2)) // Example: 2 days from now
+      );
+    } else if (currentOverallMilestoneIndex == overallMilestones.length - 1 && lastScanDateTime != null) {
+      // If delivered, show the actual delivery date
+      estimatedDelivery = 'Delivered on ${DateFormat('EEEE, MMM d, y').format(lastScanDateTime.toLocal())}';
     }
 
 
@@ -251,7 +246,7 @@ class ShippingDetailsScreen extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Top Card with Current Status (simplified as overall milestones will be in timeline)
+            // Top Card with Current Status
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
@@ -277,12 +272,12 @@ class ShippingDetailsScreen extends StatelessWidget {
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    'Your package is $currentActivity at $currentLocation.',
+                    'Your package is currently: $currentActivity at $currentLocation.',
                     style: textTheme.bodyLarge?.copyWith(color: AppColors.textDark),
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    'Expected delivery: Monday, June 8, 2025 (Updated 0 minute(s) ago)', // Dummy date
+                    'Estimated delivery: $estimatedDelivery',
                     style: textTheme.bodySmall?.copyWith(color: AppColors.textMedium),
                   ),
                 ],
@@ -312,7 +307,7 @@ class ShippingDetailsScreen extends StatelessWidget {
                 activeWithStick: true, // Connect active milestones with the stick
                 showLastStick: true, // Show stick for the last milestone
                 greyoutContentWithInactive: false, // Don't grey out content of inactive milestones
-                milestoneIntervalDurationInMillis: 300, // Speed of animation between milestones
+                milestoneIntervalDurationInMillis: 300, // Speed of animation
               ),
             ),
             const SizedBox(height: 20),

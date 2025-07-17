@@ -6,7 +6,8 @@ import 'package:dio/dio.dart' as dio;
 
 
 class CategoryService {
-  static const String baseUrl = 'https://mobiking-e-commerce-backend.vercel.app/api/v1';
+  static const String baseUrl = 'https://mobiking-e-commerce-backend-prod.vercel.app/api/v1';
+
 
   static Future<Map<String, dynamic>> getCategoryDetails(String slug) async {
     final response = await http.get(Uri.parse('$baseUrl/categories/details/$slug'));

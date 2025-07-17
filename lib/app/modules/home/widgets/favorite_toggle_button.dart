@@ -1,20 +1,17 @@
-// lib/widgets/favorite_toggle_button.dart
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:get/get_core/src/get_main.dart';
+import 'package:like_button/like_button.dart';
 
 import '../../../controllers/wishlist_controller.dart';
 import '../../../services/Sound_Service.dart';
 import '../../../themes/app_theme.dart';
 
-
-
 class FavoriteToggleButton extends StatelessWidget {
-  final String productId; // The unique ID of the product
+  final String productId;
   final double iconSize;
   final double padding;
   final double containerOpacity;
-  final Function(bool isFavorite)? onChanged; // Optional callback for when the favorite status changes
+  final Function(bool isFavorite)? onChanged;
 
   const FavoriteToggleButton({
     Key? key,
@@ -27,21 +24,38 @@ class FavoriteToggleButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Get instances of your controllers/services
     final WishlistController wishlistController = Get.find<WishlistController>();
-    final SoundService soundService = Get.find<SoundService>(); // <--- GET SOUND SERVICE INSTANCE
+    final SoundService soundService = Get.find<SoundService>();
 
-    // Obx makes the widget rebuild when the observable `wishlist` changes
     return Obx(() {
-      // Check if the current product is in the wishlist
       final bool isFavorite = wishlistController.wishlist.any((p) => p.id == productId);
 
-      return GestureDetector(
-        onTap: () {
-          soundService.playPopSound(); // <--- ADD THIS LINE TO PLAY SOUND
+      return LikeButton(
+        size: iconSize + padding * 2,
+        isLiked: isFavorite,
+        likeBuilder: (bool isLiked) {
+          return Container(
+            padding: EdgeInsets.all(padding),
+            decoration: BoxDecoration(
+              color: AppColors.white.withOpacity(containerOpacity),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(
+              isLiked ? Icons.favorite : Icons.favorite_border,
+              color: isLiked ? AppColors.danger : AppColors.textMedium,
+              size: iconSize,
+            ),
+          );
+        },
+        circleColor: const CircleColor(start: Colors.redAccent, end: Colors.red),
+        bubblesColor: const BubblesColor(
+          dotPrimaryColor: Colors.redAccent,
+          dotSecondaryColor: Colors.red,
+        ),
+        onTap: (bool isLiked) async {
+          soundService.playPopSound();
 
-          // Toggle favorite status and show a SnackBar
-          if (isFavorite) {
+          if (isLiked) {
             wishlistController.removeFromWishlist(productId);
             Get.snackbar(
               'Wishlist',
@@ -52,12 +66,7 @@ class FavoriteToggleButton extends StatelessWidget {
               duration: const Duration(seconds: 1),
             );
           } else {
-            // In a real app, you might pass the whole product model to addToWishlist
-            // For this example, we're just adding the ID.
-            // If WishlistController.addToWishlist requires a ProductModel,
-            // you'd need to fetch or pass the ProductModel here.
-            // Example: wishlistController.addToWishlist(product);
-            wishlistController.addToWishlist(productId); // Assuming this takes a String productId
+            wishlistController.addToWishlist(productId);
             Get.snackbar(
               'Wishlist',
               'Added to wishlist!',
@@ -67,23 +76,10 @@ class FavoriteToggleButton extends StatelessWidget {
               duration: const Duration(seconds: 1),
             );
           }
-          // Call the optional onChanged callback
-          onChanged?.call(!isFavorite);
+
+          onChanged?.call(!isLiked);
+          return !isLiked;
         },
-        child: Container(
-          padding: EdgeInsets.all(padding),
-          decoration: BoxDecoration(
-            color: AppColors.white.withOpacity(containerOpacity),
-            shape: BoxShape.circle,
-          ),
-          child: Icon(
-            // Change icon based on favorite status
-            isFavorite ? Icons.favorite : Icons.favorite_border,
-            // Change color based on favorite status
-            color: isFavorite ? AppColors.danger : AppColors.textMedium,
-            size: iconSize,
-          ),
-        ),
       );
     });
   }

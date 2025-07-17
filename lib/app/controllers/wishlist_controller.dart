@@ -3,30 +3,61 @@ import 'package:get/get.dart';
 
 import '../data/product_model.dart';
 import '../services/wishlist_service.dart';
+import 'package:mobiking/app/controllers/connectivity_controller.dart'; // NEW: Import ConnectivityController
+
 
 class WishlistController extends GetxController {
   final WishlistService _service = WishlistService();
 
-  
+
   var wishlist = <ProductModel>[].obs;
   var isLoading = false.obs;
+
+  // NEW: Get the ConnectivityController instance
+  final ConnectivityController _connectivityController = Get.find<ConnectivityController>();
+
 
   @override
   void onInit() {
     super.onInit();
-    
-    loadWishlistFromLocal(); 
-    
-   
+
+    loadWishlistFromLocal(); // Initial load
+
+    // NEW: Listen for connectivity changes
+    ever(_connectivityController.isConnected, (bool isConnected) {
+      if (isConnected) {
+        _handleConnectionRestored();
+      }
+    });
   }
 
-  
+  // NEW: Method to handle actions when connection is restored
+  Future<void> _handleConnectionRestored() async {
+    print('WishlistController: Internet connection restored. Re-loading wishlist from local storage.');
+    // If your backend maintains the authoritative wishlist, you would
+    // ideally call a service method here to fetch the latest wishlist from the server
+    // and then update local storage and the 'wishlist' observable.
+    // For now, we'll re-load from local storage, assuming service methods
+    // keep it updated on successful API calls.
+    loadWishlistFromLocal();
+    // Example if you had a service method:
+    // try {
+    //   await _service.fetchWishlistFromServerAndStoreLocally(); // This method would fetch and update GetStorage
+    //   loadWishlistFromLocal(); // Then load the freshly updated local data
+    // } catch (e) {
+    //   print('WishlistController: Failed to fetch latest wishlist from server on reconnect: $e');
+    //   // Handle error, maybe show a snackbar
+    // }
+  }
+
+
+
   void loadWishlistFromLocal() {
     final box = _service.box;
-    final userMap = box.read('user') as Map<String, dynamic>?; 
+    final userMap = box.read('user') as Map<String, dynamic>?;
 
     if (userMap != null) {
-      final List<dynamic>? wishlistData = userMap['wishlist']; 
+      final List<dynamic>? wishlistData = userMap['wishlist'];
       if (wishlistData != null) {
         wishlist.clear();
         wishlist.value = wishlistData
@@ -43,8 +74,8 @@ class WishlistController extends GetxController {
     }
   }
 
-  
-  
+
+
 
 
   bool isProductInWishlist(String productId) {
@@ -66,10 +97,10 @@ class WishlistController extends GetxController {
       return;
     }
 
-    final success = await _service.addToWishlist(productId); 
+    final success = await _service.addToWishlist(productId);
     if (success) {
-      
-      
+
+
       loadWishlistFromLocal();
       _showSnackbar(
         'Added to Wishlist',
@@ -85,11 +116,11 @@ class WishlistController extends GetxController {
         Icons.error,
         duration: 3,
       );
-      
-      
-      
-      
-      loadWishlistFromLocal();
+
+
+
+
+      loadWishlistFromLocal(); // Re-load even on failure to ensure consistency with current local state
     }
     isLoading.value = false;
   }
@@ -98,10 +129,10 @@ class WishlistController extends GetxController {
     if (isLoading.value) return;
     isLoading.value = true;
 
-    final success = await _service.removeFromWishlist(productId); 
+    final success = await _service.removeFromWishlist(productId);
     if (success) {
-      
-      
+
+
       loadWishlistFromLocal();
       _showSnackbar(
         'Removed from Wishlist',
@@ -117,10 +148,10 @@ class WishlistController extends GetxController {
         Icons.error,
         duration: 3,
       );
-      
-      
-      
-      loadWishlistFromLocal();
+
+
+
+      loadWishlistFromLocal(); // Re-load even on failure to ensure consistency with current local state
     }
     isLoading.value = false;
   }

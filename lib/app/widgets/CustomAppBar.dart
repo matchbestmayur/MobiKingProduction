@@ -11,6 +11,8 @@ import 'CategoryTab.dart'; // Assumed location of TabControllerGetX
 class CustomAppBar extends StatelessWidget {
   CustomAppBar({super.key});
 
+  // Ensure these controllers are initialized elsewhere (e.g., in a binding or main)
+  // For a standalone snippet, you might use Get.put() if not already done.
   final tabController = Get.find<TabControllerGetX>();
   final subCategoryController = Get.find<SubCategoryController>(); // Get the CategoryController instance
 
@@ -20,10 +22,13 @@ class CustomAppBar extends StatelessWidget {
     final TextTheme textTheme = Theme.of(context).textTheme;
 
     return Obx(() {
-      String? backgroundImage;
+      // The backgroundImage logic is no longer used for the background itself,
+      // but the selectedIndex logic might still be relevant for displaying the sub-category name.
+      String? backgroundImage; // This variable will no longer be used for the background.
       final int selectedIndex = tabController.selectedIndex.value;
 
       // Safely attempt to get the background image from the selected sub-category
+      // This block can be removed if 'backgroundImage' is not used for anything else.
       if (selectedIndex >= 0 && selectedIndex < subCategoryController.subCategories.length) {
         final currentSubCategory = subCategoryController.subCategories[selectedIndex];
         // Ensure upperBanner is not null or empty before trying to use it
@@ -33,21 +38,11 @@ class CustomAppBar extends StatelessWidget {
       }
 
       return Container(
-        padding: EdgeInsets.only(top: 15),
+        padding: const EdgeInsets.only(top: 15),
         height: 80, // Give it a fixed height or use media query for responsiveness
-        decoration: BoxDecoration(
-          color: AppColors.darkPurple, // Fallback color if no image or during loading
-          image: backgroundImage != null
-              ? DecorationImage(
-            image: NetworkImage(backgroundImage!), // Use ! as we've checked for null above
-            fit: BoxFit.cover,
-            // Apply a color filter to darken the image for better text readability
-            colorFilter: ColorFilter.mode(
-              Colors.black.withOpacity(0.4), // Adjust opacity as needed
-              BlendMode.darken,
-            ),
-          )
-              : null,
+        decoration: const BoxDecoration( // Changed to const as color is now fixed
+          color: Colors.transparent, // MADE TRANSPARENT
+          // The 'image' property has been removed entirely
         ),
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -69,7 +64,7 @@ class CustomAppBar extends StatelessWidget {
                           "Mobiking Wholesale",
                           // Use a text style from your theme for main app bar title
                           style: textTheme.titleMedium?.copyWith(
-                            color: Colors.white, // Override color to ensure it's white over the image
+                            color: Colors.black, // Changed to black for better visibility on a transparent background
                           ),
                         ),
                         const SizedBox(height: 2),
@@ -80,7 +75,7 @@ class CustomAppBar extends StatelessWidget {
                               : 'Select Category', // Default text if no category selected
                           // Use a smaller text style from your theme
                           style: textTheme.bodySmall?.copyWith(
-                            color: Colors.white70, // Override color for a subtle look
+                            color: Colors.black54, // Changed to darker color for better visibility
                           ),
                         ),
                       ],

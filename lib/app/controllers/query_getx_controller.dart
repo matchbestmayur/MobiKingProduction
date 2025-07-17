@@ -1,17 +1,17 @@
-// Path: lib/controllers/query_getx_controller.dart
-
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:get_storage/get_storage.dart';
-
 import '../data/QueryModel.dart';
-// import '../modules/profile/query/Query_Detail_Screen.dart'; // This import is usually not needed here
 import '../services/query_service.dart';
-import '../themes/app_theme.dart'; // Import AppColors for getStatusColor
+import '../themes/app_theme.dart';
+import 'package:mobiking/app/controllers/connectivity_controller.dart';
 
 class QueryGetXController extends GetxController {
   final RxList<QueryModel> _myQueries = <QueryModel>[].obs;
   List<QueryModel> get myQueries => _myQueries.value;
+
+  // NEW: Expose query count reactively
+  RxInt get queryCount => _myQueries.length.obs;
 
   final RxBool _isLoading = false.obs;
   bool get isLoading => _isLoading.value;
@@ -27,13 +27,29 @@ class QueryGetXController extends GetxController {
 
   final QueryService _queryService = Get.find<QueryService>();
   final GetStorage _box = GetStorage();
+  final RxList<ReplyModel> replies = <ReplyModel>[].obs;
+
+  final ConnectivityController _connectivityController = Get.find<ConnectivityController>();
 
   @override
   void onInit() {
     super.onInit();
     _replyInputController = TextEditingController();
     _setAuthTokenFromStorage();
-    fetchMyQueries();
+    _fetchAndLoadMyQueries();
+
+    ever(_connectivityController.isConnected, (bool isConnected) {
+      if (isConnected) {
+        _handleConnectionRestored();
+      }
+    });
+  }
+
+  Future<void> _handleConnectionRestored() async {
+    print('QueryGetXController: Internet connection restored. Re-fetching queries...');
+    if (!_isLoading.value) {
+      await _fetchAndLoadMyQueries();
+    }
   }
 
   @override
@@ -49,11 +65,10 @@ class QueryGetXController extends GetxController {
       print('QueryGetXController: Access token loaded and set for QueryService.');
     } else {
       print('QueryGetXController: No access token found in GetStorage. Authenticated calls might fail.');
-      Get.snackbar(
-        'Authentication Missing',
-        'No access token found. Please log in.',
-        backgroundColor: Colors.orange.withOpacity(0.7),
-        colorText: Colors.white,
+      _showModernSnackbar(
+        title: 'Authentication Missing',
+        message: 'No access token found. Please log in.',
+        isSuccess: false,
       );
     }
   }
@@ -62,8 +77,7 @@ class QueryGetXController extends GetxController {
     String message = defaultMessage;
     if (e is Exception) {
       final String errorString = e.toString();
-      // Updated regex to reflect removal of status update related messages
-      final regex = RegExp(r'Exception: Failed to (?:raise|load|rate|reply to|get) query: (.*)');
+      final regex = RegExp(r'Exception: Failed to (?:raise|load|rate|reply to|get|mark) query: (.*)');
       final match = regex.firstMatch(errorString);
       if (match != null && match.groupCount >= 1) {
         message = match.group(1)!;
@@ -76,56 +90,55 @@ class QueryGetXController extends GetxController {
     return message.trim().isEmpty ? defaultMessage : message;
   }
 
-  /// Helper method to find and update a query in the _myQueries list.
-  /// This ensures the list remains reactive and correctly reflects changes.
   void _updateQueryInList(QueryModel updatedQuery) {
-    // Find the index of the existing query by its ID
     final int index = _myQueries.indexWhere((q) => q.id == updatedQuery.id);
-
     if (index != -1) {
-      // If found, replace the old query object with the updated one
       _myQueries[index] = updatedQuery;
-      // Trigger a UI update for the list if needed, although direct assignment to RxList element usually triggers it.
+      _myQueries.refresh();
     } else {
-      // Optionally, if the updatedQuery somehow wasn't in the list, add it.
-      // This case might indicate a logic error or a new query being returned.
       _myQueries.add(updatedQuery);
       print('Warning: Updated query not found in list, added instead. ID: ${updatedQuery.id}');
     }
-
-    // If the updated query is also the currently selected query in the detail screen, update it.
-    // This will automatically refresh the QueryDetailScreen if it's observing _selectedQuery.
     if (_selectedQuery.value?.id == updatedQuery.id) {
       _selectedQuery.value = updatedQuery;
     }
   }
 
-  Future<void> fetchMyQueries() async {
+  Future<void> _fetchAndLoadMyQueries() async {
+    if (_isLoading.value) return;
     _isLoading.value = true;
     _errorMessage.value = '';
     try {
       final queries = await _queryService.getMyQueries();
       _myQueries.value = queries;
-      Get.snackbar(
-        'Success',
-        'Queries fetched successfully!',
-        backgroundColor: Colors.green.withOpacity(0.7),
-        colorText: Colors.white,
+      _showModernSnackbar(
+        title: 'Success',
+        message: 'Queries fetched successfully!',
+        isSuccess: true,
       );
-      print('QueryGetXController: Fetched queries: ${queries.map((q) => '${q.title} (ID: ${q.id}, isRead: ${q.isRead})').join(', ')}');
+      print('QueryGetXController: Fetched queries: ${queries.length} items.');
     } catch (e) {
       final userFriendlyMessage = _getFriendlyErrorMessage(e, 'Error fetching queries.');
       _errorMessage.value = userFriendlyMessage;
-      Get.snackbar('Error', userFriendlyMessage, backgroundColor: Colors.red.withOpacity(0.7), colorText: Colors.white);
+      _showModernSnackbar(
+        title: 'Error',
+        message: userFriendlyMessage,
+        isSuccess: false,
+      );
       print('QueryGetXController: Error fetching queries: $e');
     } finally {
       _isLoading.value = false;
     }
   }
 
+  Future<void> refreshMyQueries() async {
+    await _fetchAndLoadMyQueries();
+  }
+
   Future<void> raiseQuery({
     required String title,
     required String message,
+    String? orderId,
   }) async {
     _isLoading.value = true;
     _errorMessage.value = '';
@@ -133,14 +146,23 @@ class QueryGetXController extends GetxController {
       final newQuery = await _queryService.raiseQuery(
         title: title,
         message: message,
+        orderId: orderId,
       );
       _myQueries.insert(0, newQuery);
-      Get.snackbar('Success', 'Query raised successfully! ID: ${newQuery.id}', backgroundColor: Colors.green.withOpacity(0.7), colorText: Colors.white);
+      _showModernSnackbar(
+        title: 'Success',
+        message: 'Query raised successfully! ID: ${newQuery.id}',
+        isSuccess: true,
+      );
       print('QueryGetXController: New query raised: ${newQuery.toJson()}');
     } catch (e) {
       final userFriendlyMessage = _getFriendlyErrorMessage(e, 'Error raising query.');
       _errorMessage.value = userFriendlyMessage;
-      Get.snackbar('Error', userFriendlyMessage, backgroundColor: Colors.red.withOpacity(0.7), colorText: Colors.white);
+      _showModernSnackbar(
+        title: 'Error',
+        message: userFriendlyMessage,
+        isSuccess: false,
+      );
       print('QueryGetXController: Error raising query: $e');
     } finally {
       _isLoading.value = false;
@@ -160,13 +182,21 @@ class QueryGetXController extends GetxController {
         rating: rating,
         review: review,
       );
-      _updateQueryInList(updatedQuery); // Use the helper
-      Get.snackbar('Success', 'Query rated successfully! ID: ${updatedQuery.id}', backgroundColor: Colors.green.withOpacity(0.7), colorText: Colors.white);
+      _updateQueryInList(updatedQuery);
+      _showModernSnackbar(
+        title: 'Success',
+        message: 'Query rated successfully! ID: ${updatedQuery.id}',
+        isSuccess: true,
+      );
       print('QueryGetXController: Query rated: ${updatedQuery.toJson()}');
     } catch (e) {
       final userFriendlyMessage = _getFriendlyErrorMessage(e, 'Error rating query.');
       _errorMessage.value = userFriendlyMessage;
-      Get.snackbar('Error', userFriendlyMessage, backgroundColor: Colors.red.withOpacity(0.7), colorText: Colors.white);
+      _showModernSnackbar(
+        title: 'Error',
+        message: userFriendlyMessage,
+        isSuccess: false,
+      );
       print('QueryGetXController: Error rating query: $e');
     } finally {
       _isLoading.value = false;
@@ -177,6 +207,14 @@ class QueryGetXController extends GetxController {
     required String queryId,
     required String replyText,
   }) async {
+    if (replyText.trim().isEmpty) {
+      _showModernSnackbar(
+        title: 'Input Error',
+        message: 'Reply message cannot be empty.',
+        isSuccess: false,
+      );
+      return;
+    }
     _isLoading.value = true;
     _errorMessage.value = '';
     try {
@@ -184,41 +222,31 @@ class QueryGetXController extends GetxController {
         queryId: queryId,
         replyText: replyText,
       );
-      _updateQueryInList(updatedQuery); // Use the helper
+      _updateQueryInList(updatedQuery);
       _replyInputController.clear();
-      Get.snackbar('Success', 'Replied to query successfully! ID: ${updatedQuery.id}', backgroundColor: Colors.green.withOpacity(0.7), colorText: Colors.white);
+      _showModernSnackbar(
+        title: 'Success',
+        message: 'Replied to query successfully! ID: ${updatedQuery.id}',
+        isSuccess: true,
+      );
       print('QueryGetXController: Replied to query: ${updatedQuery.toJson()}');
     } catch (e) {
       final userFriendlyMessage = _getFriendlyErrorMessage(e, 'Error replying to query.');
       _errorMessage.value = userFriendlyMessage;
-      Get.snackbar('Error', userFriendlyMessage, backgroundColor: Colors.red.withOpacity(0.7), colorText: Colors.white);
+      _showModernSnackbar(
+        title: 'Error',
+        message: userFriendlyMessage,
+        isSuccess: false,
+      );
       print('QueryGetXController: Error replying to query: $e');
     } finally {
       _isLoading.value = false;
     }
   }
 
-  // New method to mark a query as read on the backend
-  Future<void> markQueryAsRead(String queryId) async {
-    _isLoading.value = true;
-    _errorMessage.value = '';
-    try {
-      final updatedQuery = await _queryService.markQueryAsRead(queryId);
-      // Update the query in the local list and selected query
-      _updateQueryInList(updatedQuery); // Use the helper
-      Get.snackbar('Success', 'Query marked as read!', backgroundColor: Colors.green.withOpacity(0.7), colorText: Colors.white);
-      print('QueryGetXController: Query ID $queryId marked as read.');
-    } catch (e) {
-      final userFriendlyMessage = _getFriendlyErrorMessage(e, 'Error marking query as read.');
-      _errorMessage.value = userFriendlyMessage;
-      Get.snackbar('Error', userFriendlyMessage, backgroundColor: Colors.red.withOpacity(0.7), colorText: Colors.white);
-      print('QueryGetXController: Error marking query as read: $e');
-    } finally {
-      _isLoading.value = false;
-    }
+  QueryModel? getQueryByOrderId(String orderId) {
+    return _myQueries.firstWhereOrNull((query) => query.orderId == orderId);
   }
-
-  // The `updateQueryStatus` method has been removed from here.
 
   void selectQuery(QueryModel query) {
     _selectedQuery.value = query;
@@ -228,20 +256,62 @@ class QueryGetXController extends GetxController {
     _selectedQuery.value = null;
   }
 
-  // --- NEW: getStatusColor method added ---
   Color getStatusColor(String status) {
     switch (status.toLowerCase()) {
       case 'open':
-        return AppColors.info; // Blue for open
+        return AppColors.info;
       case 'pending_reply':
-        return AppColors.accentOrange; // Orange for pending reply
+        return AppColors.accentOrange;
       case 'resolved':
-        return AppColors.success; // Green for resolved
+        return AppColors.success;
       case 'closed':
-        return AppColors.textLight; // Grey for closed
+        return AppColors.textLight;
       default:
-        return AppColors.textLight; // Default to grey for unknown
+        return AppColors.textLight;
     }
   }
-// --- END NEW ---
+
+  void _showModernSnackbar({
+    required String title,
+    required String message,
+    required bool isSuccess,
+    Duration duration = const Duration(seconds: 3),
+  }) {
+    Color backgroundColor = isSuccess ? AppColors.success : AppColors.danger;
+    IconData icon = isSuccess ? Icons.check_circle_outline : Icons.error_outline;
+    Get.rawSnackbar(
+      messageText: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(icon, color: AppColors.white, size: 20),
+              const SizedBox(width: 8),
+              Text(
+                title,
+                style: Get.textTheme.titleMedium?.copyWith(
+                  color: AppColors.white,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text(
+            message,
+            style: Get.textTheme.bodyMedium?.copyWith(
+              color: AppColors.white,
+            ),
+          ),
+        ],
+      ),
+      snackPosition: SnackPosition.TOP,
+      backgroundColor: backgroundColor,
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+      borderRadius: 12,
+      animationDuration: const Duration(milliseconds: 300),
+      duration: duration,
+    );
+  }
 }

@@ -5,8 +5,13 @@ import '../data/AddressModel.dart';
 import '../services/AddressService.dart';
 import 'package:collection/collection.dart'; // For firstWhereOrNull
 
+import 'package:mobiking/app/controllers/connectivity_controller.dart'; // NEW: Import ConnectivityController
+
 class AddressController extends GetxController {
   final AddressService _addressService = Get.find<AddressService>();
+  // NEW: Get the ConnectivityController instance
+  final ConnectivityController _connectivityController = Get.find<ConnectivityController>();
+
 
   final RxList<AddressModel> addresses = <AddressModel>[].obs;
   final Rx<AddressModel?> selectedAddress = Rx<AddressModel?>(null);
@@ -36,7 +41,20 @@ class AddressController extends GetxController {
   @override
   void onInit() {
     super.onInit();
-    fetchAddresses();
+    fetchAddresses(); // Initial fetch
+
+    // NEW: Listen for connectivity changes
+    ever(_connectivityController.isConnected, (bool isConnected) {
+      if (isConnected) {
+        _handleConnectionRestored();
+      }
+    });
+  }
+
+  // NEW: Method to handle actions when connection is restored
+  Future<void> _handleConnectionRestored() async {
+    print('AddressController: Internet connection restored. Re-fetching addresses...');
+    await fetchAddresses(); // Re-fetch addresses
   }
 
   @override
@@ -46,7 +64,6 @@ class AddressController extends GetxController {
     stateController.dispose();
     pinCodeController.dispose();
     customLabelController.dispose();
-    // Removed _refreshTokenTimer?.cancel(); as it's not present in this controller anymore
     super.onClose();
   }
 

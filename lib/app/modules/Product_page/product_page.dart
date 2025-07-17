@@ -1,25 +1,35 @@
+// lib/screens/product_page.dart
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:get/get.dart';
-import 'package:mobiking/app/themes/app_theme.dart'; // Import AppColors and AppTheme
+import 'package:mobiking/app/themes/app_theme.dart';
 
 import '../../controllers/cart_controller.dart';
 import '../../controllers/wishlist_controller.dart';
 import '../../data/product_model.dart';
+import '../home/widgets/app_star_rating.dart';
 import 'widgets/product_image_banner.dart';
 import 'widgets/product_title_price.dart';
-import 'widgets/section_text.dart';
 import 'widgets/featured_product_banner.dart';
+import 'widgets/collapsible_section.dart';
+import 'widgets/animated_cart_button.dart';
 
+// Add SingleTickerProviderStateMixin for animation controller
 class ProductPage extends StatefulWidget {
   final ProductModel product;
+  final String heroTag;
 
-  const ProductPage({super.key, required this.product});
+  const ProductPage({
+    super.key,
+    required this.product,
+    required this.heroTag,
+  });
 
   @override
   State<ProductPage> createState() => _ProductPageState();
 }
 
-class _ProductPageState extends State<ProductPage> {
+class _ProductPageState extends State<ProductPage> with SingleTickerProviderStateMixin {
   int selectedVariantIndex = 0;
 
   final TextEditingController _pincodeController = TextEditingController();
@@ -33,26 +43,75 @@ class _ProductPageState extends State<ProductPage> {
   final RxInt _currentVariantStock = 0.obs;
   final RxString _currentSelectedVariantName = ''.obs;
 
+  // Controller for scroll events to hide/show bottom bar
+  final ScrollController _scrollController = ScrollController();
+
+  // Animation controller for sliding the bottom bar
+  late AnimationController _slideAnimationController;
+  late Animation<Offset> _slideAnimation;
+
+  // State variable to control the visibility of product details
+  final RxBool _productDetailsVisible = false.obs; // Initially hidden
+
+  // Define a consistent horizontal padding for the main content
+  static const double _horizontalPagePadding = 16.0;
+
   @override
   void initState() {
     super.initState();
     if (widget.product.variants.isNotEmpty) {
-      selectedVariantIndex = 0;
-      _currentSelectedVariantName.value = widget.product.variants.keys.elementAt(selectedVariantIndex);
+      int firstAvailableIndex = -1;
+      for (int i = 0; i < widget.product.variants.length; i++) {
+        final variantKey = widget.product.variants.keys.elementAt(i);
+        if ((widget.product.variants[variantKey] ?? 0) > 0) {
+          firstAvailableIndex = i;
+          break;
+        }
+      }
+
+      if (firstAvailableIndex != -1) {
+        selectedVariantIndex = firstAvailableIndex;
+        _currentSelectedVariantName.value = widget.product.variants.keys.elementAt(selectedVariantIndex);
+      } else {
+        selectedVariantIndex = 0;
+        _currentSelectedVariantName.value = widget.product.variants.keys.elementAt(selectedVariantIndex);
+      }
     } else {
-      // If no variants defined, default to a placeholder variant name and total stock
       _currentSelectedVariantName.value = 'Default Variant';
     }
 
     _pincodeController.addListener(_resetDeliveryStatus);
-
     _syncVariantData();
+
+    // Initialize animation controller
+    _slideAnimationController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 300),
+    );
+    // Define the slide animation: from no offset (visible) to slide down (100% of its height)
+    _slideAnimation = Tween<Offset>(
+      begin: Offset.zero, // Visible position
+      end: const Offset(0, 1), // Hidden position (slides down by its full height)
+    ).animate(CurvedAnimation(
+      parent: _slideAnimationController,
+      curve: Curves.easeInOut,
+    ));
+
+    // Initially show the bar
+    _slideAnimationController.forward();
+
+    // Add scroll listener for the bottom bar animation
+    _scrollController.addListener(_scrollListener);
   }
 
   @override
   void dispose() {
     _pincodeController.removeListener(_resetDeliveryStatus);
     _pincodeController.dispose();
+    // Dispose scroll controller and animation controller
+    _scrollController.removeListener(_scrollListener);
+    _scrollController.dispose();
+    _slideAnimationController.dispose(); // Dispose animation controller
     super.dispose();
   }
 
@@ -63,25 +122,56 @@ class _ProductPageState extends State<ProductPage> {
     }
   }
 
-  void onVariantSelected(int index) {
-    setState(() {
-      selectedVariantIndex = index;
-      _currentSelectedVariantName.value = widget.product.variants.keys.elementAt(selectedVariantIndex);
-      _syncVariantData();
-    });
-  }
-
-  void _syncVariantData() {
-    if (widget.product.variants.isNotEmpty && selectedVariantIndex < widget.product.variants.length) {
-      final variantKey = widget.product.variants.keys.elementAt(selectedVariantIndex);
-      // Correct: Direct use of int value as stock (as per your current ProductModel)
-      _currentVariantStock.value = widget.product.variants[variantKey] ?? 0;
-    } else {
-      // For products without explicit variants, use totalStock as the only stock
-      _currentVariantStock.value = widget.product.totalStock;
+  void _scrollListener() {
+    if (_scrollController.position.userScrollDirection == ScrollDirection.reverse) {
+      // User is scrolling down, hide the bar
+      if (_slideAnimationController.status != AnimationStatus.forward) {
+        _slideAnimationController.forward();
+      }
+    } else if (_scrollController.position.userScrollDirection == ScrollDirection.forward) {
+      // User is scrolling up, show the bar
+      if (_slideAnimationController.status != AnimationStatus.reverse) {
+        _slideAnimationController.reverse();
+      }
     }
   }
 
+  void onVariantSelected(int index) {
+    final variantKey = widget.product.variants.keys.elementAt(index);
+    final isVariantOutOfStock = (widget.product.variants[variantKey] ?? 0) <= 0;
+
+    if (!isVariantOutOfStock) {
+      setState(() {
+        selectedVariantIndex = index;
+        _currentSelectedVariantName.value = variantKey;
+        _syncVariantData();
+      });
+    } else {
+      Get.snackbar(
+        'Out of Stock',
+        'This variant is currently out of stock.',
+        snackPosition: SnackPosition.BOTTOM,
+        backgroundColor: AppColors.danger.withOpacity(0.8),
+        colorText: Colors.white,
+        icon: const Icon(Icons.info_outline, color: Colors.white),
+        margin: const EdgeInsets.all(10),
+        borderRadius: 10,
+        animationDuration: const Duration(milliseconds: 300),
+        duration: const Duration(seconds: 2),
+      );
+    }
+  }
+
+  void _syncVariantData() {
+    if (widget.product.variants.isNotEmpty &&
+        selectedVariantIndex >= 0 &&
+        selectedVariantIndex < widget.product.variants.length) {
+      final variantKey = widget.product.variants.keys.elementAt(selectedVariantIndex);
+      _currentVariantStock.value = widget.product.variants[variantKey] ?? 0;
+    } else {
+      _currentVariantStock.value = widget.product.totalStock;
+    }
+  }
 
   Future<void> _incrementQuantity() async {
     final String productId = widget.product.id.toString();
@@ -92,11 +182,25 @@ class _ProductPageState extends State<ProductPage> {
       variantName: variantName,
     );
 
-    if (cartController.isLoading.value || _currentVariantStock.value <= quantityInCart) {
-      if (_currentVariantStock.value <= quantityInCart) {
+    if (cartController.isLoading.value || _currentVariantStock.value <= 0 ||
+        _currentVariantStock.value <= quantityInCart) {
+      if (_currentVariantStock.value <= 0) {
+        Get.snackbar(
+          'Out of Stock',
+          'The selected variant is currently out of stock.',
+          snackPosition: SnackPosition.BOTTOM,
+          backgroundColor: AppColors.danger.withOpacity(0.8),
+          colorText: Colors.white,
+          icon: const Icon(Icons.info_outline, color: Colors.white),
+          margin: const EdgeInsets.all(10),
+          borderRadius: 10,
+          animationDuration: const Duration(milliseconds: 300),
+          duration: const Duration(seconds: 3),
+        );
+      } else if (_currentVariantStock.value <= quantityInCart) {
         Get.snackbar(
           'Limit Reached',
-          'You have reached the maximum available quantity for this variant or it\'s out of stock.',
+          'You have reached the maximum available quantity for this variant.',
           snackPosition: SnackPosition.BOTTOM,
           backgroundColor: AppColors.danger.withOpacity(0.8),
           colorText: Colors.white,
@@ -137,194 +241,386 @@ class _ProductPageState extends State<ProductPage> {
     }
   }
 
-
-
-
   @override
   Widget build(BuildContext context) {
     final product = widget.product;
     final TextTheme textTheme = Theme.of(context).textTheme;
 
-    final originalPrice = product.sellingPrice.isNotEmpty
-        ? product.sellingPrice.first.price
-        : 0;
+    final originalPrice =
+    product.sellingPrice.isNotEmpty ? product.sellingPrice.first.price : 0;
     final discountedPrice = product.sellingPrice.length > 1
         ? product.sellingPrice[1].price
         : originalPrice;
 
+    // Calculate discount percentage
+    final double discountPercentage = originalPrice > 0
+        ? ((originalPrice - discountedPrice) / originalPrice * 100)
+        : 0;
+    final String discountBadgeText =
+    discountPercentage > 0 ? '${discountPercentage.toStringAsFixed(0)}% OFF' : '';
+
+    // Dummy data for price per unit, rating, reviews
+    final double pricePer100ml = (discountedPrice / 20).toPrecision(2); // Example for 2L (2000ml), so per 100ml is /20
+    const double productRating = 4.5; // Example rating
+    const int reviewCount = 881; // Example review count
+
     final variantNames = product.variants.keys.toList();
 
     return Scaffold(
-      backgroundColor: AppColors.neutralBackground,
-      body: SafeArea(
-        child: Stack(
-          children: [
-            SingleChildScrollView(
-              padding: const EdgeInsets.only(left: 16, right: 16, top: 12, bottom: 100),
+      backgroundColor: AppColors.white,
+      body: Column(
+        children: [
+          Expanded(
+            child: SingleChildScrollView(
+              controller: _scrollController,
+              padding: const EdgeInsets.only(bottom: 24),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(16),
-                    child: Obx(() {
-                      final isFavorite = wishlistController.wishlist.any((p) => p.id == product.id);
-                      return ProductImageBanner(
-                        imageUrls: product.images,
-                        badgeText: "20% OFF",
-                        isFavorite: isFavorite,
-                        onBack: () => Get.back(),
-                        onFavorite: () {
-                          if (isFavorite) {
-                            wishlistController.removeFromWishlist(product.id);
-                          } else {
-                            wishlistController.addToWishlist(product.id.toString());
-                          }
-                        },
-                      );
-                    }),
-                  ),
-                  const SizedBox(height: 16),
+                  // Product Image Banner (full width, with zoom/share)
+                  Obx(() {
+                    final isFavorite = wishlistController.wishlist.any((p) => p.id == product.id);
+                    return ProductImageBanner(
+                      productId: product.id.toString(),
+                      imageUrls: product.images,
+                      badgeText: discountBadgeText.isNotEmpty ? discountBadgeText : null,
+                      isFavorite: isFavorite,
+                      onBack: () => Get.back(),
+                      onFavorite: () {
+                        if (isFavorite) {
+                          wishlistController.removeFromWishlist(product.id);
+                        } else {
+                          wishlistController.addToWishlist(product.id.toString());
+                        }
+                      },
+                      heroTag: widget.heroTag,
+                    );
+                  }),
 
-                  // Product price displayed here will *not* change with variant selection
-                  // because your ProductModel's variants map only contains stock (int), not price.
-                  ProductTitleAndPrice(
-                    title: product.fullName,
-                    originalPrice: originalPrice.toDouble(),
-                    discountedPrice: discountedPrice.toDouble(),
+                  // Product Title & Price Card
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: _horizontalPagePadding, vertical: 8.0),
+                    child: Padding(
+                      padding: const EdgeInsets.all(16.0),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          ProductTitleAndPrice(
+                            productRating: 4.5,
+                            reviewCount: 450,
+                            title: product.fullName,
+
+                            originalPrice: originalPrice.toDouble(),
+                            discountedPrice: discountedPrice.toDouble(),
+                          ),
+                          const SizedBox(height: 8),
+                        ],
+                      ),
+                    ),
                   ),
-                  const SizedBox(height: 12),
 
                   if (variantNames.isNotEmpty)
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Select Variant',
-                          style: textTheme.titleMedium?.copyWith(color: AppColors.textDark),
-                        ),
-                        const SizedBox(height: 10),
-                        Wrap(
-                          spacing: 8.0,
-                          runSpacing: 8.0,
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: _horizontalPagePadding),
+                      child: CollapsibleSection(
+                        title: 'Select Variant',
+                        initiallyExpanded: true,
+                        content: Wrap(
+                          spacing: 8.0, // Consistent spacing between chips
+                          runSpacing: 8.0, // Consistent spacing between rows of chips
                           children: List<Widget>.generate(variantNames.length, (index) {
                             final isSelected = selectedVariantIndex == index;
-                            final variantStockValue = product.variants[variantNames[index]] ?? 0; // Directly get the int stock
-
-                            // CORRECTED: isVariantOutOfStock check (same as before)
+                            final variantStockValue =
+                                product.variants[variantNames[index]] ?? 0;
                             final isVariantOutOfStock = variantStockValue <= 0;
 
                             return ChoiceChip(
                               label: Text(
-                                variantNames[index] + (isVariantOutOfStock ? ' (Out of Stock)' : ''),
+                                variantNames[index] +
+                                    (isVariantOutOfStock ? ' (Out of Stock)' : ''),
                               ),
                               selected: isSelected,
-                              onSelected: isVariantOutOfStock ? null : (selected) {
-                                if (selected) {
+                              onSelected: (selected) {
+                                if (selected && !isVariantOutOfStock) { // Prevent selecting out of stock items
                                   onVariantSelected(index);
                                 }
                               },
-                              selectedColor: AppColors.primaryPurple,
-                              backgroundColor: isVariantOutOfStock ? AppColors.danger.withOpacity(0.1) : AppColors.lightPurple.withOpacity(0.4),
+                              // --- White and Green Styling ---
+                              selectedColor: AppColors.success.withOpacity(0.1), // Very light green tint for selected background
+                              backgroundColor: isVariantOutOfStock
+                                  ? AppColors.danger.withOpacity(0.05) // Light red for out of stock
+                                  : Colors.white, // Pure white background for unselected
                               labelStyle: textTheme.labelMedium?.copyWith(
                                 color: isSelected
-                                    ? Colors.white
-                                    : (isVariantOutOfStock ? AppColors.danger : AppColors.textDark),
-                                fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+                                    ? AppColors.success // Green text for selected
+                                    : (isVariantOutOfStock
+                                    ? AppColors.danger.withOpacity(0.7) // Softer red for out of stock text
+                                    : AppColors.textDark.withOpacity(0.7)), // Subtle dark grey for normal text
+                                fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal, // Semi-bold for selected
                               ),
-                              elevation: isSelected ? 3 : 1,
-                              pressElevation: 5,
                               shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(20),
+                                borderRadius: BorderRadius.circular(8), // Less rounded corners
                                 side: BorderSide(
                                   color: isSelected
-                                      ? AppColors.primaryPurple
-                                      : (isVariantOutOfStock ? AppColors.danger.withOpacity(0.5) : AppColors.lightPurple),
-                                  width: 1,
+                                      ? AppColors.success // Green border for selected
+                                      : (isVariantOutOfStock
+                                      ? AppColors.danger.withOpacity(0.3) // Very subtle red border for out of stock
+                                      : Colors.grey.shade300), // Very light grey border for unselected
+                                  width: 1, // Keep border thin
                                 ),
                               ),
+                              // labelPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2), // Reduced padding
                             );
                           }),
                         ),
-                      ],
+                      ),
                     ),
-                  const SizedBox(height: 20),
 
-                  SectionText(
-                    title: 'Product Description',
-                    content: product.description.isNotEmpty
-                        ? product.description
-                        : 'No detailed description is available for this product. This product offers cutting-edge technology and superior performance, designed to meet your everyday needs with efficiency and style. Enjoy seamless integration and robust features that enhance your overall user experience.',
+// Animated section for Product Description and Key Information
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: _horizontalPagePadding, vertical: 8.0),
+                    child: SizedBox(
+                      width: double.maxFinite,
+                      // Removed fixed width: double.infinity to make it small
+                      height: 36, // Smaller fixed height for the button
+                      child: Obx( // Wrap with Obx to react to _productDetailsVisible changes
+                            () => ElevatedButton.icon(
+                          onPressed: () {
+                            _productDetailsVisible.value = !_productDetailsVisible.value;
+                            debugPrint('View product details tapped! Visible: ${_productDetailsVisible.value}');
+                          },
+                          icon: Icon(
+                            _productDetailsVisible.value ? Icons.arrow_drop_up : Icons.arrow_drop_down,
+                            color: AppColors.success, // Green icon color
+                            size: 16, // Smaller icon size
+                          ),
+                          label: Text(
+                            _productDetailsVisible.value ? 'Hide product details' : 'View product details',
+                            style: Theme.of(context).textTheme.labelLarge?.copyWith( // Use labelLarge for smaller text
+                              color: AppColors.success, // Green text color
+                              fontWeight: FontWeight.w600,
+                              fontSize: 12, // Smaller font size for a compact look
+                            ),
+                          ),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppColors.success.withOpacity(0.1), // Light green background with reduced opacity
+                            foregroundColor: AppColors.success, // Text/icon color (though overridden by label/icon color)
+                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8), // Adjusted padding to make it smaller
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8), // Slightly smaller border radius
+                              side: BorderSide.none, // No explicit border
+                            ),
+                            elevation: 0, // No elevation
+                            shadowColor: Colors.transparent, // No shadow
+                            minimumSize: Size.zero, // Important: Allows the button to shrink to content size
+                            tapTargetSize: MaterialTapTargetSize.shrinkWrap, // Shrink tap area
+                          ),
+                        ),
+                      ),
+                    ),
                   ),
-                  const SizedBox(height: 24),
+                  Obx(
+                        () => AnimatedCrossFade(
+                      firstChild: const SizedBox.shrink(), // Hidden state: shows nothing
+                      secondChild: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // --- Product Description Section ---
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: _horizontalPagePadding, vertical: 8.0),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Product Description',
+                                  style: textTheme.titleMedium?.copyWith(color: AppColors.textDark, fontWeight: FontWeight.w600),
+                                ),
+                                const SizedBox(height: 8),
+                                Text(
+                                  product.description.isNotEmpty
+                                      ? product.description
+                                      : 'No detailed description is available for this product. This product offers cutting-edge technology and superior performance, designed to meet your everyday needs with efficiency and style. Enjoy seamless integration and robust features that enhance your overall user experience.',
+                                  style: textTheme.bodyMedium?.copyWith(color: AppColors.textMedium),
+                                ),
+                              ],
+                            ),
+                          ),
 
-                  // Key Information - Weight is still N/A as it's not in your Map<String, int>
-                  SectionText(
-                    title: 'Key Information',
-                    content: 'Weight: N/A (Variant weight not available with current data structure)\n' // Weight remains N/A
-                        'SKU: ${product.id}\n'
-                        'Availability: ${(_currentVariantStock.value > 0) ? 'In Stock' : 'Out of Stock'}\n'
-                        'Material: High-Quality Components',
+                          // --- Product Description Points Section (NEW) ---
+                          if (product.descriptionPoints.isNotEmpty) // Only show if points exist
+                            Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: _horizontalPagePadding, vertical: 8.0),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const SizedBox(height: 8), // Spacing above points
+                                  ...product.descriptionPoints.map((point) => Padding(
+                                    padding: const EdgeInsets.only(bottom: 4.0), // Spacing between points
+                                    child: Row(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Padding(
+                                          padding: const EdgeInsets.only(right: 8.0),
+                                          child: Text(
+                                            '•', // Bullet point
+                                            style: textTheme.bodyMedium?.copyWith(color: AppColors.textMedium),
+                                          ),
+                                        ),
+                                        Expanded(
+                                          child: Text(
+                                            point,
+                                            style: textTheme.bodyMedium?.copyWith(color: AppColors.textMedium),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  )).toList(),
+                                ],
+                              ),
+                            ),
+
+
+                          // --- Key Information Section (Modified for table-like format) ---
+                          // Key Information Section, displayed in a table-like format
+                          if (product.keyInformation.isNotEmpty) // Only show if key info exists
+                            Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: _horizontalPagePadding, vertical: 8.0),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const SizedBox(height: 8), // Spacing above Key Information section
+                                  Text(
+                                    'Key Information',
+                                    style: textTheme.titleMedium?.copyWith(color: AppColors.textDark, fontWeight: FontWeight.w600),
+                                  ),
+                                  const SizedBox(height: 8),
+                                  // This Column contains the "rows" of your table-like structure
+                                  Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start, // Ensures titles align to the left
+                                    children: product.keyInformation.map((info) => Padding(
+                                      padding: const EdgeInsets.only(bottom: 6.0), // Spacing between each "table row"
+                                      child: Row(
+                                        mainAxisAlignment: MainAxisAlignment.spaceBetween, // Pushes title to left, content to right
+                                        children: [
+                                          // Left "column" (Title)
+                                          Text(
+                                            info.title,
+                                            style: textTheme.bodyMedium?.copyWith(color: AppColors.textMedium),
+                                          ),
+                                          const SizedBox(width: 16), // Spacing between title and content
+                                          // Right "column" (Content)
+                                          Expanded( // Allows content to wrap and takes remaining space
+                                            child: Text(
+                                              info.content,
+                                              textAlign: TextAlign.end, // Aligns content text to the right
+                                              style: textTheme.bodyMedium?.copyWith(color: AppColors.textDark, fontWeight: FontWeight.w500),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    )).toList(),
+                                  ),
+                                ],
+                              ),
+                            ),
+                        ],
+                      ),
+                      crossFadeState: _productDetailsVisible.value
+                          ? CrossFadeState.showSecond
+                          : CrossFadeState.showFirst,
+                      duration: const Duration(milliseconds: 300),
+                      alignment: Alignment.topLeft,
+                    ),
                   ),
-                  const SizedBox(height: 32),
+                  const SizedBox(height: 24), // Keep larger spacing for major sections
 
-                  Text(
-                    'You might also like',
-                    style: textTheme.headlineMedium?.copyWith(color: AppColors.textDark),
+                  // You might also like section
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: _horizontalPagePadding),
+                    child: Text(
+                      'You might also like',
+                      style: textTheme.headlineSmall?.copyWith(color: AppColors.textDark, fontWeight: FontWeight.w700),
+                    ),
                   ),
                   const SizedBox(height: 12),
-                  Container(
-                    height: 150,
-                    color: AppColors.neutralBackground.withOpacity(0.8),
-                    alignment: Alignment.center,
-                    child: Text('Placeholder for "You might also like" products', style: textTheme.bodyMedium?.copyWith(color: AppColors.textLight)),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: _horizontalPagePadding),
+                    child: Container(
+                      height: 150,
+                      color: AppColors.neutralBackground,
+                      alignment: Alignment.center,
+                      child: Text('Placeholder for "You might also like" products',
+                          style: textTheme.bodyMedium?.copyWith(color: AppColors.textLight)),
+                    ),
                   ),
 
-                  const SizedBox(height: 32),
+                  const SizedBox(height: 32), // Keep larger spacing for major sections
 
-                  Text(
-                    'Featured Offer',
-                    style: textTheme.headlineMedium?.copyWith(color: AppColors.textDark),
+                  // Featured Offer section
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: _horizontalPagePadding),
+                    child: Text(
+                      'Featured Offer',
+                      style: textTheme.headlineSmall?.copyWith(color: AppColors.textDark, fontWeight: FontWeight.w700),
+                    ),
                   ),
                   const SizedBox(height: 12),
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(16),
-                    child: FeaturedProductBanner(
-                      imageUrl: product.images.length > 1 && product.images[1] is String
-                          ? product.images[1].toString()
-                          : 'https://via.placeholder.com/400x200?text=Featured+Product',
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: _horizontalPagePadding),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(16),
+                      child: FeaturedProductBanner(
+                        imageUrl: product.images.length > 1 && product.images[1] is String
+                            ? product.images[1].toString()
+                            : 'https://via.placeholder.com/400x200?text=Featured+Product',
+                      ),
                     ),
                   ),
                   const SizedBox(height: 48),
 
-                  Text(
-                    'Explore More Categories',
-                    style: textTheme.headlineMedium?.copyWith(color: AppColors.textDark),
+                  // Explore More Categories section
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: _horizontalPagePadding),
+                    child: Text(
+                      'Explore More Categories',
+                      style: textTheme.headlineSmall?.copyWith(color: AppColors.textDark, fontWeight: FontWeight.w700),
+                    ),
                   ),
                   const SizedBox(height: 20),
-                  Container(
-                    height: 200,
-                    color: AppColors.neutralBackground.withOpacity(0.5),
-                    alignment: Alignment.center,
-                    child: Text('Placeholder for Shop by Category / GroupGridSection', style: textTheme.bodyMedium?.copyWith(color: AppColors.textLight)),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: _horizontalPagePadding),
+                    child: Container(
+                      height: 200,
+                      color: AppColors.neutralBackground,
+                      alignment: Alignment.center,
+                      child: Text('Placeholder for Shop by Category / GroupGridSection',
+                          style: textTheme.bodyMedium?.copyWith(color: AppColors.textLight)),
+                    ),
                   ),
-                  const SizedBox(height: 24),
+                  // Add a final SizedBox to ensure there's enough scroll space above the bottom bar
+                  const SizedBox(height: 70), // Height of the bottom bar
                 ],
               ),
             ),
-
-            Align(
-              alignment: Alignment.bottomCenter,
-              child: _buildBottomCartBar(context),
-            ),
-          ],
-        ),
+          ),
+          // Bottom bar, now animated with SlideTransition
+          SlideTransition(
+            position: _slideAnimation,
+            child: _buildBottomCartBar(context),
+          ),
+        ],
       ),
     );
   }
-
   Widget _buildBottomCartBar(BuildContext context) {
     final TextTheme textTheme = Theme.of(context).textTheme;
-    final product = widget.product;
+    final product = widget.product; // Assuming 'widget' context is available
+
+    final double displayPrice = product.sellingPrice.length > 1
+        ? product.sellingPrice.last.price.toDouble()
+        : product.sellingPrice.isNotEmpty
+        ? product.sellingPrice.first.price.toDouble()
+        : 0.0;
 
     return Obx(() {
       final quantityInCartForSelectedVariant = cartController.getVariantQuantity(
@@ -335,149 +631,63 @@ class _ProductPageState extends State<ProductPage> {
       final bool isOutOfStock = _currentVariantStock.value <= 0;
 
       final bool isInCart = quantityInCartForSelectedVariant > 0;
-      final bool canIncrement = quantityInCartForSelectedVariant < _currentVariantStock.value && !isBusy;
+      final bool canIncrement =
+          quantityInCartForSelectedVariant < _currentVariantStock.value && !isBusy;
       final bool canDecrement = quantityInCartForSelectedVariant > 0 && !isBusy;
 
-
-      return Container(
-        height: 70,
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-        decoration: BoxDecoration(
-          color: AppColors.white,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-          boxShadow: [
-            BoxShadow(
-              color: AppColors.textDark.withOpacity(0.1),
-              blurRadius: 10,
-              offset: const Offset(0, -5),
-            ),
-          ],
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Obx(() {
-              final totalItems = cartController.totalCartItemsCount;
-              final totalValue = cartController.totalCartValue;
-              if (totalItems == 0) {
-                return const SizedBox.shrink();
-              }
-              return Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('$totalItems Items',
-                      style: textTheme.bodySmall?.copyWith(color: AppColors.textMedium)),
-                  Text('₹${totalValue.toStringAsFixed(0)}',
-                      style: textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold, color: AppColors.textDark)),
-                ],
-              );
-            }),
-
-            if (isOutOfStock)
+      return SafeArea( // <--- WRAP WITH SafeArea
+        bottom: true, // <--- Ensure it applies padding to the bottom
+        top: false,   // <--- We only care about the bottom for a bottom bar
+        child: Container(
+          height: 70, // Fixed height for the bar
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+          decoration: BoxDecoration(
+            color: AppColors.white, // Background of the entire bar
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+            boxShadow: [
+              BoxShadow(
+                color: AppColors.textDark.withOpacity(0.1),
+                blurRadius: 10,
+                offset: const Offset(0, -5),
+              ),
+            ],
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
               Expanded(
-                child: Center(
-                  child: Text(
-                    'Out of Stock',
-                    style: textTheme.titleMedium?.copyWith(color: AppColors.danger),
-                  ),
-                ),
-              )
-            else if (!isInCart)
-            // Adjusted 'Add' button size here
-              SizedBox( // Use SizedBox to give it a fixed width
-                width: 100, // Reduced width for the add button
-                child: ElevatedButton(
-                  onPressed: isBusy ? null : _incrementQuantity,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.success,
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                    elevation: 3,
-                    padding: const EdgeInsets.symmetric(horizontal: 0, vertical: 10), // Reduced vertical padding
-                    tapTargetSize: MaterialTapTargetSize.shrinkWrap, // Shrink tap area
-                  ),
-                  child: isBusy
-                      ? const SizedBox(
-                    height: 20,
-                    width: 20,
-                    child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2.5),
-                  )
-                      : Text('Add', style: textTheme.titleMedium?.copyWith(color: Colors.white)),
-                ),
-              )
-            else
-              Container(
-                decoration: BoxDecoration(
-                  color: AppColors.success,
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                child: Row(
+                child: Column(
                   mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    _buildQuantityButton(
-                      context: context,
-                      icon: Icons.remove,
-                      onTap: canDecrement ? _decrementQuantity : null,
-                      isDisabled: !canDecrement,
-                      isLoading: isBusy && (quantityInCartForSelectedVariant == 1),
-                    ),
-                    const SizedBox(width: 12),
                     Text(
-                      '$quantityInCartForSelectedVariant',
-                      style: textTheme.titleMedium?.copyWith(color: Colors.white, fontWeight: FontWeight.bold),
+                      'Price',
+                      style: textTheme.bodySmall?.copyWith(color: AppColors.textMedium),
                     ),
-                    const SizedBox(width: 12),
-                    _buildQuantityButton(
-                      context: context,
-                      icon: Icons.add,
-                      onTap: canIncrement ? _incrementQuantity : null,
-                      isDisabled: !canIncrement,
-                      isLoading: isBusy && (quantityInCartForSelectedVariant < _currentVariantStock.value),
+                    Text(
+                      '₹${displayPrice.toStringAsFixed(0)}',
+                      style: textTheme.titleLarge?.copyWith(
+                          fontWeight: FontWeight.bold, color: AppColors.textDark),
                     ),
                   ],
                 ),
               ),
-          ],
+              AnimatedCartButton(
+                isInCart: isInCart,
+                isBusy: isBusy,
+                isOutOfStock: isOutOfStock,
+                quantityInCart: quantityInCartForSelectedVariant,
+                onAdd: _incrementQuantity,
+                onIncrement: _incrementQuantity,
+                onDecrement: _decrementQuantity,
+                canIncrement: canIncrement,
+                canDecrement: canDecrement,
+                textTheme: textTheme,
+              ),
+            ],
+          ),
         ),
       );
     });
-  }
-
-  Widget _buildQuantityButton({
-    required BuildContext context,
-    required IconData icon,
-    VoidCallback? onTap,
-    required bool isDisabled,
-    required bool isLoading,
-  }) {
-    final Color buttonColor = AppColors.success;
-    final Color iconColor = Colors.white;
-
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.all(6),
-        decoration: BoxDecoration(
-          color: isDisabled ? buttonColor.withOpacity(0.5) : buttonColor,
-          shape: BoxShape.circle,
-        ),
-        child: isLoading
-            ? SizedBox(
-          height: 18,
-          width: 18,
-          child: CircularProgressIndicator(
-            strokeWidth: 2,
-            valueColor: AlwaysStoppedAnimation<Color>(iconColor),
-          ),
-        )
-            : Icon(
-          icon,
-          size: 18,
-          color: isDisabled ? iconColor.withOpacity(0.5) : iconColor,
-        ),
-      ),
-    );
   }
 }

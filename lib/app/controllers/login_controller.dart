@@ -3,9 +3,13 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:get_storage/get_storage.dart';
+import 'package:dio/dio.dart' as dio;
+import 'package:mobiking/app/modules/bottombar/Bottom_bar.dart';
+
 import '../modules/login/login_screen.dart'; // Ensure this path is correct for your LoginScreen
 import '../services/login_service.dart';
-import 'package:dio/dio.dart' as dio;
+
+import 'package:mobiking/app/controllers/connectivity_controller.dart'; // NEW: Import ConnectivityController
 
 class LoginController extends GetxController {
   final LoginService loginService = Get.find<LoginService>();
@@ -16,13 +20,65 @@ class LoginController extends GetxController {
   // Make the user data itself observable
   Rx<Map<String, dynamic>?> currentUser = Rx<Map<String, dynamic>?>(null);
 
+  // NEW: Get the ConnectivityController instance
+  final ConnectivityController _connectivityController = Get.find<ConnectivityController>();
+
+
   @override
   void onInit() {
     super.onInit();
     // Load user data from GetStorage when the controller is initialized
     // and set it to the observable.
     _loadCurrentUserFromStorage();
+
+    // NEW: Listen for connectivity changes
+    ever(_connectivityController.isConnected, (bool isConnected) {
+      if (isConnected) {
+        _handleConnectionRestored();
+      }
+    });
   }
+
+  // NEW: Method to handle actions when connection is restored
+  Future<void> _handleConnectionRestored() async {
+    print('LoginController: Internet connection restored. Attempting to refresh user data/session...');
+    // This is where you put logic to "reinitialize" or "refresh" the controller's state
+    // For LoginController, this might mean:
+    // 1. Re-fetching current user data to ensure it's up-to-date with the backend.
+    // 2. Refreshing authentication token if it's managed separately and needs a fresh handshake.
+    // 3. Silently attempting to log in again if session is based on simple token presence.
+
+    // If there's an existing user (even if offline), try to refresh their session or data
+    if (currentUser.value != null && box.read('accessToken') != null) {
+      try {
+        // --- IMPORTANT: Replace with your actual session/user data refresh logic ---
+        // Example: If your LoginService has a method to validate/refresh the current session or fetch profile:
+        // final refreshedUser = await loginService.fetchUserProfile();
+        // currentUser.value = refreshedUser; // Update observable with fresh data
+        print('LoginController: User session or data re-validated/refreshed successfully.');
+
+        // Optionally, if the user was on the NoNetworkScreen and they come back online
+        // and are authenticated, you might want to navigate them to the HomeDashboard
+        // (though MyApp's Obx already handles the initial screen decision).
+        // If they are deep in the app but lost connection, this won't change their route.
+        // Get.offAll(() => HomeDashboard()); // Use with caution, might interrupt user flow.
+      } catch (e) {
+        print('LoginController: Failed to refresh user data/session on reconnect: $e');
+        // Handle cases where re-validation fails (e.g., token expired while offline)
+        // You might want to force a re-login if the session is truly invalid.
+        // logout();
+        Get.snackbar(
+          'Session Warning',
+          'Could not refresh your session. Please consider logging in again.',
+          snackPosition: SnackPosition.BOTTOM,
+          backgroundColor: Colors.orange.shade700,
+          colorText: Colors.white,
+          icon: const Icon(Icons.warning_amber_rounded, color: Colors.white),
+        );
+      }
+    }
+  }
+
 
   // New method to load user from GetStorage and update the observable
   void _loadCurrentUserFromStorage() {
@@ -118,7 +174,7 @@ class LoginController extends GetxController {
         print('User ID from helper: $userId');
 
         // You might want to navigate to another screen after successful login
-        // Get.offAll(() => HomeScreen()); // Example navigation
+        Get.offAll(() => MainContainerScreen()); // Example navigation to HomeDashboard
 
       } else {
         Get.snackbar(

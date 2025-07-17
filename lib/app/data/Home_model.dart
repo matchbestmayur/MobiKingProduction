@@ -60,8 +60,7 @@ class HomeLayoutModel {
   }
 }
 
-// Assuming CategoryModel is defined like this or in a separate file (category_model.dart)
-// If not, you'll need to create this class based on your backend's category structure.
+// Updated CategoryModel with the 'icon' and 'theme' field
 class CategoryModel {
   final String id;
   final String name;
@@ -72,13 +71,15 @@ class CategoryModel {
   final bool active;
   final bool featured;
   final List<String> photos;
-  final String? parentCategory; // Assuming parent category ID
-  final List<String> products; // List of product IDs
+  final String? parentCategory;
+  final List<String> products;
   final DateTime createdAt;
   final DateTime updatedAt;
-  final int? deliveryCharge;
-  final int? minFreeDeliveryOrderAmount;
-  final int? minOrderAmount;
+  final double? deliveryCharge; // ✅ changed from int? to double?
+  final double? minFreeDeliveryOrderAmount; // ✅ changed
+  final double? minOrderAmount; // ✅ changed
+  final String? icon;
+  final String? theme;
 
   CategoryModel({
     required this.id,
@@ -97,6 +98,8 @@ class CategoryModel {
     this.deliveryCharge,
     this.minFreeDeliveryOrderAmount,
     this.minOrderAmount,
+    this.icon,
+    this.theme,
   });
 
   factory CategoryModel.fromJson(Map<String, dynamic> json) {
@@ -114,9 +117,34 @@ class CategoryModel {
       products: List<String>.from(json['products'] ?? []),
       createdAt: DateTime.tryParse(json['createdAt'] as String? ?? '') ?? DateTime.now(),
       updatedAt: DateTime.tryParse(json['updatedAt'] as String? ?? '') ?? DateTime.now(),
-      deliveryCharge: json['deliveryCharge'] as int?,
-      minFreeDeliveryOrderAmount: json['minFreeDeliveryOrderAmount'] as int?,
-      minOrderAmount: json['minOrderAmount'] as int?,
+      deliveryCharge: (json['deliveryCharge'] as num?)?.toDouble(), // ✅ safe cast
+      minFreeDeliveryOrderAmount: (json['minFreeDeliveryOrderAmount'] as num?)?.toDouble(), // ✅ safe cast
+      minOrderAmount: (json['minOrderAmount'] as num?)?.toDouble(), // ✅ safe cast
+      icon: json['icon'] as String?,
+      theme: json['theme'] as String?,
     );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      '_id': id,
+      'name': name,
+      'slug': slug,
+      'sequenceNo': sequenceNo,
+      'upperBanner': upperBanner,
+      'lowerBanner': lowerBanner,
+      'active': active,
+      'featured': featured,
+      'photos': photos,
+      'parentCategory': parentCategory,
+      'products': products,
+      'createdAt': createdAt.toIso8601String(),
+      'updatedAt': updatedAt.toIso8601String(),
+      'deliveryCharge': deliveryCharge,
+      'minFreeDeliveryOrderAmount': minFreeDeliveryOrderAmount,
+      'minOrderAmount': minOrderAmount,
+      'icon': icon,
+      'theme': theme,
+    };
   }
 }
