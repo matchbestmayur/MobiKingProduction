@@ -13,7 +13,7 @@ class GroupController extends GetxController {
       final groups = await _groupService.getAllGroups();
       groupList.assignAll(groups);
     } catch (e) {
-      Get.snackbar('Error', e.toString());
+      // Get.snackbar('Error', e.toString());
     } finally {
       isLoading.value = false;
     }
@@ -25,7 +25,7 @@ class GroupController extends GetxController {
       final newGroup = await _groupService.createGroup(group);
       groupList.add(newGroup);
     } catch (e) {
-      Get.snackbar('Error', e.toString());
+      // Get.snackbar('Error', e.toString());
     } finally {
       isLoading.value = false;
     }

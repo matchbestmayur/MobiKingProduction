@@ -13,7 +13,7 @@ class UserController extends GetxController {
       final createdUser = await _userService.createUser(newUser);
       user.value = createdUser;
     } catch (e) {
-      Get.snackbar('Error', e.toString());
+      // Get.snackbar('Error', e.toString());
     } finally {
       isLoading.value = false;
     }
@@ -25,7 +25,7 @@ class UserController extends GetxController {
       final fetchedUser = await _userService.getUserById(id);
       user.value = fetchedUser;
     } catch (e) {
-      Get.snackbar('Error', e.toString());
+      // Get.snackbar('Error', e.toString());
     } finally {
       isLoading.value = false;
     }

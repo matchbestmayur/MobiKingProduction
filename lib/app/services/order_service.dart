@@ -25,6 +25,10 @@ class OrderService extends GetxService {
   static const String _userRequestBaseUrl = 'https://mobiking-e-commerce-backend-prod.vercel.app/api/v1/users/request'; // Base URL for user requests
   final GetStorage _box = GetStorage();
 
+  // Define a key for storing the last order ID
+  // This key will now store the MongoDB _id, not the human-readable orderId
+  static const String _lastOrderIdKey = 'lastOrderId';
+
   String? get _accessToken => _box.read('accessToken');
 
   Map<String, String> _getHeaders({bool requireAuth = true}) {
@@ -42,6 +46,63 @@ class OrderService extends GetxService {
     }
     return headers;
   }
+
+  /// Fetches detailed information for a specific order by ID.
+  /// If no orderId is provided, it attempts to use the last stored order ID (which should now be the MongoDB _id).
+  Future<OrderModel> getOrderDetails({String? orderId}) async {
+    String? idToFetch = orderId;
+    print("OrderService - getOrderDetails called. Attempting to fetch ID: $orderId"); // Debug print
+
+    // If no ID is passed, try to retrieve the MongoDB _id from GetStorage
+    if (idToFetch == null || idToFetch.isEmpty) {
+      idToFetch = _box.read(_lastOrderIdKey);
+      print("OrderService - No ID passed. Trying from _lastOrderIdKey (MongoDB _id): $idToFetch"); // Debug print
+      if (idToFetch == null || idToFetch.isEmpty) {
+        throw OrderServiceException('No order ID provided and no last order ID found in storage.');
+      }
+    }
+
+    final url = Uri.parse('$_baseUrl/details/$idToFetch');
+
+    Map<String, String> headers;
+    try {
+      headers = _getHeaders();
+    } on OrderServiceException {
+      rethrow;
+    } catch (e) {
+      throw OrderServiceException('Failed to prepare headers for order details request: $e');
+    }
+
+    try {
+      final response = await http.get(url, headers: headers);
+      final responseBody = jsonDecode(response.body);
+
+      print("OrderService - getOrderDetails Status: ${response.statusCode}, Body: ${response.body}");
+
+      if (response.statusCode >= 200 && response.statusCode < 300) {
+        if (responseBody['success'] == true && responseBody.containsKey('data')) {
+          return OrderModel.fromJson(responseBody['data'] as Map<String, dynamic>);
+        } else {
+          throw OrderServiceException(
+            responseBody['message'] ?? 'Invalid response format for order details.',
+            statusCode: response.statusCode,
+          );
+        }
+      } else {
+        throw OrderServiceException(
+          responseBody['message'] ?? 'Failed to fetch order details.',
+          statusCode: response.statusCode,
+        );
+      }
+    } on http.ClientException catch (e) {
+      throw OrderServiceException('Network error while fetching order details: ${e.message}', statusCode: 0);
+    } on FormatException catch (e) {
+      throw OrderServiceException('Server response format error for order details: $e', statusCode: 0);
+    } catch (e) {
+      throw OrderServiceException('Unexpected error while fetching order details: $e');
+    }
+  }
+
 
   /// Places a COD order.
   Future<OrderModel> placeCodOrder(CreateOrderRequestModel orderRequest) async {
@@ -67,7 +128,11 @@ class OrderService extends GetxService {
 
       if (response.statusCode >= 200 && response.statusCode < 300) {
         if (responseBody['success'] == true && responseBody.containsKey('data')) {
-          return OrderModel.fromJson(responseBody['data'] as Map<String, dynamic>);
+          final OrderModel order = OrderModel.fromJson(responseBody['data']['order'] as Map<String, dynamic>);
+          // --- FIX HERE: Store MongoDB _id (order.id) ---
+          await _box.write(_lastOrderIdKey, order.id);
+          print('COD Order MongoDB _id stored: ${order.id}');
+          return order;
         } else {
           throw OrderServiceException(
             responseBody['message'] ?? 'Failed to place COD order: Invalid success status or data format.',
@@ -90,7 +155,7 @@ class OrderService extends GetxService {
   }
 
   Future<Map<String, dynamic>> initiateOnlineOrder(CreateOrderRequestModel orderRequest) async {
-    final url = Uri.parse('$_baseUrl/online/new'); // Use your specific endpoint for initiation
+    final url = Uri.parse('$_baseUrl/online/new');
     Map<String, String> headers;
     try {
       headers = _getHeaders();
@@ -114,10 +179,23 @@ class OrderService extends GetxService {
         if (responseBody['success'] == true && responseBody.containsKey('data') && responseBody['data'] is Map<String, dynamic>) {
           final Map<String, dynamic> responseData = responseBody['data'] as Map<String, dynamic>;
 
-          // --- Store the entire 'data' map in GetStorage ---
           await _box.write('razorpay_init_response', responseData);
           print('Razorpay init response stored: $responseData');
-          // --- End Store ---
+
+          // --- FIX HERE: Store MongoDB _id if available from initiate response ---
+          // It's crucial your backend sends the MongoDB _id in this response for this to work.
+          // Assuming responseData['order']['_id'] exists:
+          if (responseData.containsKey('order') && responseData['order'] is Map<String, dynamic> && responseData['order'].containsKey('_id')) {
+            await _box.write(_lastOrderIdKey, responseData['order']['_id']);
+            print('Online Order MongoDB _id stored: ${responseData['order']['_id']}');
+          } else {
+            // This warning is important. If '_id' is NOT present here, you will still
+            // get the 'Cast to ObjectId failed' error for online orders.
+            print('Warning: Online order initiation response did not contain expected MongoDB _id. Details fetching for this order might fail.');
+            // As a last resort fallback, if _id is truly not available at this stage,
+            // you might need to reconsider your backend's API design for this flow.
+            // Forcing it to store orderId here would perpetuate the error for getOrderDetails.
+          }
 
           return responseData;
         } else {
@@ -143,7 +221,6 @@ class OrderService extends GetxService {
 
 
   Future<OrderModel> verifyRazorpayPayment(RazorpayVerifyRequest verifyRequest) async {
-    // Corrected to use _baseUrl for consistency
     final url = Uri.parse('$_baseUrl/online/verify');
     Map<String, String> headers;
     try {
@@ -166,10 +243,15 @@ class OrderService extends GetxService {
 
       if (response.statusCode >= 200 && response.statusCode < 300) {
         if (responseBody['success'] == true && responseBody.containsKey('data')) {
-          // Clear the stored Razorpay init response after successful verification
           await _box.remove('razorpay_init_response');
           print('Razorpay init response cleared from storage.');
-          return OrderModel.fromJson(responseBody['data'] as Map<String, dynamic>);
+
+          final OrderModel order = OrderModel.fromJson(responseBody['data'] as Map<String, dynamic>);
+          // --- FIX HERE: Store MongoDB _id (order.id) ---
+          await _box.write(_lastOrderIdKey, order.id);
+          print('Verified Online Order MongoDB _id stored: ${order.id}');
+
+          return order;
         } else {
           throw OrderServiceException(
             responseBody['message'] ?? 'Razorpay verification failed: Invalid success status or data format.',
@@ -241,6 +323,9 @@ class OrderService extends GetxService {
   // --- NEW METHODS FOR ORDER REQUESTS ---
 
   /// Sends a request to the backend to cancel an order.
+  // Note: For these request methods, you might still want to use the human-readable orderId
+  // if your backend's /request/cancel, /request/warranty, /request/return endpoints expect it.
+  // This is a design choice specific to your backend for these particular endpoints.
   Future<Map<String, dynamic>> requestCancel(String orderId, String reason) async {
     final url = Uri.parse('$_userRequestBaseUrl/cancel');
     Map<String, String> headers;
@@ -258,7 +343,7 @@ class OrderService extends GetxService {
         headers: headers,
         body: jsonEncode({
           "reason": reason,
-          "orderId": orderId,
+          "orderId": orderId, // Assuming this endpoint expects the human-readable orderId
         }),
       );
 
@@ -307,7 +392,7 @@ class OrderService extends GetxService {
         headers: headers,
         body: jsonEncode({
           "reason": reason,
-          "orderId": orderId,
+          "orderId": orderId, // Assuming this endpoint expects the human-readable orderId
         }),
       );
 
@@ -356,7 +441,7 @@ class OrderService extends GetxService {
         headers: headers,
         body: jsonEncode({
           "reason": reason,
-          "orderId": orderId,
+          "orderId": orderId, // Assuming this endpoint expects the human-readable orderId
         }),
       );
 

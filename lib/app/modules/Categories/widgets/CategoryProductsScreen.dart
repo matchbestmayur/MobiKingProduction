@@ -81,7 +81,9 @@ class CategoryProductsScreen extends StatelessWidget {
                   child: Container(
                     color: AppColors.neutralBackground, // Or AppColors.white
                     height: Get.height * 0.85, // Occupy 85% of screen height
+                    padding: EdgeInsets.only(top: 20),
                     child: AllProductsGridView(
+                      showTitle: false,
                       products: subCategory.products!,
 
                       // Adjust padding if needed, or remove as AllProductsGridView has internal padding

@@ -56,39 +56,39 @@ class FcmController extends GetxController {
   /// Requests notification permissions from the user via the `FirebaseMessagingService`.
   /// Updates the `notificationStatus` observable based on the user's response.
   Future<void> requestPermissions() async {
-    notificationStatus.value = await _firebaseMessagingService.requestNotificationPermissions();
+      notificationStatus.value = await _firebaseMessagingService.requestNotificationPermissions();
     if (notificationStatus.value == AuthorizationStatus.authorized) {
-      Get.snackbar(
-        "Success",
-        "Notification permissions granted!",
-        snackPosition: SnackPosition.BOTTOM,
-        backgroundColor: Colors.green,
-        colorText: Colors.white,
-      );
+      // Get.snackbar(
+      //   "Success",
+      //   "Notification permissions granted!",
+      //   snackPosition: SnackPosition.BOTTOM,
+      //   backgroundColor: Colors.green,
+      //   colorText: Colors.white,
+      // );
       // Re-fetch token after permission, as it might become available after granting.
       _fetchAndDisplayFCMToken();
     } else {
-      Get.snackbar(
-        "Denied",
-        "Notification permissions denied or not determined.",
-        snackPosition: SnackPosition.BOTTOM,
-        backgroundColor: Colors.orange,
-        colorText: Colors.white,
-      );
+      // Get.snackbar(
+      //   "Denied",
+      //   "Notification permissions denied or not determined.",
+      //   snackPosition: SnackPosition.BOTTOM,
+      //   backgroundColor: Colors.orange,
+      //   colorText: Colors.white,
+      // );
     }
   }
 
   /// Example method to simulate triggering a test notification.
   /// In a real application, this would involve making an API call to your backend
   /// which then uses the Firebase Admin SDK to send a test notification.
-  void triggerTestNotification() {
-    Get.snackbar(
-      "Test Notification",
-      "Attempting to send a test notification via backend (if configured).",
-      snackPosition: SnackPosition.BOTTOM,
-      backgroundColor: Colors.blueAccent,
-      colorText: Colors.white,
-    );
+    void triggerTestNotification() {
+    // Get.snackbar(
+    //   "Test Notification",
+    //   "Attempting to send a test notification via backend (if configured).",
+    //   snackPosition: SnackPosition.BOTTOM,
+    //   backgroundColor: Colors.blueAccent,
+    //   colorText: Colors.white,
+    // );
     // TODO: Implement actual backend call here, e.g.:
     // YourApiRepository().sendTestNotification(fcmToken.value);
   }

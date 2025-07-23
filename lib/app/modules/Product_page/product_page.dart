@@ -2,6 +2,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:get/get.dart';
+import 'package:mobiking/app/controllers/product_controller.dart';
+import 'package:mobiking/app/modules/home/widgets/ProductCard.dart';
 import 'package:mobiking/app/themes/app_theme.dart';
 
 import '../../controllers/cart_controller.dart';
@@ -38,6 +40,7 @@ class _ProductPageState extends State<ProductPage> with SingleTickerProviderStat
   final RxBool _isDeliverable = false.obs;
 
   final CartController cartController = Get.find<CartController>();
+  final ProductController productController = Get.find<ProductController>();
   final WishlistController wishlistController = Get.find<WishlistController>();
 
   final RxInt _currentVariantStock = 0.obs;
@@ -281,6 +284,8 @@ class _ProductPageState extends State<ProductPage> with SingleTickerProviderStat
                   Obx(() {
                     final isFavorite = wishlistController.wishlist.any((p) => p.id == product.id);
                     return ProductImageBanner(
+                      productRating: 4.5,
+                            reviewCount: 450,
                       productId: product.id.toString(),
                       imageUrls: product.images,
                       badgeText: discountBadgeText.isNotEmpty ? discountBadgeText : null,
@@ -297,27 +302,249 @@ class _ProductPageState extends State<ProductPage> with SingleTickerProviderStat
                     );
                   }),
 
-                  // Product Title & Price Card
+                  // Product Title & Price Card with Toggle Button
                   Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: _horizontalPagePadding, vertical: 8.0),
-                    child: Padding(
-                      padding: const EdgeInsets.all(16.0),
+                    padding: const EdgeInsets.symmetric(horizontal: 20), // Outer padding
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: AppColors.neutralBackground,
+                        borderRadius: const BorderRadius.only(
+                          bottomLeft: Radius.circular(12),
+                          bottomRight: Radius.circular(12),
+                        ),
+                      ),
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 0), // Only horizontal padding
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
+                          // Product Title & Price
                           ProductTitleAndPrice(
-                            productRating: 4.5,
-                            reviewCount: 450,
                             title: product.fullName,
-
                             originalPrice: originalPrice.toDouble(),
                             discountedPrice: discountedPrice.toDouble(),
                           ),
                           const SizedBox(height: 8),
+
+                          // View/Hide Product Details Button
+                          SizedBox(
+                            width: double.maxFinite,
+                            height: 36,
+                            child: Obx(() => ElevatedButton.icon(
+                              onPressed: () {
+                                _productDetailsVisible.value = !_productDetailsVisible.value;
+                                debugPrint('View product details tapped! Visible: ${_productDetailsVisible.value}');
+                              },
+                              icon: Icon(
+                                _productDetailsVisible.value
+                                    ? Icons.arrow_drop_up
+                                    : Icons.arrow_drop_down,
+                                color: AppColors.success,
+                                size: 16,
+                              ),
+                              label: Text(
+                                _productDetailsVisible.value
+                                    ? 'Hide product details'
+                                    : 'View product details',
+                                style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                                  color: AppColors.success,
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 12,
+                                ),
+                              ),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: AppColors.success.withOpacity(0.1),
+                                foregroundColor: AppColors.success,
+                                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                elevation: 0,
+                                shadowColor: Colors.transparent,
+                                minimumSize: Size.zero,
+                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                              ),
+                            )),
+                          ),
+
+                          const SizedBox(height: 8), // Space after the button (optional)
+                          Obx(
+                                () => AnimatedCrossFade(
+                              firstChild: const SizedBox.shrink(), // Hidden state: shows nothing
+                              secondChild: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  // --- Product Description Section ---
+                                  Padding(
+                                    padding: const EdgeInsets.symmetric( vertical: 8.0),
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          'Product Description',
+                                          style: textTheme.titleMedium?.copyWith(color: AppColors.textDark, fontWeight: FontWeight.w600),
+                                        ),
+                                        const SizedBox(height: 8),
+                                        Container(
+                                          width: double.infinity,
+                                          decoration: BoxDecoration(
+                                            color: Colors.grey.shade50,
+                                            borderRadius: BorderRadius.circular(8),
+                                            border: Border.all(color: Colors.grey.shade200),
+                                          ),
+                                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                                          child: Text(
+                                            product.description.isNotEmpty
+                                                ? product.description
+                                                : 'No detailed description is available for this product. This product offers cutting-edge technology and superior performance, designed to meet your everyday needs with efficiency and style. Enjoy seamless integration and robust features that enhance your overall user experience.',
+                                            style: textTheme.bodyMedium?.copyWith(
+                                              color: AppColors.textMedium,
+                                              height: 1.5, // improves readability
+                                            ),
+                                          ),
+                                        ),
+
+                                      ],
+                                    ),
+                                  ),
+
+                                  // --- Product Description Points Section (NEW) ---
+                                  if (product.descriptionPoints.isNotEmpty)
+                                    Padding(
+                                      padding: const EdgeInsets.symmetric( vertical: 8.0),
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            'Product Description Points',
+                                            style: textTheme.titleMedium?.copyWith(
+                                              color: AppColors.textDark,
+                                              fontWeight: FontWeight.w600,
+                                            ),
+                                          ),
+                                          const SizedBox(height: 12),
+
+                                          Container(
+                                            width: double.infinity,
+                                            decoration: BoxDecoration(
+                                              color: Colors.grey.shade50,
+                                              borderRadius: BorderRadius.circular(8),
+                                              border: Border.all(color: Colors.grey.shade200),
+                                            ),
+                                            padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 12),
+                                            child: Column(
+                                              crossAxisAlignment: CrossAxisAlignment.start,
+                                              children: product.descriptionPoints.map((point) {
+                                                return Padding(
+                                                  padding: const EdgeInsets.symmetric(vertical: 6.0),
+                                                  child: Row(
+                                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                                    children: [
+                                                      Text(
+                                                        '• ',
+                                                        style: textTheme.bodyMedium?.copyWith(
+                                                          color: AppColors.textDark,
+                                                          fontWeight: FontWeight.w500,
+                                                        ),
+                                                      ),
+                                                      Expanded(
+                                                        child: Text(
+                                                          point,
+                                                          style: textTheme.bodyMedium?.copyWith(
+                                                            color: AppColors.textMedium,
+                                                          ),
+                                                        ),
+                                                      ),
+                                                    ],
+                                                  ),
+                                                );
+                                              }).toList(),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+
+
+
+                                  // --- Key Information Section (Modified for table-like format) ---
+                                  // Key Information Section, displayed in a table-like format
+                                  // --- Key Information Section (Styled like a table) ---
+                                  if (product.keyInformation.isNotEmpty)
+                                    Padding(
+                                      padding: const EdgeInsets.symmetric(vertical: 8.0),
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          const SizedBox(height: 8),
+                                          Text(
+                                            'Highlights',
+                                            style: textTheme.titleMedium?.copyWith(
+                                              color: AppColors.textDark,
+                                              fontWeight: FontWeight.w600,
+                                            ),
+                                          ),
+                                          const SizedBox(height: 12),
+
+                                          Container(
+                                            width: double.infinity,
+                                            decoration: BoxDecoration(
+                                              color: Colors.grey.shade50,
+                                              borderRadius: BorderRadius.circular(8),
+                                              border: Border.all(color: Colors.grey.shade200),
+                                            ),
+                                            padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 12),
+                                            child: Column(
+                                              children: product.keyInformation.map((info) {
+                                                return Padding(
+                                                  padding: const EdgeInsets.symmetric(vertical: 6.0),
+                                                  child: Row(
+                                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                                    children: [
+                                                      // Left title column (black or dark text)
+                                                      SizedBox(
+                                                        width: 110,
+                                                        child: Text(
+                                                          info.title,
+                                                          style: textTheme.bodyMedium?.copyWith(
+                                                            color: Colors.black, // 💡 Bold black for left side
+                                                            fontWeight: FontWeight.w600,
+                                                          ),
+                                                        ),
+                                                      ),
+
+                                                      // Right content column (light grey)
+                                                      Expanded(
+                                                        child: Text(
+                                                          info.content,
+                                                          style: textTheme.bodyMedium?.copyWith(
+                                                            color: Colors.grey.shade700, // 💡 Subtle grey for right side
+                                                          ),
+                                                        ),
+                                                      ),
+                                                    ],
+                                                  ),
+                                                );
+                                              }).toList(),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+
+                                ],
+                              ),
+                              crossFadeState: _productDetailsVisible.value
+                                  ? CrossFadeState.showSecond
+                                  : CrossFadeState.showFirst,
+                              duration: const Duration(milliseconds: 300),
+                              alignment: Alignment.topLeft,
+                            ),
+                          ),
                         ],
                       ),
                     ),
                   ),
+
 
                   if (variantNames.isNotEmpty)
                     Padding(
@@ -326,57 +553,56 @@ class _ProductPageState extends State<ProductPage> with SingleTickerProviderStat
                         title: 'Select Variant',
                         initiallyExpanded: true,
                         content: Wrap(
-                          spacing: 8.0, // Consistent spacing between chips
-                          runSpacing: 8.0, // Consistent spacing between rows of chips
+                          spacing: 8.0,
+                          runSpacing: 8.0,
                           children: List<Widget>.generate(variantNames.length, (index) {
                             final isSelected = selectedVariantIndex == index;
-                            final variantStockValue =
-                                product.variants[variantNames[index]] ?? 0;
+                            final variantStockValue = product.variants[variantNames[index]] ?? 0;
                             final isVariantOutOfStock = variantStockValue <= 0;
 
                             return ChoiceChip(
                               label: Text(
-                                variantNames[index] +
-                                    (isVariantOutOfStock ? ' (Out of Stock)' : ''),
+                                variantNames[index] + (isVariantOutOfStock ? ' (Out of Stock)' : ''),
                               ),
                               selected: isSelected,
                               onSelected: (selected) {
-                                if (selected && !isVariantOutOfStock) { // Prevent selecting out of stock items
+                                if (selected && !isVariantOutOfStock) {
                                   onVariantSelected(index);
                                 }
                               },
-                              // --- White and Green Styling ---
-                              selectedColor: AppColors.success.withOpacity(0.1), // Very light green tint for selected background
-                              backgroundColor: isVariantOutOfStock
-                                  ? AppColors.danger.withOpacity(0.05) // Light red for out of stock
-                                  : Colors.white, // Pure white background for unselected
+
+                              // 🌟 White background in all states
+                              selectedColor: Colors.white,
+                              backgroundColor: Colors.white,
+
                               labelStyle: textTheme.labelMedium?.copyWith(
                                 color: isSelected
-                                    ? AppColors.success // Green text for selected
+                                    ? AppColors.success // Green text when selected
                                     : (isVariantOutOfStock
-                                    ? AppColors.danger.withOpacity(0.7) // Softer red for out of stock text
-                                    : AppColors.textDark.withOpacity(0.7)), // Subtle dark grey for normal text
-                                fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal, // Semi-bold for selected
+                                    ? AppColors.danger.withOpacity(0.7) // Red-ish for out of stock
+                                    : AppColors.textDark.withOpacity(0.8)),
+                                fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
                               ),
+
                               shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(8), // Less rounded corners
+                                borderRadius: BorderRadius.circular(8),
                                 side: BorderSide(
                                   color: isSelected
-                                      ? AppColors.success // Green border for selected
+                                      ? AppColors.success // Green border when selected
                                       : (isVariantOutOfStock
-                                      ? AppColors.danger.withOpacity(0.3) // Very subtle red border for out of stock
-                                      : Colors.grey.shade300), // Very light grey border for unselected
-                                  width: 1, // Keep border thin
+                                      ? AppColors.danger.withOpacity(0.4)
+                                      : Colors.grey.shade300), // Default grey border
+                                  width: 1,
                                 ),
                               ),
-                              // labelPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2), // Reduced padding
                             );
                           }),
                         ),
                       ),
                     ),
 
-// Animated section for Product Description and Key Information
+
+/*// Animated section for Product Description and Key Information
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: _horizontalPagePadding, vertical: 8.0),
                     child: SizedBox(
@@ -418,8 +644,8 @@ class _ProductPageState extends State<ProductPage> with SingleTickerProviderStat
                         ),
                       ),
                     ),
-                  ),
-                  Obx(
+                  ),*/
+                 /* Obx(
                         () => AnimatedCrossFade(
                       firstChild: const SizedBox.shrink(), // Hidden state: shows nothing
                       secondChild: Column(
@@ -531,30 +757,85 @@ class _ProductPageState extends State<ProductPage> with SingleTickerProviderStat
                       duration: const Duration(milliseconds: 300),
                       alignment: Alignment.topLeft,
                     ),
-                  ),
+                  ),*/
                   const SizedBox(height: 24), // Keep larger spacing for major sections
+                  // START: Replaced "You might also like" Placeholder
+// ... (previous code before the Obx block)
 
-                  // You might also like section
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: _horizontalPagePadding),
-                    child: Text(
-                      'You might also like',
-                      style: textTheme.headlineSmall?.copyWith(color: AppColors.textDark, fontWeight: FontWeight.w700),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: _horizontalPagePadding),
-                    child: Container(
-                      height: 150,
-                      color: AppColors.neutralBackground,
-                      alignment: Alignment.center,
-                      child: Text('Placeholder for "You might also like" products',
-                          style: textTheme.bodyMedium?.copyWith(color: AppColors.textLight)),
-                    ),
-                  ),
+                  Obx(() {
+                    // If products are still being fetched and the list is empty, or
+                    // if products have been fetched but the list is genuinely empty.
+                    if (productController.allProducts.isEmpty) {
+                      // Return an empty SizedBox or Container to display nothing
+                      return const SizedBox.shrink(); // Or Container()
+                    }
+                    // Otherwise, process and display the related products
+                    else {
+                      // Determine the parent category of the current product.
+                      // Using product.categoryId as per your updated code.
+                      final String? parentCategory = widget.product.categoryId.isNotEmpty
+                          ? widget.product.categoryId
+                          : null;
 
-                  const SizedBox(height: 32), // Keep larger spacing for major sections
+                      // Filter products from the controller that belong to the same parent category
+                      // and exclude the current product itself.
+                      final List<ProductModel> relatedProducts = productController.getProductsInSameParentCategory(
+                        widget.product.id, // Current product's ID
+                        parentCategory,     // Parent category to filter by
+                      );
+
+                      if (relatedProducts.isEmpty) {
+                        // If no related products are found in the same category, display nothing
+                        return const SizedBox.shrink(); // Or Container()
+                      }
+
+                      // If related products ARE found, then show the title and the list
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: _horizontalPagePadding),
+                            child: Text(
+                              'You might also like',
+                              style: textTheme.headlineSmall?.copyWith(color: AppColors.textDark, fontWeight: FontWeight.w700),
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          SizedBox(
+                            height: 275, // Fixed height for the horizontal ListView of product cards
+                            child: ListView.builder(
+                              padding: const EdgeInsets.symmetric(horizontal: _horizontalPagePadding),
+                              scrollDirection: Axis.horizontal, // Make the list horizontal
+                              itemCount: relatedProducts.length,
+                              itemBuilder: (context, index) {
+                                final relatedProduct = relatedProducts[index];
+                                return Padding(
+                                  padding: const EdgeInsets.only(right: 12.0), // Spacing between cards
+                                  child: GestureDetector(
+                                    onTap: () {
+                                      // Navigate to the ProductPage of the tapped related product
+                                      Get.to(() => ProductPage(
+                                        product: relatedProduct,
+                                        heroTag: 'related_product_${relatedProduct.id}',
+                                      ));
+                                    },
+                                    // Make sure you are using 'ProductCard' (PascalCase) here,
+                                    // consistent with your import `ProductCard.dart`
+                                    child: ProductCards( // Changed from ProductCards to ProductCard
+                                      product: relatedProduct,
+                                      heroTag: 'related_product_${relatedProduct.id}', // Unique heroTag for each card
+                                    ),
+                                  ),
+                                );
+                              },
+                            ),
+                          ),
+                        ],
+                      );
+                    }
+                  }),
+/*// ... (rest of your build method code)
+                  const SizedBox(height: 12), // Keep larger spacing for major sections
 
                   // Featured Offer section
                   Padding(
@@ -597,17 +878,16 @@ class _ProductPageState extends State<ProductPage> with SingleTickerProviderStat
                           style: textTheme.bodyMedium?.copyWith(color: AppColors.textLight)),
                     ),
                   ),
-                  // Add a final SizedBox to ensure there's enough scroll space above the bottom bar
+                  // Add a final SizedBox to ensure there's enough scroll space above the bottom bar*/
                   const SizedBox(height: 70), // Height of the bottom bar
                 ],
               ),
             ),
           ),
           // Bottom bar, now animated with SlideTransition
-          SlideTransition(
-            position: _slideAnimation,
-            child: _buildBottomCartBar(context),
-          ),
+          // Remove animation
+          _buildBottomCartBar(context)
+
         ],
       ),
     );

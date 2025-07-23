@@ -181,18 +181,26 @@ class QueryService {
     required int rating,
     String? review,
   }) async {
-    final url = '$_baseUrl/queries/$queryId/rate';
-    final requestBody = RateQueryRequestModel(rating: rating, review: review).toJson();
+    final url = '$_baseUrl/queries/rate'; // ✅ Fixed endpoint
+    final requestBody = {
+      'queryId': queryId, // ✅ Moved queryId to request body
+      'rating': rating,
+      if (review != null) 'review': review,
+    };
 
     try {
       final response = await _dio.post(url, data: requestBody);
-      return _handleDioResponse(response, (json) => QueryModel.fromJson(json as Map<String, dynamic>));
+      return _handleDioResponse(
+        response,
+            (json) => QueryModel.fromJson(json as Map<String, dynamic>),
+      );
     } on DioException catch (e) {
       final errorMsg = _getDioErrorMessage(e);
       print('QueryService: Error in rateQuery: $errorMsg');
       throw Exception('Failed to rate query: $errorMsg');
     }
   }
+
 
   Future<QueryModel> replyToQuery({
     required String queryId,

@@ -188,8 +188,7 @@ class QueryDetailScreen extends GetView<QueryGetXController> {
 
       // NEW: Get the associated order from the OrderController's cache or fetch if not present
       final OrderModel? associatedOrder =
-      query != null && query.orderId != null ? orderController.getOrderById(query.orderId!) : null;
-
+      query != null && query.orderId != null ?  orderController.getOrderById(query.orderId!) : null;
       if (query == null && orderId != null) {
         return Scaffold(
           appBar: AppBar(
@@ -367,7 +366,7 @@ class QueryDetailScreen extends GetView<QueryGetXController> {
                                                   ),
                                                   const SizedBox(width: 8),
                                                   Text(
-                                                    '(${query.rating} / 5)',
+                                                    '(${query.rating} / 10)',
                                                     style: textTheme.labelSmall?.copyWith(color: AppColors.textDark),
                                                   ),
                                                 ],
@@ -697,47 +696,45 @@ class QueryDetailScreen extends GetView<QueryGetXController> {
                           ),
                         ),
                         // --- New Warranty Button ---
-                        Tooltip(
-                          message: 'Ask for warranty card details', // Tooltip text
-                          child: IconButton(
-                            icon: Icon(Icons.receipt_long, color: AppColors.blinkitGreen, size: 28), // Icon for warranty
-                            onPressed: () async {
-                              // Check if a query is selected
-                              if (query != null) {
-                                final String warrantyMessage = "I want the warranty card details for this query/order.";
+                        if (query?.status != 'resolved') // ❌ Don’t show if resolved
+                          Tooltip(
+                            message: 'Ask for warranty card details',
+                            child: IconButton(
+                              icon: Icon(Icons.receipt_long, color: AppColors.blinkitGreen, size: 28),
+                              onPressed: () async {
+                                if (query != null) {
+                                  final String warrantyMessage = "I want the warranty card details for this query/order.";
 
-                                // Set the message in the input controller
-                                controller.replyInputController.text = warrantyMessage;
+                                  controller.replyInputController.text = warrantyMessage;
 
-                                // Immediately send the message
-                                await controller.replyToQuery(
-                                  queryId: query!.id,
-                                  replyText: warrantyMessage,
-                                );
+                                  await controller.replyToQuery(
+                                    queryId: query!.id,
+                                    replyText: warrantyMessage,
+                                  );
 
-                                // Clear the input after sending and unfocus keyboard
-                                controller.replyInputController.clear();
-                                FocusScope.of(context).unfocus();
+                                  controller.replyInputController.clear();
+                                  FocusScope.of(context).unfocus();
 
-                                Get.snackbar(
-                                  'Message Sent',
-                                  'Your request for warranty details has been sent.',
-                                  snackPosition: SnackPosition.BOTTOM,
-                                  backgroundColor: AppColors.primaryGreen, // Use a success color
-                                  colorText: AppColors.white,
-                                );
-                              } else {
-                                Get.snackbar(
-                                  'Error',
-                                  'Please select a query first to ask for warranty details.',
-                                  snackPosition: SnackPosition.BOTTOM,
-                                  backgroundColor: Colors.red,
-                                  colorText: AppColors.white,
-                                );
-                              }
-                            },
+                                  Get.snackbar(
+                                    'Message Sent',
+                                    'Your request for warranty details has been sent.',
+                                    snackPosition: SnackPosition.BOTTOM,
+                                    backgroundColor: AppColors.primaryGreen,
+                                    colorText: AppColors.white,
+                                  );
+                                } else {
+                                  Get.snackbar(
+                                    'Error',
+                                    'Please select a query first to ask for warranty details.',
+                                    snackPosition: SnackPosition.BOTTOM,
+                                    backgroundColor: Colors.red,
+                                    colorText: AppColors.white,
+                                  );
+                                }
+                              },
+                            ),
                           ),
-                        ),
+
                       ],
                     ),
                   ),
@@ -994,137 +991,139 @@ class QueryDetailScreen extends GetView<QueryGetXController> {
     final TextEditingController _reviewController = TextEditingController();
 
     Get.bottomSheet(
-      Obx(() => SingleChildScrollView(
-        child: Container(
-          padding: EdgeInsets.only(
-            left: 24,
-            right: 24,
-            top: 24,
-            bottom: MediaQuery.of(context).viewInsets.bottom + 24,
-          ),
-          decoration: const BoxDecoration(
-            color: AppColors.white,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(30)),
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Center(
-                child: Container(
-                  height: 5,
-                  width: 50,
-                  margin: const EdgeInsets.only(bottom: 20),
-                  decoration: BoxDecoration(
-                    color: AppColors.textLight.withOpacity(0.4),
-                    borderRadius: BorderRadius.circular(2.5),
-                  ),
-                ),
-              ),
-              Text(
-                'Rate Your Support Experience',
-                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                  fontWeight: FontWeight.bold,
-                  color: AppColors.darkPurple,
-                  fontSize: 22,
-                ),
-              ),
-              const SizedBox(height: 25),
-              Text(
-                'How would you rate the support you received?',
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(color: AppColors.textDark),
-              ),
-              const SizedBox(height: 15),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: List.generate(5, (index) {
-                  return IconButton(
-                    icon: Icon(
-                      index < _selectedRating.value ? Icons.star_rounded : Icons.star_border_rounded,
-                      color: Colors.amber,
-                      size: 40,
+      Obx(() => SafeArea(
+        child: SingleChildScrollView(
+          child: Container(
+            padding: EdgeInsets.only(
+              left: 24,
+              right: 24,
+              top: 24,
+              bottom: MediaQuery.of(context).viewInsets.bottom + 24,
+            ),
+            decoration: const BoxDecoration(
+              color: AppColors.white,
+              borderRadius: BorderRadius.vertical(top: Radius.circular(30)),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Container(
+                    height: 5,
+                    width: 50,
+                    margin: const EdgeInsets.only(bottom: 20),
+                    decoration: BoxDecoration(
+                      color: AppColors.textLight.withOpacity(0.4),
+                      borderRadius: BorderRadius.circular(2.5),
                     ),
-                    onPressed: controller.isLoading ? null : () {
-                      _selectedRating.value = index + 1;
-                    },
-                  );
-                }),
-              ),
-              const SizedBox(height: 25),
-              Text(
-                'Share Your Feedback (Optional):',
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(color: AppColors.textDark),
-              ),
-              const SizedBox(height: 15),
-              TextField(
-                controller: _reviewController,
-                maxLines: 4,
-                decoration: InputDecoration(
-                  hintText: 'What went well? What could be improved?',
-                  hintStyle: Theme.of(context).textTheme.bodyMedium?.copyWith(color: AppColors.textLight.withOpacity(0.7)),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(15),
-                    borderSide: const BorderSide(color: AppColors.primaryPurple, width: 1.0),
                   ),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(15),
-                    borderSide: BorderSide(color: AppColors.primaryPurple.withOpacity(0.3), width: 1.0),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(15),
-                    borderSide: BorderSide(color: AppColors.accentNeon, width: 2.0),
-                  ),
-                  filled: true,
-                  fillColor: AppColors.neutralBackground,
-                  contentPadding: const EdgeInsets.all(15),
                 ),
-                enabled: !controller.isLoading,
-              ),
-              const SizedBox(height: 40),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: controller.isLoading
-                      ? null
-                      : () {
-                    if (_selectedRating.value == 0) {
-                      Get.snackbar(
-                        'Rating Required',
-                        'Please select a star rating before submitting.',
-                        backgroundColor: Colors.red.shade400,
-                        colorText: AppColors.white,
-                        snackPosition: SnackPosition.TOP,
-                      );
-                      return;
-                    }
-                    Get.back();
-                    controller.rateQuery(
-                      queryId: queryId,
-                      rating: _selectedRating.value,
-                      review: _reviewController.text.trim().isNotEmpty ? _reviewController.text.trim() : null,
+                Text(
+                  'Rate Your Support Experience',
+                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.darkPurple,
+                    fontSize: 22,
+                  ),
+                ),
+                const SizedBox(height: 25),
+                Text(
+                  'How would you rate the support you received?',
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(color: AppColors.textDark),
+                ),
+                const SizedBox(height: 15),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: List.generate(5, (index) {
+                    return IconButton(
+                      icon: Icon(
+                        index < _selectedRating.value ? Icons.star_rounded : Icons.star_border_rounded,
+                        color: Colors.amber,
+                        size: 40,
+                      ),
+                      onPressed: controller.isLoading ? null : () {
+                        _selectedRating.value = index + 1;
+                      },
                     );
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.accentNeon,
-                    padding: const EdgeInsets.symmetric(vertical: 18),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
-                    elevation: 5,
+                  }),
+                ),
+                const SizedBox(height: 25),
+                Text(
+                  'Share Your Feedback (Optional):',
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(color: AppColors.textDark),
+                ),
+                const SizedBox(height: 15),
+                TextField(
+                  controller: _reviewController,
+                  maxLines: 4,
+                  decoration: InputDecoration(
+                    hintText: 'What went well? What could be improved?',
+                    hintStyle: Theme.of(context).textTheme.bodyMedium?.copyWith(color: AppColors.textLight.withOpacity(0.7)),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(15),
+                      borderSide: const BorderSide(color: AppColors.primaryPurple, width: 1.0),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(15),
+                      borderSide: BorderSide(color: AppColors.primaryPurple.withOpacity(0.3), width: 1.0),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(15),
+                      borderSide: BorderSide(color: AppColors.accentNeon, width: 2.0),
+                    ),
+                    filled: true,
+                    fillColor: AppColors.neutralBackground,
+                    contentPadding: const EdgeInsets.all(15),
                   ),
-                  child: controller.isLoading
-                      ? const SizedBox(
-                      height: 22,
-                      width: 22,
-                      child: CircularProgressIndicator(color: AppColors.white, strokeWidth: 2.5))
-                      : Text(
-                    'Submit Rating',
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      color: AppColors.white,
-                      fontWeight: FontWeight.bold,
+                  enabled: !controller.isLoading,
+                ),
+                const SizedBox(height: 40),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: controller.isLoading
+                        ? null
+                        : () {
+                      if (_selectedRating.value == 0) {
+                        Get.snackbar(
+                          'Rating Required',
+                          'Please select a star rating before submitting.',
+                          backgroundColor: Colors.red.shade400,
+                          colorText: AppColors.white,
+                          snackPosition: SnackPosition.TOP,
+                        );
+                        return;
+                      }
+                      Get.back();
+                      controller.rateQuery(
+                        queryId: queryId,
+                        rating: _selectedRating.value * 2, // ⭐ Multiply by 2 to convert to 10-point scale
+                        review: _reviewController.text.trim().isNotEmpty ? _reviewController.text.trim() : null,
+                      );
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.accentNeon,
+                      padding: const EdgeInsets.symmetric(vertical: 18),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
+                      elevation: 5,
+                    ),
+                    child: controller.isLoading
+                        ? const SizedBox(
+                        height: 22,
+                        width: 22,
+                        child: CircularProgressIndicator(color: AppColors.white, strokeWidth: 2.5))
+                        : Text(
+                      'Submit Rating',
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        color: AppColors.white,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                   ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       )),

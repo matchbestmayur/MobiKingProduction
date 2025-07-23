@@ -6,7 +6,7 @@ import 'package:mobiking/app/controllers/sub_category_controller.dart';
 import 'package:mobiking/app/modules/search/SearchPage.dart';
 import 'package:mobiking/app/themes/app_theme.dart';
 import '../controllers/tab_controller_getx.dart';
-import '../controllers/Home_controller.dart'; // Import HomeController
+import '../controllers/Home_controller.dart';
 import 'CategoryTab.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 
@@ -109,9 +109,14 @@ class _StickySearchAndTabBarDelegate extends SliverPersistentHeaderDelegate {
     final TextStyle? appThemeHintStyle = Theme.of(context).inputDecorationTheme.hintStyle;
 
     String? backgroundImage;
-    final String? homeUpperBanner = homeController.homeData.value?.categories[tabController.selectedIndex.value].upperBanner;
-    if (homeUpperBanner != null && homeUpperBanner.isNotEmpty) {
-      backgroundImage = homeUpperBanner;
+    final int selectedTabIndex = tabController.selectedIndex.value;
+    final homeLayout = homeController.homeData;
+
+    if (homeLayout != null &&
+        homeLayout.categories.length > selectedTabIndex &&
+        homeLayout.categories[selectedTabIndex].upperBanner != null &&
+        homeLayout.categories[selectedTabIndex].upperBanner!.isNotEmpty) {
+      backgroundImage = homeLayout.categories[selectedTabIndex].upperBanner!;
     }
 
     return Container(
@@ -136,20 +141,15 @@ class _StickySearchAndTabBarDelegate extends SliverPersistentHeaderDelegate {
               height: (1 - collapsePercent) * 60,
               child: Opacity(
                 opacity: (1 - collapsePercent),
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 20, 16, 0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: const [
-                      Text(
-                        'Mobiking Wholesale',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ],
+                child: const Padding(
+                  padding: EdgeInsets.fromLTRB(16, 20, 16, 0),
+                  child: Text(
+                    'Mobiking Wholesale',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                 ),
               ),
@@ -160,73 +160,64 @@ class _StickySearchAndTabBarDelegate extends SliverPersistentHeaderDelegate {
             padding: EdgeInsets.only(
               left: 16,
               right: 16,
-              top: isCollapsed ? 16.0 : 4.0, // Dynamic top padding
+              top: isCollapsed ? 16.0 : 4.0,
             ),
-            child: ClipRRect(
+            child: InkWell(
               borderRadius: BorderRadius.circular(10),
+              onTap: () => Get.to(() => const SearchPage()),
               child: Container(
                 height: 48,
                 decoration: BoxDecoration(
                   color: AppColors.white,
                   borderRadius: BorderRadius.circular(10),
                 ),
-                child: TextField(
-                  controller: searchController,
-                  onChanged: onSearchChanged,
-                  onTap: () {
-                    Get.to(() => const SearchPage(),
-                        transition: Transition.rightToLeft,
-                        duration: const Duration(milliseconds: 300));
-                  },
-                  readOnly: true,
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: AppColors.textDark) ??
-                      GoogleFonts.poppins(fontSize: 15, color: AppColors.textDark),
-                  cursorColor: AppColors.primaryGreen,
-                  decoration: InputDecoration(
-                    border: InputBorder.none,
-                    hint: Obx(() {
-                      return AnimatedSwitcher(
-                        duration: const Duration(milliseconds: 500),
-                        transitionBuilder: (child, animation) {
-                          final offsetAnimation = Tween<Offset>(
-                            begin: const Offset(0, 1),
-                            end: Offset.zero,
-                          ).animate(animation);
-                          return ClipRect(
-                            child: SlideTransition(
-                              position: offsetAnimation,
-                              child: FadeTransition(
-                                opacity: animation,
-                                child: child,
-                              ),
-                            ),
-                          );
-                        },
-                        child: Text(
-                          hintTexts[currentHintIndex.value],
-                          key: ValueKey<int>(currentHintIndex.value),
-                          style: appThemeHintStyle,
-                        ),
-                      );
-                    }),
-                    prefixIcon: Icon(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Row(
+                  children: [
+                    Icon(
                       Icons.search,
                       color: isCollapsed ? Colors.black : AppColors.textMedium,
                     ),
-                    suffixIcon: Icon(
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Obx(() {
+                        return AnimatedSwitcher(
+                          duration: const Duration(milliseconds: 500),
+                          transitionBuilder: (child, animation) {
+                            final offsetAnimation = Tween<Offset>(
+                              begin: const Offset(0, 1),
+                              end: Offset.zero,
+                            ).animate(animation);
+                            return ClipRect(
+                              child: SlideTransition(
+                                position: offsetAnimation,
+                                child: FadeTransition(
+                                  opacity: animation,
+                                  child: child,
+                                ),
+                              ),
+                            );
+                          },
+                          child: Text(
+                            hintTexts[currentHintIndex.value],
+                            key: ValueKey<int>(currentHintIndex.value),
+                            style: appThemeHintStyle,
+                          ),
+                        );
+                      }),
+                    ),
+                    Icon(
                       Icons.mic_none,
                       color: isCollapsed ? Colors.black : AppColors.textMedium,
                     ),
-                    contentPadding:
-                    const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
-                  ),
+                  ],
                 ),
               ),
             ),
           ),
           const SizedBox(height: 7),
-           CustomTabBarSection(),
+          // 🟢 Category Tab Section
+          CustomTabBarSection(),
         ],
       ),
     );
@@ -234,11 +225,6 @@ class _StickySearchAndTabBarDelegate extends SliverPersistentHeaderDelegate {
 
   @override
   bool shouldRebuild(covariant SliverPersistentHeaderDelegate oldDelegate) {
-    return oldDelegate != this ||
-        (oldDelegate as _StickySearchAndTabBarDelegate)
-            .homeController
-            .homeData
-            .value !=
-            homeController.homeData.value;
+    return true; // Always rebuild when sliver scrolls
   }
 }

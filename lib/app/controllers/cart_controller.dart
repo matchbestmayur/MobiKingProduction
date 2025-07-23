@@ -3,54 +3,74 @@ import 'package:get/get.dart';
 import 'package:get_storage/get_storage.dart';
 
 import '../services/cart_service.dart';
-import 'package:mobiking/app/controllers/connectivity_controller.dart'; // Import ConnectivityController
-
+import 'package:mobiking/app/controllers/connectivity_controller.dart';
 
 class CartController extends GetxController {
-
   RxMap<String, dynamic> cartData = <String, dynamic>{}.obs;
   var isLoading = false.obs;
   final box = GetStorage();
 
   final ConnectivityController _connectivityController = Get.find<ConnectivityController>();
 
+  // ✅ NEW: Observable map to store pre-calculated quantities
+  // Key: "productId_variantName", Value: quantity
+  RxMap<String, int> productVariantQuantities = <String, int>{}.obs;
 
   @override
   void onInit() {
     super.onInit();
-    // Initial load: This will fetch the latest cart data, ideally from the backend.
     fetchAndLoadCartData();
 
-    // Listen for connectivity changes to re-fetch cart data when online
     ever(_connectivityController.isConnected, (bool isConnected) {
       if (isConnected) {
         _handleConnectionRestored();
       }
     });
+
+    // ✅ NEW: React to changes in cartData to update pre-calculated quantities
+    ever(cartData, (_) {
+      _updateProductVariantQuantities();
+    });
   }
 
+  // ✅ NEW: Method to update the pre-calculated quantities map
+  void _updateProductVariantQuantities() {
+    print('🛒 CartController: Recalculating product variant quantities...');
+    final Map<String, int> newQuantities = {};
+    for (var item in cartItems) {
+      final itemProductId = item['productId']?['_id'];
+      final itemVariantName = item['variantName'];
+      final int quantity = item['quantity'] as int? ?? 0;
+
+      if (itemProductId != null && itemVariantName != null) {
+        final key = '${itemProductId}_$itemVariantName';
+        newQuantities[key] = quantity;
+      }
+    }
+    productVariantQuantities.value = newQuantities; // Update the observable map
+    print('🛒 CartController: Finished recalculating product variant quantities. Total unique variants: ${productVariantQuantities.length}');
+  }
+
+
   // Centralized method to fetch from service/storage and update observable
-  // This is the core logic that makes it "stream-like" by always getting fresh data.
   Future<void> fetchAndLoadCartData() async {
     print('🛒 CartController: Attempting to fetch and load cart data...');
-    isLoading.value = true; // Set loading to true while fetching/loading
+    isLoading.value = true;
 
     try {
       final String? userId = box.read('user')?['_id'];
       if (userId == null) {
         print('🛒 CartController: User ID not found, cannot fetch cart from backend. Loading from local storage fallback.');
-        _loadCartDataFromLocalStorage(); // Fallback if user is not logged in or ID is missing
+        _loadCartDataFromLocalStorage();
         return;
       }
 
-      // This is where you would call your backend API to get the latest cart
       final apiResponse = await CartService().fetchCart(cartId: cartData.value['_id']);
       print('🛒 CartController: Fetched cart from backend: $apiResponse');
 
       if (apiResponse != null && apiResponse['success'] == true && apiResponse['data']?['cart'] is Map) {
         final Map<String, dynamic> fetchedCart = Map<String, dynamic>.from(apiResponse['data']['cart']);
-        cartData.value = fetchedCart; // Update observable with fresh data
-        // Also update the user object in GetStorage with the latest cart
+        cartData.value = fetchedCart; // This will trigger _updateProductVariantQuantities via `ever`
         var userInStorage = box.read('user') as Map<String, dynamic>?;
         if (userInStorage != null) {
           userInStorage['cart'] = fetchedCart;
@@ -59,13 +79,13 @@ class CartController extends GetxController {
         print('🛒 CartController: Cart data updated from backend: ${cartData.value}');
       } else {
         print('🛒 CartController: Backend cart fetch failed or returned invalid data. Loading from local storage fallback.');
-        _loadCartDataFromLocalStorage(); // Fallback if backend response is not as expected
+        _loadCartDataFromLocalStorage();
       }
     } catch (e) {
       print('🛒 CartController: Error fetching cart from backend: $e. Loading from local storage fallback.');
-      _loadCartDataFromLocalStorage(); // Fallback if API call itself throws an error
+      _loadCartDataFromLocalStorage();
     } finally {
-      isLoading.value = false; // Always hide loading indicator
+      isLoading.value = false;
       print('🛒 CartController: Current totalCartItemsCount after _fetchAndLoadCartData: ${totalCartItemsCount}');
     }
   }
@@ -77,30 +97,27 @@ class CartController extends GetxController {
       final Map<String, dynamic>? user = box.read('user');
 
       if (user != null && user.containsKey('cart') && user['cart'] is Map) {
-        cartData.value = Map<String, dynamic>.from(user['cart']);
+        cartData.value = Map<String, dynamic>.from(user['cart']); // This will trigger _updateProductVariantQuantities
         print('🛒 CartController: Cart data loaded from local storage: ${cartData.value}');
       } else {
-        // Initialize an empty cart if no valid data is found
         cartData.value = {
           'items': [],
           'totalCartValue': 0.0,
-        };
+        }; // This will trigger _updateProductVariantQuantities
         print('🛒 CartController: No valid cart data found in stored user object locally, initializing to empty structure.');
       }
     } catch (e) {
       print('🛒 CartController: Error loading cart data from local storage: $e');
-      // Fallback to empty cart on error
       cartData.value = {
         'items': [],
         'totalCartValue': 0.0,
-      };
+      }; // This will trigger _updateProductVariantQuantities
     }
   }
 
   // Method to handle actions when internet connection is restored
   Future<void> _handleConnectionRestored() async {
     print('🛒 CartController: Internet connection restored. Re-fetching cart data...');
-    // When connection is restored, immediately try to fetch the latest from the backend
     await fetchAndLoadCartData();
   }
 
@@ -118,6 +135,8 @@ class CartController extends GetxController {
     }
   }
 
+  // You can keep these if you need them for other purposes,
+  // but for quantity display in ListView, the new method is better.
   Map<String, int> getCartItemsForProduct({required String productId}) {
     final Map<String, int> productVariantsInCart = {};
     for (var item in cartItems) {
@@ -134,19 +153,12 @@ class CartController extends GetxController {
     return productVariantsInCart;
   }
 
+  // ✅ MODIFIED: Now reads from the pre-calculated map
   int getVariantQuantity({required String productId, required String variantName}) {
-    for (var item in cartItems) {
-      final itemProductId = item['productId']?['_id'];
-      final itemVariantName = item['variantName'];
-
-      if (itemProductId == productId && itemVariantName == variantName) {
-        final int quantity = item['quantity'] as int? ?? 0;
-        print('🛒 CartController: Found quantity for ProductID: $productId, Variant: $variantName -> $quantity');
-        return quantity;
-      }
-    }
-    print('🛒 CartController: No item found for ProductID: $productId, Variant: $variantName. Quantity -> 0');
-    return 0;
+    final key = '${productId}_$variantName';
+    final quantity = productVariantQuantities[key] ?? 0;
+    // print('🛒 CartController: Getting quantity from pre-calculated map for $key -> $quantity'); // Disable for less spam
+    return quantity;
   }
 
   int getTotalQuantityForProduct({required String productId}) {
@@ -202,7 +214,7 @@ class CartController extends GetxController {
       );
 
       if (response['success'] == true) {
-        await _updateStorageAndCartData(response);
+        await _updateStorageAndCartData(response); // This will trigger cartData update, then quantity recalculation
         _showSnackbar('Added to Cart', 'Product quantity increased successfully!', Colors.green, Icons.add_shopping_cart_outlined);
         return true;
       } else {
@@ -238,7 +250,7 @@ class CartController extends GetxController {
       );
 
       if (response['success'] == true) {
-        await _updateStorageAndCartData(response);
+        await _updateStorageAndCartData(response); // This will trigger cartData update, then quantity recalculation
         _showSnackbar('Removed from Cart', 'Product quantity decreased successfully!', Colors.blueGrey, Icons.remove_shopping_cart_outlined);
       } else {
         _showSnackbar('Remove Failed', response['message'] ?? 'Could not remove product from cart.', Colors.orange, Icons.error_outline);
@@ -259,13 +271,12 @@ class CartController extends GetxController {
     print('🛒 CartController: Extracted updatedUser from response: $updatedUser');
 
     if (updatedUser != null && updatedUser is Map) {
-      // Store the entire updated user object, which includes the cart
       await box.write('user', updatedUser);
       print('🛒 CartController: Stored updated user object directly to "user" key in GetStorage.');
 
       final updatedCart = updatedUser['cart'];
       if (updatedCart != null && updatedCart is Map) {
-        cartData.value = Map<String, dynamic>.from(updatedCart);
+        cartData.value = Map<String, dynamic>.from(updatedCart); // This line is crucial for reactivity
         print('🛒 CartController: Updated cartData.value observable with latest cart: ${cartData.value}');
       } else {
         _resetLocalCartData();
@@ -277,7 +288,6 @@ class CartController extends GetxController {
     }
   }
 
-  // Helper to reset cartData to an empty structure
   void _resetLocalCartData() {
     cartData.value = {
       'items': [],

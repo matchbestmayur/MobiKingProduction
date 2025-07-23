@@ -1,49 +1,66 @@
 import 'package:get/get.dart';
-
 import '../data/Home_model.dart';
+import '../data/group_model.dart';
 import '../services/home_service.dart';
-import 'package:mobiking/app/controllers/connectivity_controller.dart'; // NEW: Import ConnectivityController
+import 'package:mobiking/app/controllers/connectivity_controller.dart';
 
 class HomeController extends GetxController {
   final HomeService _service = HomeService();
-  var isLoading = false.obs;
-  var homeData = Rxn<HomeLayoutModel>();
+  final ConnectivityController _connectivityController = Get.find();
 
-  // NEW: Get the ConnectivityController instance
-  final ConnectivityController _connectivityController = Get.find<ConnectivityController>();
+  /// Only expose loading state when needed for UI
+  final RxBool _isLoading = false.obs;
+  bool get isLoading => _isLoading.value;
+
+  /// Expose final home data
+  final Rxn<HomeLayoutModel> _homeData = Rxn<HomeLayoutModel>();
+  HomeLayoutModel? get homeData => _homeData.value;
+
+  /// Store groups per category only once (non-reactive)
+  final Map<String, List<GroupModel>> _categoryGroups = {};
+  Map<String, List<GroupModel>> get categoryGroups => _categoryGroups;
 
   @override
   void onInit() {
     super.onInit();
-    fetchHomeLayout(); // Initial fetch
+    fetchHomeLayout();
 
-    // NEW: Listen for connectivity changes
-    ever(_connectivityController.isConnected, (bool isConnected) {
-      if (isConnected) {
-        _handleConnectionRestored();
-      }
+    // Only refetch on reconnection
+    ever<bool>(_connectivityController.isConnected, (isConnected) {
+      if (isConnected) _handleConnectionRestored();
     });
   }
 
-  // NEW: Method to handle actions when connection is restored
   Future<void> _handleConnectionRestored() async {
-    print('HomeController: Internet connection restored. Re-fetching home layout...');
-    await fetchHomeLayout(); // Re-fetch home layout data
+    print('[HomeController] ✅ Internet reconnected. Re-fetching home layout...');
+    await fetchHomeLayout();
   }
-
 
   Future<void> fetchHomeLayout() async {
     try {
-      isLoading.value = true;
+      _isLoading.value = true;
       final result = await _service.getHomeLayout();
-      print("Fetched result from service: $result");
-      homeData.value = result;
-      print("homeData set to: ${homeData.value}");
+      print("📥 Home layout fetched: $result");
+      _homeData.value = result;
     } catch (e) {
-      print("\n \n \n Error fetching home layout: $e");
+      print("❌ Error fetching home layout: $e");
     } finally {
-      isLoading.value = false;
+      _isLoading.value = false;
     }
   }
 
+  Future<void> fetchGroupsByCategory(String categoryId) async {
+    if (_categoryGroups.containsKey(categoryId)) {
+      print("📦 Groups already loaded for category: $categoryId");
+      return;
+    }
+
+    try {
+      final groups = await _service.getGroupsByCategory(categoryId);
+      _categoryGroups[categoryId] = groups;
+      print("✅ Groups fetched for category $categoryId: ${groups.length}");
+    } catch (e) {
+      print("❌ Error fetching groups for category $categoryId: $e");
+    }
+  }
 }

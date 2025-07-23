@@ -95,9 +95,9 @@ class TopPicksCard extends StatelessWidget {
                       padding: const EdgeInsets.fromLTRB(8.0, 0.0, 8.0, 0.0),
                       child: Text(
                         product.name,
-                        style: textTheme.bodySmall?.copyWith(
+                        style: textTheme.titleSmall?.copyWith(
                           color: AppColors.textDark,
-                          fontWeight: FontWeight.w600,
+                          fontWeight: FontWeight.w700,
                         ),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,

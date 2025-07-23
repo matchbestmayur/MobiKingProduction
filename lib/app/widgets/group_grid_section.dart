@@ -13,7 +13,7 @@ class GroupWithProductsSection extends StatelessWidget {
   const GroupWithProductsSection({super.key, required this.groups});
 
   static const double horizontalContentPadding = 16.0;
-  static const double productCardUniformHeight = 200.0;
+  static const double productCardUniformHeight = 288.0;
 
   @override
   Widget build(BuildContext context) {
@@ -57,6 +57,7 @@ class GroupWithProductsSection extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              SizedBox(height: 10,),
               // ✅ Group Banner
               if (group.banner != null && group.banner!.isNotEmpty)
                 Padding(
@@ -188,6 +189,7 @@ class GroupWithProductsSection extends StatelessWidget {
                         },
                       ),
                     ),
+
                   ],
                 ),
               ),

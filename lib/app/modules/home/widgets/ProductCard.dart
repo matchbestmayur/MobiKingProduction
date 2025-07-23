@@ -1,4 +1,4 @@
-// lib/widgets/product_card.dart
+// lib/widgets/enhanced_product_card.dart
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
@@ -9,8 +9,6 @@ import '../../../data/product_model.dart';
 import '../../../themes/app_theme.dart';
 import 'app_star_rating.dart';
 import 'favorite_toggle_button.dart';
-
-// IMPORTANT: Make sure this import path is correct for your ProductPage
 import 'package:mobiking/app/modules/Product_page/product_page.dart';
 
 class ProductCards extends StatelessWidget {
@@ -27,127 +25,24 @@ class ProductCards extends StatelessWidget {
 
   static final Random _random = Random();
 
-  Widget _buildQuantitySelectorButton(
-      int totalQuantity,
-      ProductModel product,
-      CartController cartController,
-      BuildContext context,
-      ) {
-    final TextTheme textTheme = Theme.of(context).textTheme;
-    final bool hasMultipleVariants = product.variants.length > 1;
-
-
-    return Container(
-      height: 30, // Consistent smaller height for the button
-      width: 80, // Consistent smaller width for the button
-      decoration: BoxDecoration(
-        color: AppColors.success,
-        borderRadius: BorderRadius.circular(6), // Smaller radius
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceEvenly, // Distribute space
-        children: [
-          // Decrement Button
-          InkWell(
-            onTap: () async {
-              HapticFeedback.lightImpact(); // Haptic feedback on tap
-              if (hasMultipleVariants || totalQuantity > 1) {
-                // If multiple variants or quantity > 1, show bottom sheet
-                _showVariantBottomSheet(context, product.variants, product);
-              } else {
-                // If single variant and quantity is 1, remove from cart
-                final cartItemsForProduct = cartController.getCartItemsForProduct(productId: product.id);
-                if (cartItemsForProduct.isNotEmpty) {
-                  final singleVariantName = cartItemsForProduct.keys.first;
-                  cartController.removeFromCart(productId: product.id, variantName: singleVariantName);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('Removed ${singleVariantName} from cart!'),
-                      backgroundColor: AppColors.danger,
-                      behavior: SnackBarBehavior.floating,
-                      duration: const Duration(seconds: 1),
-                    ),
-                  );
-                }
-              }
-            },
-            child: const Padding(
-              padding: EdgeInsets.symmetric(horizontal: 4), // Reduced padding
-              child: Icon(Icons.remove, color: AppColors.white, size: 16), // Smaller icon size
-            ),
-          ),
-          // Animated Quantity Text
-          _AnimatedQuantityText(
-            quantity: totalQuantity,
-            textStyle: textTheme.labelSmall?.copyWith(
-              color: AppColors.white,
-              fontWeight: FontWeight.w700,
-              fontSize: 12,
-            ),
-          ),
-          // Increment Button
-          InkWell(
-            onTap: () {
-              HapticFeedback.lightImpact(); // Haptic feedback on tap
-              if (hasMultipleVariants) {
-                // If multiple variants, show bottom sheet
-                _showVariantBottomSheet(context, product.variants, product);
-              } else {
-                // If single variant, add directly to cart
-                final singleVariant = product.variants.entries.first;
-                cartController.addToCart(productId: product.id, variantName: singleVariant.key);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text('Added ${singleVariant.key} to cart!'),
-                    backgroundColor: AppColors.success,
-                    behavior: SnackBarBehavior.floating,
-                    duration: const Duration(seconds: 1),
-                  ),
-                );
-              }
-            },
-            child: const Padding(
-              padding: EdgeInsets.symmetric(horizontal: 4), // Reduced padding
-              child: Icon(Icons.add, color: AppColors.white, size: 16), // Smaller icon size
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     final TextTheme textTheme = Theme.of(context).textTheme;
     final cartController = Get.find<CartController>();
-
     final hasImage = product.images.isNotEmpty && product.images[0].isNotEmpty;
 
-    // --- UPDATED PRICE CALCULATION LOGIC BASED ON YOUR REQUIREMENTS ---
+    // Price calculation logic
     final int originalPrice;
-    final int sellingPrice; // This will effectively be your discounted/final price
-
-
+    final int sellingPrice;
 
     if (product.sellingPrice.length >= 2) {
-      // If there are at least two prices in sellingPrice:
-      // Original price should ideally come from regularPrice if available,
-      // otherwise, it falls back to the second-to-last sellingPrice.
       originalPrice = product.regularPrice ?? product.sellingPrice[product.sellingPrice.length - 2].price.toInt();
-      // Selling price is always the last in the sellingPrice list.
       sellingPrice = product.sellingPrice.last.price.toInt();
     } else if (product.sellingPrice.length == 1) {
-      // If there's only one price in sellingPrice:
-      // The original price should still try to come from regularPrice if available.
-      // If regularPrice is null, then the single sellingPrice is the original.
       originalPrice = product.regularPrice ?? product.sellingPrice.first.price.toInt();
-      // The selling price is that single price.
       sellingPrice = product.sellingPrice.first.price.toInt();
     } else {
-      // If the sellingPrice list is empty:
-      // The original price falls back to regularPrice if available, otherwise 0.
       originalPrice = product.regularPrice ?? 0;
-      // Selling price defaults to 0.
       sellingPrice = 0;
     }
 
@@ -157,292 +52,216 @@ class ProductCards extends StatelessWidget {
       discountPercent = (((originalPrice - sellingPrice) / originalPrice) * 100).round();
     }
 
-    final double demoRating = 3.0 + _random.nextDouble() * 2.0;
-    final int demoRatingCount = 10 + _random.nextInt(1000);
+    final double demoRating = 3.5 + _random.nextDouble() * 1.5;
+    final int demoRatingCount = 50 + _random.nextInt(500);
 
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 6.0, vertical: 6.0), // Reduced padding between cards
+    return Container(
+      width: 160,
+      margin: const EdgeInsets.only(right: 12, bottom: 8),
       child: Material(
         color: Colors.transparent,
-        borderRadius: BorderRadius.circular(10), // Smaller border radius for card
         child: InkWell(
-          borderRadius: BorderRadius.circular(10),
           onTap: () {
+            HapticFeedback.lightImpact();
             if (onTap != null) {
               onTap!.call(product);
             } else {
               Get.to(
-                    () => ProductPage(
-                  product: product,
-                  heroTag: heroTag,
-                ),
+                    () => ProductPage(product: product, heroTag: heroTag),
                 transition: Transition.fadeIn,
                 duration: const Duration(milliseconds: 300),
               );
             }
           },
+          borderRadius: BorderRadius.circular(12),
           child: Container(
-            width: 130, // Smaller fixed width for the card
             decoration: BoxDecoration(
-              color: Colors.transparent,
-              borderRadius: BorderRadius.circular(10),
+              color: AppColors.white,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: AppColors.lightGreyBackground,
+                width: 0.5,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.04),
+                  blurRadius: 8,
+                  offset: const Offset(0, 2),
+                ),
+              ],
             ),
-            child: Stack(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                // Image Section with improved design
+                Stack(
                   children: [
                     Container(
-                      padding: const EdgeInsets.all(6), // Reduced padding around the image
-                      color: Colors.transparent,
-                      child: Hero(
-                        tag: heroTag,
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(8), // Smaller border radius for the image
-                          child: Container(
-                            height: 100, // Smaller fixed height for the image area
-                            width: double.infinity,
-                            color: AppColors.neutralBackground,
-                            child: hasImage
-                                ? Image.network(
-                              product.images[0],
-                              fit: BoxFit.fill,
-                              errorBuilder: (context, error, stackTrace) => Center(
-                                child: Icon(Icons.broken_image, size: 30, color: AppColors.textLight), // Smaller icon
-                              ),
-                            )
-                                : Center(
-                              child: Icon(Icons.image_not_supported, size: 30, color: AppColors.textLight), // Smaller icon
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(8.0, 0.0, 8.0, 8.0), // Reduced padding
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                      height: 120,
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(8),
+                      child: Stack(
                         children: [
-                          const SizedBox(height: 6),
-                          Text(
-                            product.name,
-                            style: textTheme.bodySmall?.copyWith( // Smaller font for product name
-                              color: AppColors.textDark,
-                              fontWeight: FontWeight.w600,
-                            ),
-                            maxLines: 1, // Stick to one line for a cleaner look
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          const SizedBox(height: 2),
-                          AppStarRating(
-                            rating: demoRating,
-                            ratingCount: demoRatingCount,
-                            starSize: 10, // Smaller stars
-                          ),
-                          const SizedBox(height: 4),
-                          Row(
-                            crossAxisAlignment: CrossAxisAlignment.baseline,
-                            textBaseline: TextBaseline.alphabetic,
-                            children: [
-                              Text(
-                                "₹$sellingPrice",
-                                style: textTheme.bodyMedium?.copyWith( // Smaller font for selling price
-                                  fontWeight: FontWeight.w800,
-                                  color: AppColors.textDark,
-                                  fontSize: 14, // Explicitly set font size
-                                ),
-                              ),
-                              const SizedBox(width: 4),
-                              if (originalPrice > 0 && sellingPrice < originalPrice)
-                                Text(
-                                  "₹$originalPrice",
-                                  style: textTheme.labelSmall?.copyWith( // Smaller font
-                                    decoration: TextDecoration.lineThrough,
+                          // Main product image
+                          Hero(
+                            tag: heroTag,
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(8),
+                              child: Container(
+                                height: double.infinity,
+                                width: double.infinity,
+                                color: AppColors.neutralBackground,
+                                child: hasImage
+                                    ? Image.network(
+                                  product.images[0],
+                                  fit: BoxFit.cover,
+                                  loadingBuilder: (context, child, loadingProgress) {
+                                    if (loadingProgress == null) return child;
+                                    return Center(
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                        color: AppColors.success,
+                                        value: loadingProgress.expectedTotalBytes != null
+                                            ? loadingProgress.cumulativeBytesLoaded /
+                                            loadingProgress.expectedTotalBytes!
+                                            : null,
+                                      ),
+                                    );
+                                  },
+                                  errorBuilder: (context, error, stackTrace) => Center(
+                                    child: Icon(
+                                      Icons.image_not_supported_outlined,
+                                      size: 32,
+                                      color: AppColors.textLight,
+                                    ),
+                                  ),
+                                )
+                                    : Center(
+                                  child: Icon(
+                                    Icons.image_not_supported_outlined,
+                                    size: 32,
                                     color: AppColors.textLight,
-                                    fontSize: 9, // Explicitly set font size
                                   ),
                                 ),
-                            ],
-                          ),
-                          const SizedBox(height: 6),
-                          if (discountPercent > 0)
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2), // Reduced padding
-                              decoration: BoxDecoration(
-                                color: AppColors.discountGreen,
-                                borderRadius: BorderRadius.circular(3), // Smaller radius
                               ),
-                              child: Text(
-                                "$discountPercent% OFF",
-                                style: textTheme.labelSmall?.copyWith(
-                                  color: AppColors.white,
-                                  fontWeight: FontWeight.w700,
-                                  fontSize: 9, // Smaller font size
+                            ),
+                          ),
+
+                          // Discount badge
+                          if (discountPercent > 0)
+                            Positioned(
+                              top: 6,
+                              left: 6,
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                                decoration: BoxDecoration(
+                                  color: AppColors.success,
+                                  borderRadius: BorderRadius.circular(4),
+                                ),
+                                child: Text(
+                                  '$discountPercent% OFF',
+                                  style: textTheme.labelSmall?.copyWith(
+                                    color: AppColors.white,
+                                    fontWeight: FontWeight.w800,
+                                    fontSize: 10,
+                                  ),
                                 ),
                               ),
                             ),
                         ],
                       ),
                     ),
+
+                    // Favorite button
+                    Positioned(
+                      top: 8,
+                      right: 8,
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: AppColors.white.withOpacity(0.9),
+                          shape: BoxShape.circle,
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.1),
+                              blurRadius: 4,
+                            ),
+                          ],
+                        ),
+                        child: FavoriteToggleButton(
+                          productId: product.id.toString(),
+                          iconSize: 16,
+                          padding: 6,
+                        ),
+                      ),
+                    ),
                   ],
                 ),
-                // Favorite Button (Top Right)
-                Positioned(
-                  top: 10,
-                  right: 8,
-                  child: FavoriteToggleButton(
-                    productId: product.id.toString(),
-                    iconSize: 16, // Smaller icon
-                    padding: 4, // Reduced padding
-                  ),
-                ),
-                // ADD/Quantity Button (Bottom Right)
-                Positioned(
-                  bottom: 75,
-                  right: 2,
-                  child: SizedBox(
-                    width: 80,
-                    height: 30,
-                    child: Obx(() {
-                      int totalProductQuantityInCart = 0;
 
-                      for (var variantEntry in product.variants.entries) {
-                        totalProductQuantityInCart += cartController.getVariantQuantity(
-                          productId: product.id,
-                          variantName: variantEntry.key,
-                        );
-                      }
-
-                      final int availableVariantCount = product.variants.entries
-                          .where((entry) => entry.value > 0)
-                          .length;
-
-                      if (totalProductQuantityInCart > 0) {
-                        return SizedBox(
-                          width: 80,
-                          height: 30,
-                          child: _buildQuantitySelectorButton(
-                            totalProductQuantityInCart,
-                            product,
-                            cartController,
-                            context,
+                // Product details section - expanded to fill remaining space
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          product.name,
+                          style: textTheme.labelMedium?.copyWith(
+                            color: AppColors.textDark,
+                            fontWeight: FontWeight.w600,
+                            fontSize: 13,
+                            height: 1.2,
                           ),
-                        );
-                      } else {
-                        if (availableVariantCount > 1) {
-                          return SizedBox(
-                            width: 80,
-                            height: 30,
-                            child: ElevatedButton(
-                              onPressed: () {
-                                _showVariantBottomSheet(context, product.variants, product);
-                              },
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: AppColors.white,
-                                foregroundColor: AppColors.success,
-                                padding: EdgeInsets.zero,
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(6),
-                                  side: BorderSide(color: AppColors.success, width: 1),
-                                ),
-                                elevation: 0,
-                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                                minimumSize: Size.zero,
-                              ),
-                              child: Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Text(
-                                    'ADD',
-                                    style: textTheme.labelSmall?.copyWith(
-                                      color: AppColors.success,
-                                      fontWeight: FontWeight.w700,
-                                      fontSize: 12,
-                                    ),
-                                  ),
-                                  Text(
-                                    '$availableVariantCount options',
-                                    style: textTheme.labelSmall?.copyWith(
-                                      color: AppColors.textLight,
-                                      fontWeight: FontWeight.w500,
-                                      fontSize: 8,
-                                    ),
-                                  ),
-                                ],
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+
+                        const SizedBox(height: 4),
+
+                        // Rating
+                        AppStarRating(
+                          rating: demoRating,
+                          ratingCount: demoRatingCount,
+                          starSize: 14,
+                        ),
+
+                        const SizedBox(height: 2),
+
+                        // Price section with improved layout
+                        Row(
+                          children: [
+                            Text(
+                              '₹$sellingPrice',
+                              style: textTheme.titleMedium?.copyWith(
+                                color: AppColors.textDark,
+                                fontWeight: FontWeight.w800,
+                                fontSize: 15,
                               ),
                             ),
-                          );
-                        } else if (availableVariantCount == 1) {
-                          return SizedBox(
-                            width: 80,
-                            height: 30,
-                            child: ElevatedButton(
-                              onPressed: () {
-                                final singleVariant = product.variants.entries.firstWhere(
-                                        (element) => element.value > 0);
-                                cartController.addToCart(
-                                  productId: product.id,
-                                  variantName: singleVariant.key,
-                                );
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(
-                                    content: Text('Added ${singleVariant.key} to cart!'),
-                                    backgroundColor: AppColors.success,
-                                    behavior: SnackBarBehavior.floating,
-                                    duration: const Duration(seconds: 1),
-                                  ),
-                                );
-                              },
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: AppColors.success,
-                                foregroundColor: AppColors.white,
-                                padding: EdgeInsets.zero,
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(6),
-                                ),
-                                elevation: 0,
-                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                                minimumSize: Size.zero,
-                              ),
-                              child: Center(
-                                child: Text(
-                                  'ADD',
-                                  style: textTheme.labelSmall?.copyWith(
-                                    color: AppColors.white,
-                                    fontWeight: FontWeight.w700,
-                                    fontSize: 11,
-                                  ),
-                                ),
-                              ),
-                            ),
-                          );
-                        } else {
-                          return SizedBox(
-                            width: 80,
-                            height: 30,
-                            child: Container(
-                              alignment: Alignment.center,
-                              decoration: BoxDecoration(
-                                color: AppColors.neutralBackground,
-                                borderRadius: BorderRadius.circular(6),
-                              ),
-                              child: Text(
-                                'Sold Out',
-                                style: textTheme.labelSmall?.copyWith(
+                            const SizedBox(width: 6),
+                            if (originalPrice > 0 && sellingPrice < originalPrice)
+                              Text(
+                                '₹$originalPrice',
+                                style: textTheme.bodySmall?.copyWith(
+                                  decoration: TextDecoration.lineThrough,
                                   color: AppColors.textLight,
-                                  fontWeight: FontWeight.w600,
                                   fontSize: 11,
                                 ),
                               ),
-                            ),
-                          );
-                        }
-                      }
-                    }),
+                          ],
+                        ),
+
+                        const Spacer(),
+                      ],
+                    ),
                   ),
                 ),
 
+                // Add to cart button section - positioned at bottom
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  child: _buildAddToCartSection(context, cartController),
+                ),
               ],
             ),
           ),
@@ -450,48 +269,233 @@ class ProductCards extends StatelessWidget {
       ),
     );
   }
-}
 
-class _AnimatedQuantityText extends StatelessWidget {
-  final int quantity;
-  final TextStyle? textStyle;
+  Widget _buildAddToCartSection(BuildContext context, CartController cartController) {
+    return Obx(() {
+      final Map<String, int> currentQuantities = cartController.productVariantQuantities.value;
 
-  const _AnimatedQuantityText({
-    Key? key,
-    required this.quantity,
-    this.textStyle,
-  }) : super(key: key);
+      int totalProductQuantityInCart = 0;
+      for (var variantEntry in product.variants.entries) {
+        final String quantityKey = '${product.id}_${variantEntry.key}';
+        totalProductQuantityInCart += currentQuantities[quantityKey] ?? 0;
+      }
 
-  @override
-  Widget build(BuildContext context) {
-    // Use TweenAnimationBuilder for the pop effect
-    return TweenAnimationBuilder<double>(
-      tween: Tween<double>(begin: 1.0, end: 1.0), // Start and end at 1.0 normally
-      duration: const Duration(milliseconds: 200), // Smooth pop duration
-      key: ValueKey<int>(quantity), // Key changes when quantity changes to trigger animation
-      builder: (BuildContext context, double scale, Widget? child) {
-        // When quantity changes, the key changes, and the animation is triggered.
-        // We make it pop by scaling to 1.2 and back to 1.0
-        final curvedScale = Curves.easeOutBack.transform(scale); // Apply a curve for more dynamic feel
+      final int availableVariantCount = product.variants.entries
+          .where((entry) => entry.value > 0)
+          .length;
 
-        return Transform.scale(
-          scale: scale == 1.0 ? 1.0 : (1.0 + (curvedScale * 0.2)), // Scale up to 1.2, then back to 1.0
-          child: Text(
-            '$quantity',
-            style: textStyle,
+      if (totalProductQuantityInCart > 0) {
+        return _buildQuantitySelector(context, totalProductQuantityInCart, cartController);
+      } else {
+        return _buildAddButton(context, availableVariantCount);
+      }
+    });
+  }
+
+  Widget _buildQuantitySelector(BuildContext context, int quantity, CartController cartController) {
+    final TextTheme textTheme = Theme.of(context).textTheme;
+    final bool hasMultipleVariants = product.variants.length > 1;
+
+    return Container(
+      height: 36,
+      decoration: BoxDecoration(
+        color: AppColors.success,
+        borderRadius: BorderRadius.circular(8),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.success.withOpacity(0.3),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
           ),
-        );
-      },
-      onEnd: () {
-        // Optional: Perform any action when the animation ends
-      },
+        ],
+      ),
+      child: Row(
+        children: [
+          // Decrement button
+          Expanded(
+            child: InkWell(
+              onTap: () async {
+                HapticFeedback.lightImpact();
+                if (hasMultipleVariants || quantity > 1) {
+                  _showVariantBottomSheet(context, product.variants, product);
+                } else {
+                  final cartItemsForProduct = cartController.getCartItemsForProduct(productId: product.id);
+                  if (cartItemsForProduct.isNotEmpty) {
+                    final singleVariantName = cartItemsForProduct.keys.first;
+                    cartController.removeFromCart(productId: product.id, variantName: singleVariantName);
+                    _showSnackBar(context, 'Removed from cart', AppColors.danger);
+                  }
+                }
+              },
+              borderRadius: const BorderRadius.only(
+                topLeft: Radius.circular(8),
+                bottomLeft: Radius.circular(8),
+              ),
+              child: Container(
+                alignment: Alignment.center,
+                child: const Icon(
+                  Icons.remove,
+                  color: AppColors.white,
+                  size: 18,
+                ),
+              ),
+            ),
+          ),
+
+          // Quantity display
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            child: AnimatedSwitcher(
+              duration: const Duration(milliseconds: 200),
+              transitionBuilder: (child, animation) {
+                return ScaleTransition(
+                  scale: animation,
+                  child: child,
+                );
+              },
+              child: Text(
+                '$quantity',
+                key: ValueKey(quantity),
+                style: textTheme.labelMedium?.copyWith(
+                  color: AppColors.white,
+                  fontWeight: FontWeight.w800,
+                  fontSize: 14,
+                ),
+              ),
+            ),
+          ),
+
+          // Increment button
+          Expanded(
+            child: InkWell(
+              onTap: () {
+                HapticFeedback.lightImpact();
+                if (hasMultipleVariants) {
+                  _showVariantBottomSheet(context, product.variants, product);
+                } else {
+                  final singleVariant = product.variants.entries.first;
+                  cartController.addToCart(productId: product.id, variantName: singleVariant.key);
+                  _showSnackBar(context, 'Added to cart', AppColors.success);
+                }
+              },
+              borderRadius: const BorderRadius.only(
+                topRight: Radius.circular(8),
+                bottomRight: Radius.circular(8),
+              ),
+              child: Container(
+                alignment: Alignment.center,
+                child: const Icon(
+                  Icons.add,
+                  color: AppColors.white,
+                  size: 18,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAddButton(BuildContext context, int availableVariantCount) {
+    final TextTheme textTheme = Theme.of(context).textTheme;
+    final cartController = Get.find<CartController>();
+
+    if (availableVariantCount == 0) {
+      return Container(
+        height: 36,
+        width: double.infinity,
+        decoration: BoxDecoration(
+          color: AppColors.lightGreyBackground,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: AppColors.textLight.withOpacity(0.3)),
+        ),
+        child: Center(
+          child: Text(
+            'Out of Stock',
+            style: textTheme.labelMedium?.copyWith(
+              color: AppColors.textLight,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
+      );
+    }
+
+    return SizedBox(
+      height: 36,
+      width: double.infinity,
+      child: ElevatedButton(
+        onPressed: () {
+          HapticFeedback.lightImpact();
+          if (availableVariantCount > 1) {
+            _showVariantBottomSheet(context, product.variants, product);
+          } else {
+            final singleVariant = product.variants.entries.firstWhere((element) => element.value > 0);
+            cartController.addToCart(productId: product.id, variantName: singleVariant.key);
+            _showSnackBar(context, 'Added to cart', AppColors.success);
+          }
+        },
+        style: ElevatedButton.styleFrom(
+          backgroundColor: AppColors.white,
+          foregroundColor: AppColors.success,
+          elevation: 0,
+          side: BorderSide(color: AppColors.success, width: 1.5),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(8),
+          ),
+          padding: EdgeInsets.zero,
+        ),
+        child: availableVariantCount > 1
+            ? Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text(
+              'ADD',
+              style: textTheme.labelMedium?.copyWith(
+                color: AppColors.success,
+                fontWeight: FontWeight.w800,
+                fontSize: 13,
+              ),
+            ),
+            Text(
+              '$availableVariantCount options',
+              style: textTheme.labelSmall?.copyWith(
+                color: AppColors.success.withOpacity(0.8),
+                fontSize: 9,
+              ),
+            ),
+          ],
+        )
+            : Text(
+          'ADD',
+          style: textTheme.labelMedium?.copyWith(
+            color: AppColors.success,
+            fontWeight: FontWeight.w800,
+            fontSize: 14,
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showSnackBar(BuildContext context, String message, Color backgroundColor) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: backgroundColor,
+        behavior: SnackBarBehavior.floating,
+        duration: const Duration(milliseconds: 800),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(8),
+        ),
+        margin: const EdgeInsets.all(16),
+      ),
     );
   }
 }
 
-
-
-// These helper functions remain outside as they are general utilities.
+// Enhanced variant bottom sheet
 void _showVariantBottomSheet(BuildContext context, Map<String, int> variantsMap, ProductModel product) {
   final TextTheme textTheme = Theme.of(context).textTheme;
   final CartController cartController = Get.find<CartController>();
@@ -500,9 +504,11 @@ void _showVariantBottomSheet(BuildContext context, Map<String, int> variantsMap,
     context: context,
     isScrollControlled: true,
     backgroundColor: Colors.transparent,
+    shape: const RoundedRectangleBorder(
+      borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+    ),
     builder: (BuildContext context) {
       final List<MapEntry<String, int>> variantEntries = variantsMap.entries.toList();
-
       final Map<String, RxBool> isAddingToCart = {};
       final Map<String, RxBool> isRemovingFromCart = {};
 
@@ -512,8 +518,8 @@ void _showVariantBottomSheet(BuildContext context, Map<String, int> variantsMap,
       }
 
       return DraggableScrollableSheet(
-        initialChildSize: 0.5,
-        minChildSize: 0.25,
+        initialChildSize: 0.6,
+        minChildSize: 0.3,
         maxChildSize: 0.9,
         expand: false,
         builder: (BuildContext context, ScrollController scrollController) {
@@ -521,96 +527,112 @@ void _showVariantBottomSheet(BuildContext context, Map<String, int> variantsMap,
             decoration: BoxDecoration(
               color: AppColors.white,
               borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.1),
+                  blurRadius: 20,
+                  offset: const Offset(0, -5),
+                ),
+              ],
             ),
-            padding: const EdgeInsets.all(16.0),
             child: Column(
-              mainAxisSize: MainAxisSize.min,
               children: [
+                // Handle bar
                 Container(
                   width: 40,
-                  height: 5,
+                  height: 4,
+                  margin: const EdgeInsets.symmetric(vertical: 12),
                   decoration: BoxDecoration(
-                    color: AppColors.textLight.withOpacity(0.5),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  margin: const EdgeInsets.only(bottom: 16),
-                ),
-                Text(
-                  'Select a Variant',
-                  style: textTheme.titleMedium?.copyWith(
-                    color: AppColors.textDark,
-                    fontWeight: FontWeight.w700,
+                    color: AppColors.textLight.withOpacity(0.3),
+                    borderRadius: BorderRadius.circular(2),
                   ),
                 ),
-                const SizedBox(height: 16),
+
+                // Header
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  child: Row(
+                    children: [
+                      Text(
+                        'Choose Variant',
+                        style: textTheme.titleLarge?.copyWith(
+                          color: AppColors.textDark,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      const Spacer(),
+                      IconButton(
+                        onPressed: () => Navigator.pop(context),
+                        icon: Icon(
+                          Icons.close,
+                          color: AppColors.textLight,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
+                const Divider(height: 1),
+
+                // Variants list
                 Expanded(
                   child: ListView.builder(
                     controller: scrollController,
+                    padding: const EdgeInsets.all(16),
                     itemCount: variantEntries.length,
                     itemBuilder: (context, index) {
                       final entry = variantEntries[index];
                       final variantName = entry.key;
                       final variantStock = entry.value;
-
                       final bool isOutOfStock = variantStock <= 0;
 
-                      final String variantImageUrl =
-                      product.images.isNotEmpty ? product.images[0] : 'https://placehold.co/50x50/cccccc/ffffff?text=No+Img';
+                      final String variantImageUrl = product.images.isNotEmpty
+                          ? product.images[0]
+                          : '';
 
-                      return Card(
-                        color: AppColors.white,
-                        margin: const EdgeInsets.symmetric(vertical: 8),
-                        elevation: 0,
-                        shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(10),
-                            side: BorderSide(color: AppColors.neutralBackground, width: 1)
+                      return Container(
+                        margin: const EdgeInsets.only(bottom: 12),
+                        decoration: BoxDecoration(
+                          color: AppColors.white,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: isOutOfStock
+                                ? AppColors.textLight.withOpacity(0.2)
+                                : AppColors.lightGreyBackground,
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.02),
+                              blurRadius: 4,
+                              offset: const Offset(0, 1),
+                            ),
+                          ],
                         ),
                         child: Padding(
-                          padding: const EdgeInsets.all(12.0),
+                          padding: const EdgeInsets.all(16),
                           child: Row(
                             children: [
+                              // Variant image
                               ClipRRect(
                                 borderRadius: BorderRadius.circular(8),
                                 child: Container(
-                                  height: 50,
-                                  width: 50,
+                                  height: 60,
+                                  width: 60,
                                   color: AppColors.neutralBackground,
-                                  child: isOutOfStock
-                                      ? Center(
-                                    child: Text(
-                                      'Sold Out',
-                                      style: textTheme.labelSmall?.copyWith(
-                                        color: AppColors.danger,
-                                        fontWeight: FontWeight.w700,
-                                      ),
-                                      textAlign: TextAlign.center,
-                                    ),
-                                  )
-                                      : Image.network(
+                                  child: variantImageUrl.isNotEmpty
+                                      ? Image.network(
                                     variantImageUrl,
-                                    width: 50,
-                                    height: 50,
                                     fit: BoxFit.cover,
-                                    loadingBuilder: (BuildContext context, Widget child, ImageChunkEvent? loadingProgress) {
-                                      if (loadingProgress == null) {
-                                        return child;
-                                      }
-                                      return Center(
-                                        child: CircularProgressIndicator(
-                                          value: loadingProgress.expectedTotalBytes != null
-                                              ? loadingProgress.cumulativeBytesLoaded / loadingProgress.expectedTotalBytes!
-                                              : null,
-                                          color: AppColors.success,
-                                          strokeWidth: 2.0,
-                                        ),
-                                      );
-                                    },
                                     errorBuilder: (context, error, stackTrace) =>
-                                    const Icon(Icons.error, color: AppColors.textLight),
-                                  ),
+                                        Icon(Icons.image, color: AppColors.textLight),
+                                  )
+                                      : Icon(Icons.image, color: AppColors.textLight),
                                 ),
                               ),
-                              const SizedBox(width: 12),
+
+                              const SizedBox(width: 16),
+
+                              // Variant details
                               Expanded(
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -622,20 +644,27 @@ void _showVariantBottomSheet(BuildContext context, Map<String, int> variantsMap,
                                         fontWeight: FontWeight.w600,
                                       ),
                                     ),
-                                    if (isOutOfStock)
+                                    if (isOutOfStock) ...[
+                                      const SizedBox(height: 4),
                                       Text(
                                         'Out of Stock',
                                         style: textTheme.bodySmall?.copyWith(
                                           color: AppColors.danger,
-                                          fontWeight: FontWeight.w600,
+                                          fontWeight: FontWeight.w500,
                                         ),
                                       ),
+                                    ],
                                   ],
                                 ),
                               ),
+
+                              // Add/quantity controls
                               if (!isOutOfStock)
                                 Obx(() {
-                                  final currentVariantQuantity = cartController.getVariantQuantity(productId: product.id, variantName: variantName);
+                                  final currentVariantQuantity = cartController.getVariantQuantity(
+                                    productId: product.id,
+                                    variantName: variantName,
+                                  );
                                   final bool adding = isAddingToCart[variantName]?.value ?? false;
                                   final bool removing = isRemovingFromCart[variantName]?.value ?? false;
 
@@ -643,21 +672,28 @@ void _showVariantBottomSheet(BuildContext context, Map<String, int> variantsMap,
                                     return Container(
                                       decoration: BoxDecoration(
                                         color: AppColors.success,
-                                        borderRadius: BorderRadius.circular(6),
+                                        borderRadius: BorderRadius.circular(8),
                                       ),
-                                      padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 6),
                                       child: Row(
-                                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                        mainAxisSize: MainAxisSize.min,
                                         children: [
                                           InkWell(
                                             onTap: removing ? null : () async {
                                               isRemovingFromCart[variantName]?.value = true;
-                                              await Future.delayed(const Duration(milliseconds: 300));
-                                              cartController.removeFromCart(productId: product.id, variantName: variantName);
+                                              HapticFeedback.lightImpact();
+                                              await Future.delayed(const Duration(milliseconds: 200));
+                                              cartController.removeFromCart(
+                                                productId: product.id,
+                                                variantName: variantName,
+                                              );
                                               isRemovingFromCart[variantName]?.value = false;
                                             },
-                                            child: Padding(
-                                              padding: const EdgeInsets.all(4.0),
+                                            borderRadius: const BorderRadius.only(
+                                              topLeft: Radius.circular(8),
+                                              bottomLeft: Radius.circular(8),
+                                            ),
+                                            child: Container(
+                                              padding: const EdgeInsets.all(8),
                                               child: removing
                                                   ? SizedBox(
                                                 width: 16,
@@ -667,36 +703,40 @@ void _showVariantBottomSheet(BuildContext context, Map<String, int> variantsMap,
                                                   color: AppColors.white,
                                                 ),
                                               )
-                                                  : Icon(Icons.remove, color: AppColors.white, size: 16),
+                                                  : Icon(
+                                                Icons.remove,
+                                                color: AppColors.white,
+                                                size: 16,
+                                              ),
                                             ),
                                           ),
-                                          const SizedBox(width: 4),
-                                          Text(
-                                            '$currentVariantQuantity',
-                                            style: textTheme.labelSmall?.copyWith(
-                                              color: AppColors.white,
-                                              fontWeight: FontWeight.w700,
-                                              fontSize: 12,
+                                          Container(
+                                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                            child: Text(
+                                              '$currentVariantQuantity',
+                                              style: textTheme.labelMedium?.copyWith(
+                                                color: AppColors.white,
+                                                fontWeight: FontWeight.w800,
+                                              ),
                                             ),
                                           ),
-                                          const SizedBox(width: 4),
                                           InkWell(
                                             onTap: adding ? null : () async {
                                               isAddingToCart[variantName]?.value = true;
-                                              await Future.delayed(const Duration(milliseconds: 300));
-                                              cartController.addToCart(productId: product.id, variantName: variantName);
-                                              isAddingToCart[variantName]?.value = false;
-                                              ScaffoldMessenger.of(context).showSnackBar(
-                                                SnackBar(
-                                                  content: Text('Added $variantName to cart!'),
-                                                  backgroundColor: AppColors.success,
-                                                  behavior: SnackBarBehavior.floating,
-                                                  duration: const Duration(milliseconds: 700),
-                                                ),
+                                              HapticFeedback.lightImpact();
+                                              await Future.delayed(const Duration(milliseconds: 200));
+                                              cartController.addToCart(
+                                                productId: product.id,
+                                                variantName: variantName,
                                               );
+                                              isAddingToCart[variantName]?.value = false;
                                             },
-                                            child: Padding(
-                                              padding: const EdgeInsets.all(4.0),
+                                            borderRadius: const BorderRadius.only(
+                                              topRight: Radius.circular(8),
+                                              bottomRight: Radius.circular(8),
+                                            ),
+                                            child: Container(
+                                              padding: const EdgeInsets.all(8),
                                               child: adding
                                                   ? SizedBox(
                                                 width: 16,
@@ -706,7 +746,11 @@ void _showVariantBottomSheet(BuildContext context, Map<String, int> variantsMap,
                                                   color: AppColors.white,
                                                 ),
                                               )
-                                                  : Icon(Icons.add, color: AppColors.white, size: 16),
+                                                  : Icon(
+                                                Icons.add,
+                                                color: AppColors.white,
+                                                size: 16,
+                                              ),
                                             ),
                                           ),
                                         ],
@@ -716,31 +760,24 @@ void _showVariantBottomSheet(BuildContext context, Map<String, int> variantsMap,
                                     return ElevatedButton(
                                       onPressed: adding ? null : () async {
                                         isAddingToCart[variantName]?.value = true;
-                                        await Future.delayed(const Duration(milliseconds: 300));
-                                        cartController.addToCart(productId: product.id, variantName: variantName);
-                                        isAddingToCart[variantName]?.value = false;
-                                        ScaffoldMessenger.of(context).showSnackBar(
-                                          SnackBar(
-                                            content: Text('Added $variantName to cart!'),
-                                            backgroundColor: AppColors.success,
-                                            behavior: SnackBarBehavior.floating,
-                                            duration: const Duration(milliseconds: 700),
-                                          ),
+                                        HapticFeedback.lightImpact();
+                                        await Future.delayed(const Duration(milliseconds: 200));
+                                        cartController.addToCart(
+                                          productId: product.id,
+                                          variantName: variantName,
                                         );
+                                        isAddingToCart[variantName]?.value = false;
                                       },
                                       style: ElevatedButton.styleFrom(
                                         backgroundColor: AppColors.success,
                                         foregroundColor: AppColors.white,
-                                        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
                                         shape: RoundedRectangleBorder(
                                           borderRadius: BorderRadius.circular(8),
                                         ),
                                         elevation: 0,
-                                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                                        minimumSize: Size.zero,
                                       ),
                                       child: adding
-                                          ? const SizedBox(
+                                          ? SizedBox(
                                         width: 16,
                                         height: 16,
                                         child: CircularProgressIndicator(
@@ -750,10 +787,9 @@ void _showVariantBottomSheet(BuildContext context, Map<String, int> variantsMap,
                                       )
                                           : Text(
                                         'ADD',
-                                        style: textTheme.labelSmall?.copyWith(
+                                        style: textTheme.labelMedium?.copyWith(
                                           color: AppColors.white,
-                                          fontWeight: FontWeight.w700,
-                                          fontSize: 12,
+                                          fontWeight: FontWeight.w800,
                                         ),
                                       ),
                                     );
@@ -773,5 +809,4 @@ void _showVariantBottomSheet(BuildContext context, Map<String, int> variantsMap,
       );
     },
   );
-
 }

@@ -53,9 +53,9 @@ class CategoryTile extends StatelessWidget {
                 textAlign: TextAlign.center,
                 maxLines: 2, // Allow up to 2 lines for category name
                 overflow: TextOverflow.ellipsis,
-                style: textTheme.labelSmall?.copyWith( // Smaller text for category names
-                  fontWeight: FontWeight.w600, // Semi-bold
-                  color: AppColors.textDark, // Dark text
+                style: textTheme.bodyMedium?.copyWith(
+                  color: AppColors.textDark,
+                  fontWeight: FontWeight.w700,
                 ),
               ),
             ),

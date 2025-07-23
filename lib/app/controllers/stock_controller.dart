@@ -15,7 +15,7 @@ class StockController extends GetxController {
       final stocks = await _stockService.getAllStocks();
       stockList.assignAll(stocks);
     } catch (e) {
-      Get.snackbar('Error', e.toString());
+      // Get.snackbar('Error', e.toString());
     } finally {
       isLoading.value = false;
     }
@@ -27,7 +27,7 @@ class StockController extends GetxController {
       final newStock = await _stockService.createStock(stock);
       stockList.add(newStock);
     } catch (e) {
-      Get.snackbar('Error', e.toString());
+      // Get.snackbar('Error', e.toString());
     } finally {
       isLoading.value = false;
     }

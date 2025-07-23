@@ -18,7 +18,7 @@ class AllProductsListView extends StatelessWidget {
     this.onProductTap,
   }) : super(key: key);
 
-  static const double _gridHorizontalPadding = 16.0;
+  static const double _gridHorizontalPadding = 8.0;
   static const double _gridItemSpacing = 0;
   static const double _cardAspectRatio = 0.68;
 

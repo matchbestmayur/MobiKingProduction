@@ -75,9 +75,6 @@ class WishlistController extends GetxController {
   }
 
 
-
-
-
   bool isProductInWishlist(String productId) {
     return wishlist.any((p) => p.id == productId);
   }
@@ -87,39 +84,33 @@ class WishlistController extends GetxController {
     isLoading.value = true;
 
     if (isProductInWishlist(productId)) {
-      _showSnackbar(
-        'Already in Wishlist',
-        'This product is already in your wishlist.',
-        Colors.amber,
-        Icons.info_outline,
-      );
+      // _showSnackbar( // Commented out
+      //   'Already in Wishlist',
+      //   'This product is already in your wishlist.',
+      //   Colors.amber,
+      //   Icons.info_outline,
+      // );
       isLoading.value = false;
       return;
     }
 
     final success = await _service.addToWishlist(productId);
     if (success) {
-
-
       loadWishlistFromLocal();
-      _showSnackbar(
-        'Added to Wishlist',
-        'Product has been added to your wishlist!',
-        Colors.green,
-        Icons.favorite,
-      );
+      // _showSnackbar( // Commented out
+      //   'Added to Wishlist',
+      //   'Product has been added to your wishlist!',
+      //   Colors.green,
+      //   Icons.favorite,
+      // );
     } else {
-      _showSnackbar(
-        'Error',
-        'Failed to add product to wishlist. Please try again.',
-        Colors.red,
-        Icons.error,
-        duration: 3,
-      );
-
-
-
-
+      // _showSnackbar( // Commented out
+      //   'Error',
+      //   'Failed to add product to wishlist. Please try again.',
+      //   Colors.red,
+      //   Icons.error,
+      //   duration: 3,
+      // );
       loadWishlistFromLocal(); // Re-load even on failure to ensure consistency with current local state
     }
     isLoading.value = false;
@@ -131,26 +122,21 @@ class WishlistController extends GetxController {
 
     final success = await _service.removeFromWishlist(productId);
     if (success) {
-
-
       loadWishlistFromLocal();
-      _showSnackbar(
-        'Removed from Wishlist',
-        'Product has been removed from your wishlist.',
-        Colors.blueGrey,
-        Icons.favorite_border,
-      );
+      // _showSnackbar( // Commented out
+      //   'Removed from Wishlist',
+      //   'Product has been removed from your wishlist.',
+      //   Colors.blueGrey,
+      //   Icons.favorite_border,
+      // );
     } else {
-      _showSnackbar(
-        'Error',
-        'Failed to remove product from wishlist. Please try again.',
-        Colors.red,
-        Icons.error,
-        duration: 3,
-      );
-
-
-
+      // _showSnackbar( // Commented out
+      //   'Error',
+      //   'Failed to remove product from wishlist. Please try again.',
+      //   Colors.red,
+      //   Icons.error,
+      //   duration: 3,
+      // );
       loadWishlistFromLocal(); // Re-load even on failure to ensure consistency with current local state
     }
     isLoading.value = false;

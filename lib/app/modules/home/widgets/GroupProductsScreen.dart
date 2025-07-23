@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:mobiking/app/modules/home/widgets/AllProductGridCard.dart';
 import 'package:mobiking/app/modules/home/widgets/ProductCard.dart';
 import '../../../data/group_model.dart';
 import '../../../themes/app_theme.dart';
@@ -63,15 +64,15 @@ class GroupProductsScreen extends StatelessWidget {
             : GridView.builder(
           physics: const BouncingScrollPhysics(),
           gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: 2,
-            childAspectRatio: 0.85,  // Lower ratio = taller cards; tweak this
+            crossAxisCount: 3,
+            childAspectRatio: 0.45,  // Lower ratio = taller cards; tweak this
           ),
           itemCount: group.products.length,
           itemBuilder: (context, index) {
             final product = group.products[index];
             final String productHeroTag = 'product_image_group_${group.id}_${product.id}_$index';
 
-            return ProductCards(
+            return AllProductGridCard(
               product: product,
               heroTag: productHeroTag,
               onTap: (tappedProduct) {

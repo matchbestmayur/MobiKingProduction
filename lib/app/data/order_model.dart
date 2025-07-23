@@ -1,6 +1,5 @@
 // lib/app/data/product_model.dart
 
-
 // Assuming SellingPrice and ProductModel are defined here,
 // or defined globally if used elsewhere and not part of this file.
 // If SellingPrice is not defined, you'll need to define it as below:
@@ -295,12 +294,14 @@ class RequestModel {
 }
 
 class OrderModel {
-  final String id; // Changed to non-nullable as it's required for Mongoose _id
+  final String id; // This is the MongoDB _id
+  final String orderId; // This is the human-readable order ID like "842BABB1"
+
   // Core Order States
   final String status; // Main order status
   final String? holdReason;
   final String shippingStatus; // Shipping status
-  final List<Scan>? scans; // **UPDATED: Changed from List<dynamic>? to List<Scan>?**
+  final List<Scan>? scans;
   final String paymentStatus;
 
   // Shiprocket Fields
@@ -309,35 +310,34 @@ class OrderModel {
   final String? shiprocketChannelId;
   final String? awbCode;
   final String? courierName;
-  final DateTime? courierAssignedAt; // Mongoose Date type
+  final DateTime? courierAssignedAt;
   final bool pickupScheduled;
   final String? pickupTokenNumber;
-  final String? pickupDate; // Stored as String in Mongoose (e.g., "YYYY-MM-DD")
-  final String? expectedDeliveryDate; // Stored as String in Mongoose (e.g., "YYYY-MM-DD")
+  final String? pickupDate;
+  final String? expectedDeliveryDate;
   final String? pickupSlot;
   final String? shippingLabelUrl;
   final String? shippingManifestUrl;
-  final String? deliveredAt; // Stored as String in Mongoose (e.g., ISO string)
+  final String? deliveredAt;
 
   // Payment Fields
   final String? razorpayOrderId;
   final String? razorpayPaymentId;
 
   // Order Requests
-  final List<RequestModel> requests; // Changed to List<RequestModel>
+  final List<RequestModel> requests;
 
   // Order Metadata
-  final String orderId; // Unique order ID (e.g., human-readable)
-  final String type; // e.g., "Regular", "Pos" (from backend 'type')
-  final String method; // e.g., "COD", "Online"
+  final String type;
+  final String method;
   final bool isAppOrder;
-  final bool abondonedOrder; // Corrected spelling to match Mongoose schema 'abondonedOrder'
+  final bool abondonedOrder;
 
   // Pricing
   final double orderAmount;
   final double deliveryCharge;
   final double discount;
-  final String? gst; // Changed to String? to match Mongoose schema
+  final String? gst;
   final double? subtotal;
 
   // Customer Info
@@ -347,23 +347,24 @@ class OrderModel {
 
   // Address
   final String? address;
-  final String? addressId; // ObjectId from Mongoose
+  final String? addressId;
 
   // Relations
-  final OrderUserModel? userId; // User ID object
-  final List<OrderItemModel> items; // List of order items
+  final OrderUserModel? userId;
+  final List<OrderItemModel> items;
 
   // Timestamps from Mongoose
   final DateTime createdAt;
   final DateTime updatedAt;
-  final int? v; // "__v" field
+  final int? v;
 
   OrderModel({
-    required this.id,
+    required this.id, // MongoDB _id
+    required this.orderId, // Human-readable orderId
     required this.status,
     this.holdReason,
     required this.shippingStatus,
-    this.scans, // **UPDATED: Passed to constructor**
+    this.scans,
     required this.paymentStatus,
     this.shipmentId,
     this.shiprocketOrderId,
@@ -381,16 +382,15 @@ class OrderModel {
     this.deliveredAt,
     this.razorpayOrderId,
     this.razorpayPaymentId,
-    List<RequestModel>? requests, // Initialize here
-    required this.orderId,
-    required this.type, // Renamed from orderType, maps to backend 'type'
+    List<RequestModel>? requests,
+    required this.type,
     required this.method,
     this.isAppOrder = false,
-    this.abondonedOrder = true, // Corrected spelling
+    this.abondonedOrder = true,
     required this.orderAmount,
     this.deliveryCharge = 0.0,
     this.discount = 0.0,
-    this.gst, // Changed to String?
+    this.gst,
     this.subtotal,
     this.name,
     this.email,
@@ -406,11 +406,11 @@ class OrderModel {
 
   factory OrderModel.fromJson(Map<String, dynamic> json) {
     return OrderModel(
-      id: json['_id'] as String? ?? '', // Use '' as default for non-nullable ID
+      id: json['_id'] as String? ?? '', // Parsing MongoDB _id
+      orderId: json['orderId'] as String? ?? '', // Parsing human-readable orderId
       status: json['status'] as String? ?? 'New',
       holdReason: json['holdReason'] as String?,
       shippingStatus: json['shippingStatus'] as String? ?? 'Pending',
-      // **UPDATED: Parse 'scans' into List<Scan>**
       scans: (json['scans'] as List<dynamic>?)
           ?.map((e) => Scan.fromJson(e as Map<String, dynamic>))
           .toList(),
@@ -424,30 +424,29 @@ class OrderModel {
       courierAssignedAt: DateTime.tryParse(json['courierAssignedAt'] as String? ?? ''),
       pickupScheduled: json['pickupScheduled'] as bool? ?? false,
       pickupTokenNumber: json['pickupTokenNumber'] as String?,
-      pickupDate: json['pickupDate'] as String?, // Remains String
-      expectedDeliveryDate: json['expectedDeliveryDate'] as String?, // Remains String
+      pickupDate: json['pickupDate'] as String?,
+      expectedDeliveryDate: json['expectedDeliveryDate'] as String?,
       pickupSlot: json['pickupSlot'] as String?,
       shippingLabelUrl: json['shippingLabelUrl'] as String?,
       shippingManifestUrl: json['shippingManifestUrl'] as String?,
-      deliveredAt: json['deliveredAt'] as String?, // Remains String
+      deliveredAt: json['deliveredAt'] as String?,
 
       razorpayOrderId: json['razorpayOrderId'] as String?,
       razorpayPaymentId: json['razorpayPaymentId'] as String?,
 
       requests: (json['requests'] as List<dynamic>?)
           ?.map((e) => RequestModel.fromJson(e as Map<String, dynamic>))
-          .toList() ?? [], // Parse requests using RequestModel.fromJson
+          .toList() ?? [],
 
-      orderId: json['orderId'] as String? ?? '', // Default for required field
-      type: json['type'] as String? ?? 'Regular', // Maps to backend 'type'
+      type: json['type'] as String? ?? 'Regular',
       method: json['method'] as String? ?? 'COD',
       isAppOrder: json['isAppOrder'] as bool? ?? false,
-      abondonedOrder: json['abondonedOrder'] as bool? ?? true, // Corrected spelling
+      abondonedOrder: json['abondonedOrder'] as bool? ?? true,
 
-      orderAmount: (json['orderAmount'] as num?)?.toDouble() ?? 0.0, // Default for required field
+      orderAmount: (json['orderAmount'] as num?)?.toDouble() ?? 0.0,
       deliveryCharge: (json['deliveryCharge'] as num?)?.toDouble() ?? 0.0,
       discount: (json['discount'] as num?)?.toDouble() ?? 0.0,
-      gst: json['gst'] as String?, // Parsed as String?
+      gst: json['gst'] as String?,
       subtotal: (json['subtotal'] as num?)?.toDouble(),
 
       name: json['name'] as String?,
@@ -463,19 +462,20 @@ class OrderModel {
       items: (json['items'] as List<dynamic>?)
           ?.map((e) => OrderItemModel.fromJson(e as Map<String, dynamic>))
           .toList() ?? [],
-      createdAt: DateTime.tryParse(json['createdAt'] as String? ?? '') ?? DateTime.now(), // Default for required field
-      updatedAt: DateTime.tryParse(json['updatedAt'] as String? ?? '') ?? DateTime.now(), // Default for required field
+      createdAt: DateTime.tryParse(json['createdAt'] as String? ?? '') ?? DateTime.now(),
+      updatedAt: DateTime.tryParse(json['updatedAt'] as String? ?? '') ?? DateTime.now(),
       v: json['__v'] as int?,
     );
   }
 
   Map<String, dynamic> toJson() {
     return {
-      '_id': id,
+      '_id': id, // Include MongoDB _id when converting to JSON
+      'orderId': orderId, // Include human-readable orderId when converting to JSON
       'status': status,
       'holdReason': holdReason,
       'shippingStatus': shippingStatus,
-      'scans': scans?.map((e) => e.toJson()).toList(), // **UPDATED: Convert List<Scan> to JSON**
+      'scans': scans?.map((e) => e.toJson()).toList(),
       'paymentStatus': paymentStatus,
       'shipmentId': shipmentId,
       'shiprocketOrderId': shiprocketOrderId,
@@ -493,8 +493,7 @@ class OrderModel {
       'deliveredAt': deliveredAt,
       'razorpayOrderId': razorpayOrderId,
       'razorpayPaymentId': razorpayPaymentId,
-      'requests': requests.map((e) => e.toJson()).toList(), // Convert list of RequestModel to JSON
-      'orderId': orderId,
+      'requests': requests.map((e) => e.toJson()).toList(),
       'type': type,
       'method': method,
       'isAppOrder': isAppOrder,
@@ -518,7 +517,6 @@ class OrderModel {
   }
 }
 
-// And finally, a wrapper for the entire API response (if your API returns a list of orders)
 class OrdersResponse {
   final int statusCode;
   final List<OrderModel> data;

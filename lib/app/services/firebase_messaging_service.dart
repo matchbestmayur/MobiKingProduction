@@ -62,14 +62,14 @@ class FirebaseMessagingService {
 
       if (message.notification != null) {
         print('Message also contained a notification: ${message.notification!.title}');
-        Get.snackbar(
-          message.notification!.title ?? "New Notification",
-          message.notification!.body ?? "You have a new message.",
-          snackPosition: SnackPosition.TOP,
-          backgroundColor: AppColors.darkPurple,
-          colorText: AppColors.white,
-          duration: const Duration(seconds: 5),
-        );
+        // Get.snackbar(
+        //   message.notification!.title ?? "New Notification",
+        //   message.notification!.body ?? "You have a new message.",
+        //   snackPosition: SnackPosition.TOP,
+        //   backgroundColor: AppColors.darkPurple,
+        //   colorText: AppColors.white,
+        //   duration: const Duration(seconds: 5),
+        // );
       }
     });
 
@@ -134,10 +134,10 @@ class FirebaseMessagingService {
         }
       } catch (e) {
         print('Error parsing notification payload: $e');
-        Get.snackbar("Notification Error", "Could not process notification data.",
-            snackPosition: SnackPosition.BOTTOM,
-            backgroundColor: AppColors.danger,
-            colorText: AppColors.white);
+        // Get.snackbar("Notification Error", "Could not process notification data.",
+        //     snackPosition: SnackPosition.BOTTOM,
+        //     backgroundColor: AppColors.danger,
+        //     colorText: AppColors.white);
       }
     }
   }

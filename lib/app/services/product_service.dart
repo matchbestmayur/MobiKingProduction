@@ -19,9 +19,11 @@ class ProductService {
         final List data = jsonData['data'];
         return data.map((e) => ProductModel.fromJson(e)).toList();
       } else {
+        // ❌ Exception thrown when server doesn't return 200 (OK)
         throw Exception("Failed to fetch products: ${response.reasonPhrase} (Status: ${response.statusCode})");
       }
     } catch (e) {
+      // ❌ Exception thrown for connection errors, parsing issues, or unexpected exceptions
       throw Exception("Error while fetching products: $e");
     }
   }
@@ -42,6 +44,7 @@ class ProductService {
       final jsonData = json.decode(response.body);
       return ProductModel.fromJson(jsonData['data']);
     } else {
+      // ❌ Exception thrown when product creation fails due to bad request, server error, etc.
       throw Exception("Failed to create product: ${response.reasonPhrase}");
     }
   }
@@ -56,22 +59,17 @@ class ProductService {
       final jsonData = json.decode(response.body);
       return ProductModel.fromJson(jsonData['data']);
     } else {
+      // ❌ Exception thrown when product with given slug is not found
       throw Exception("Product not found");
     }
   }
 
-  Future<List<ProductModel>> searchProducts(
-      String query, {
-        int page = 1,
-        int limit = 20,
-        String startDate = '2025-01-01',
-        String endDate = '2025-12-31',
-      }) async {
+  /// Search for products by query
+  Future<List<ProductModel>> searchProducts(String query) async {
     if (query.trim().isEmpty) return [];
 
     final Uri url = Uri.parse(
-      '$baseUrl/products/all/paginated?page=$page&limit=$limit'
-          '&startDate=$startDate&endDate=$endDate&searchQuery=${Uri.encodeComponent(query.trim())}',
+      '$baseUrl/products/all/search?q=${Uri.encodeComponent(query.trim())}',
     );
 
     try {
@@ -80,28 +78,25 @@ class ProductService {
 
       if (response.statusCode == 200) {
         final jsonData = json.decode(response.body);
-        final List data = jsonData['data']['products']; // ✅ FIXED HERE
+        final List data = jsonData['data'];
         return data.map((e) => ProductModel.fromJson(e)).toList();
       } else {
+        // ❌ Exception thrown when search request fails or server returns error
         throw Exception("Failed to search products: ${response.reasonPhrase}");
       }
     } catch (e) {
+      // ❌ Exception thrown for network issues, JSON parsing errors, or other unhandled problems
       throw Exception("Search error: $e");
     }
   }
 
-
-
   /// Get all products (fallback or if needed elsewhere)
   Future<List<ProductModel>> getAllProducts({
     int page = 1,
-    int limit = 20,
-    String startDate = '2025-01-01',
-    String endDate = '2025-12-31',
+    int limit = 9,
   }) async {
     final Uri url = Uri.parse(
-      '$baseUrl/products/all/paginated?page=$page&limit=$limit'
-          '&startDate=$startDate&endDate=$endDate',
+      '$baseUrl/products/all/paginated?page=$page&limit=$limit',
     );
 
     try {
@@ -110,15 +105,15 @@ class ProductService {
 
       if (response.statusCode == 200) {
         final jsonData = json.decode(response.body);
-        final List data = jsonData['data']['products']; // ✅ FIXED HERE
+        final List data = jsonData['data']['products'];
         return data.map((e) => ProductModel.fromJson(e)).toList();
       } else {
+        // ❌ Exception thrown if the server returns an unexpected status code
         throw Exception("Failed to load products: ${response.reasonPhrase}");
       }
     } catch (e) {
+      // ❌ Exception thrown for network, parsing, or unknown errors
       throw Exception("Error fetching products: $e");
     }
   }
-
-
 }

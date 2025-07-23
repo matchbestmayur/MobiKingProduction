@@ -59,12 +59,12 @@ class WishlistScreen extends StatelessWidget {
                   Icon(
                     Icons.favorite_border_rounded,
                     size: 80,
-                    color: AppColors.textLight.withOpacity(0.6), // Lighter, more subtle icon
+                    color: AppColors.textLight.withOpacity(0.6),
                   ),
                   const SizedBox(height: 24),
                   Text(
-                    'Your wishlist is empty!',
-                    style: textTheme.headlineSmall?.copyWith( // Prominent message
+                    'Your Wishlist is Waiting!',
+                    style: textTheme.headlineSmall?.copyWith(
                       fontWeight: FontWeight.w700,
                       color: AppColors.textDark,
                     ),
@@ -72,33 +72,16 @@ class WishlistScreen extends StatelessWidget {
                   ),
                   const SizedBox(height: 12),
                   Text(
-                    'Add your favorite items here to easily find them later.',
+                    'Add the products you love to your wishlist and keep track of them here. It’s the perfect way to save items for later!',
                     textAlign: TextAlign.center,
-                    style: textTheme.bodyLarge?.copyWith(color: AppColors.textMedium), // Medium grey for secondary text
-                  ),
-                  const SizedBox(height: 32),
-                  ElevatedButton(
-                    onPressed: () {
-                      // Navigate to a product listing screen or home
-                      Get.back(); // Or Get.toNamed('/home') or '/products'
-                    },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.primaryGreen, // Blinkit green button
-                      foregroundColor: AppColors.white,
-                      padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 15),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                      elevation: 4, // Subtle elevation
-                    ),
-                    child: Text(
-                      'Start Exploring Products',
-                      style: textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w600, color: AppColors.white),
-                    ),
+                    style: textTheme.bodyLarge?.copyWith(color: AppColors.textMedium),
                   ),
                 ],
               ),
             ),
           );
         }
+
 
         // Use ListView.separated for consistent spacing with dividers if desired,
         // or just rely on item padding as implemented in WishlistCard.

@@ -1,22 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:mobiking/app/themes/app_theme.dart';
 
-import '../../home/widgets/app_star_rating.dart';
-
 class ProductTitleAndPrice extends StatelessWidget {
   final String title;
   final double originalPrice;
   final double discountedPrice;
-  final double productRating; // <--- NEW PARAMETER
-  final int reviewCount;     // <--- NEW PARAMETER
 
   const ProductTitleAndPrice({
     super.key,
     required this.title,
     required this.originalPrice,
     required this.discountedPrice,
-    required this.productRating, // <--- ADDED
-    required this.reviewCount,   // <--- ADDED
   });
 
   @override
@@ -26,61 +20,45 @@ class ProductTitleAndPrice extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Product Title
+        // 🏷 Product Title
         Text(
           title,
-          style: textTheme.titleLarge?.copyWith(
+          style: textTheme.titleSmall?.copyWith(
             color: AppColors.textDark,
-            fontWeight: FontWeight.w700,
-            fontSize: 20,
+            fontWeight: FontWeight.w600,
+            fontSize: 16, // Blinkit usually uses compact font
+            height: 1.3,
           ),
+          maxLines: 3,
+          overflow: TextOverflow.ellipsis,
         ),
-        const SizedBox(height: 8), // Spacing between title and prices
+        const SizedBox(height: 6),
 
-        // Prices Row
+        // 💰 Prices
         Row(
-          crossAxisAlignment: CrossAxisAlignment.baseline,
-          textBaseline: TextBaseline.alphabetic,
-          mainAxisAlignment: MainAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.end,
           children: [
-            // Discounted Price (Main Price)
+            // Discounted Price
             Text(
               '₹${discountedPrice.toStringAsFixed(0)}',
-              style: textTheme.headlineSmall?.copyWith(
+              style: textTheme.titleMedium?.copyWith(
+                fontSize: 16,
+                fontWeight: FontWeight.w700,
                 color: AppColors.textDark,
-                fontWeight: FontWeight.w800,
               ),
             ),
-            const SizedBox(width: 8),
+            const SizedBox(width: 6),
 
-            // Original Price (if different and higher than discounted)
+            // Original Price with Strikethrough (if applicable)
             if (originalPrice > discountedPrice && originalPrice > 0)
               Text(
                 '₹${originalPrice.toStringAsFixed(0)}',
-                style: textTheme.bodyMedium?.copyWith(
+                style: textTheme.bodySmall?.copyWith(
                   color: AppColors.textLight,
                   decoration: TextDecoration.lineThrough,
-                  fontWeight: FontWeight.w400,
                   fontSize: 14,
                 ),
               ),
-          ],
-        ),
-        const SizedBox(height: 8), // Spacing between prices and rating
-
-        // Rating bar with reviews - MOVED HERE
-        Row(
-          children: [
-            AppStarRating(
-              rating: productRating,
-              starSize: 18,
-              ratingCount: reviewCount, // Pass reviewCount if AppStarRating uses it for logic/display
-            ),
-            const SizedBox(width: 8),
-            Text(
-              '${productRating.toStringAsFixed(1)} ⭐ from $reviewCount reviews',
-              style: textTheme.bodySmall?.copyWith(color: AppColors.textMedium),
-            ),
           ],
         ),
       ],

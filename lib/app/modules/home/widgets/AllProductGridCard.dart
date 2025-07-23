@@ -1,16 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
-import 'dart:math'; // For demo rating
+import 'dart:math';
 
-import 'package:cached_network_image/cached_network_image.dart'; // For efficient image loading
+import 'package:cached_network_image/cached_network_image.dart';
 
-import '../../../controllers/cart_controller.dart'; // Ensure this path is correct
-import '../../../data/product_model.dart'; // Ensure this path is correct
-import '../../../themes/app_theme.dart'; // Ensure this path is correct
-import 'app_star_rating.dart'; // Ensure this path is correct
+import '../../../controllers/cart_controller.dart';
+import '../../../data/product_model.dart';
+import '../../../themes/app_theme.dart';
+import 'app_star_rating.dart';
 
-// IMPORTANT: Make sure this import path is correct for your ProductPage
 import 'package:mobiking/app/modules/Product_page/product_page.dart';
 
 class AllProductGridCard extends StatelessWidget {
@@ -25,7 +24,7 @@ class AllProductGridCard extends StatelessWidget {
     required this.heroTag,
   }) : super(key: key);
 
-  static final Random _random = Random(); // For demo rating
+  static final Random _random = Random();
 
   // Reusing the quantity selector logic for consistency
   Widget _buildQuantitySelectorButton(
@@ -38,74 +37,63 @@ class AllProductGridCard extends StatelessWidget {
     final bool hasMultipleVariants = product.variants.length > 1;
 
     return Container(
-      height: 28, // Consistent height for button (matched to ADD button)
-      // !!! IMPORTANT: Removed width constraints here. This Container will now size itself based on its content (Row).
+      height: 28,
       decoration: BoxDecoration(
         color: AppColors.success,
-        borderRadius: BorderRadius.circular(6), // Matched to ADD button
+        borderRadius: BorderRadius.circular(6),
       ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-        mainAxisSize: MainAxisSize.min, // Make row take minimum space horizontally
+        mainAxisSize: MainAxisSize.min,
         children: [
           InkWell(
             onTap: () async {
               HapticFeedback.lightImpact();
               if (hasMultipleVariants || totalQuantity > 1) {
-                _showVariantBottomSheet(context, product.variants, product);
+                // If there are multiple variants, always show the bottom sheet for removal choice
+                _showVariantBottomSheet(context, product); // Pass product for variants
               } else {
+                // If only one variant and quantity is 1, directly remove it
+                // We need to know which single variant it is.
+                // Assuming 'product.variants' holds the actual variants, and the cart will have just one for this product.
                 final cartItemsForProduct = cartController.getCartItemsForProduct(productId: product.id);
                 if (cartItemsForProduct.isNotEmpty) {
                   final singleVariantName = cartItemsForProduct.keys.first;
-                  cartController.removeFromCart(productId: product.id, variantName: singleVariantName);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('Removed ${singleVariantName} from cart!'),
-                      backgroundColor: AppColors.danger,
-                      behavior: SnackBarBehavior.floating,
-                      duration: const Duration(seconds: 1),
-                    ),
-                  );
+                  await cartController.removeFromCart(productId: product.id, variantName: singleVariantName);
+                  // Snackbar is handled by the CartController now
                 }
               }
             },
             child: const Padding(
-              padding: EdgeInsets.symmetric(horizontal: 4), // Reduced horizontal padding for buttons
-              child: Icon(Icons.remove, color: AppColors.white, size: 16), // Smaller icon
+              padding: EdgeInsets.symmetric(horizontal: 4),
+              child: Icon(Icons.remove, color: AppColors.white, size: 16),
             ),
           ),
-          // Using Flexible to prevent text overflow by allowing it to expand, but also enabling shrinking
           Flexible(
             child: _AnimatedQuantityText(
               quantity: totalQuantity,
-              textStyle: textTheme.labelSmall?.copyWith( // Smaller font size
+              textStyle: textTheme.labelSmall?.copyWith(
                 color: AppColors.white,
                 fontWeight: FontWeight.w700,
-                fontSize: 12, // Match ADD button font size
+                fontSize: 12,
               ),
             ),
           ),
           InkWell(
-            onTap: () {
+            onTap: () async {
               HapticFeedback.lightImpact();
               if (hasMultipleVariants) {
-                _showVariantBottomSheet(context, product.variants, product);
+                _showVariantBottomSheet(context, product); // Pass product for variants
               } else {
+                // Assuming there's at least one variant if we reach here
                 final singleVariant = product.variants.entries.first;
-                cartController.addToCart(productId: product.id, variantName: singleVariant.key);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text('Added ${singleVariant.key} to cart!'),
-                    backgroundColor: AppColors.success,
-                    behavior: SnackBarBehavior.floating,
-                    duration: const Duration(seconds: 1),
-                  ),
-                );
+                await cartController.addToCart(productId: product.id, variantName: singleVariant.key);
+                // Snackbar is handled by the CartController now
               }
             },
             child: const Padding(
-              padding: EdgeInsets.symmetric(horizontal: 4), // Reduced horizontal padding for buttons
-              child: Icon(Icons.add, color: AppColors.white, size: 16), // Smaller icon
+              padding: EdgeInsets.symmetric(horizontal: 4),
+              child: Icon(Icons.add, color: AppColors.white, size: 16),
             ),
           ),
         ],
@@ -121,20 +109,19 @@ class AllProductGridCard extends StatelessWidget {
     final hasImage = product.images.isNotEmpty && product.images[0].isNotEmpty;
 
     final int sellingPrice;
-    int actualPrice = 0; // Initialize with 0
+    int actualPrice = 0;
     String discountPercentage = '';
 
     if (product.sellingPrice.isNotEmpty) {
       sellingPrice = product.sellingPrice.last.price.toInt();
-      // Corrected logic: actualPrice should come from product.actualPrice, not product.sellingPrice
-      if (product.sellingPrice.isNotEmpty) { // Use product.actualPrice if available
+      if (product.sellingPrice.isNotEmpty) {
         actualPrice = product.sellingPrice.last.price.toInt();
         if (actualPrice > 0 && sellingPrice < actualPrice) {
           double discount = ((actualPrice - sellingPrice) / actualPrice) * 100;
           discountPercentage = '${discount.round()}% off';
         }
       } else {
-        actualPrice = sellingPrice; // If no actual price, assume it's the selling price for comparison
+        actualPrice = sellingPrice;
       }
     } else {
       sellingPrice = 0;
@@ -144,20 +131,19 @@ class AllProductGridCard extends StatelessWidget {
     final double demoRating = 3.0 + _random.nextDouble() * 2.0;
     final int demoRatingCount = 10 + _random.nextInt(1000);
 
-    // Define a fixed width for the initial "ADD" button
-    const double addBtnFixedWidth = 60.0; // Adjust as needed
-    const double buttonHeight = 28.0; // Consistent height for all states
+    const double addBtnFixedWidth = 60.0;
+    const double buttonHeight = 28.0;
 
     return Card(
-      elevation: 0, // No elevation
-      color: Colors.transparent, // Outer card is transparent
+      elevation: 0,
+      color: Colors.transparent,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
       ),
       clipBehavior: Clip.antiAlias,
-      child: Container( // Inner container for the white background and border
+      child: Container(
         decoration: BoxDecoration(
-          color: Colors.transparent, // This should be white for the card background
+          color: AppColors.white, // Set to white for the card background
           borderRadius: BorderRadius.circular(12),
           border: Border.all(color: AppColors.neutralBackground, width: 1),
         ),
@@ -180,25 +166,24 @@ class AllProductGridCard extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Product Image Section (TOP)
               AspectRatio(
-                aspectRatio: 1.0, // Square image area
+                aspectRatio: 1.0,
                 child: Stack(
                   children: [
                     Hero(
                       tag: heroTag,
                       child: Padding(
-                        padding: const EdgeInsets.all(8.0), // Padding around the image
+                        padding: const EdgeInsets.all(8.0),
                         child: ClipRRect(
-                          borderRadius: BorderRadius.circular(8), // Rounded image corners
+                          borderRadius: BorderRadius.circular(8),
                           child: Container(
                             width: double.infinity,
-                            height: double.infinity, // Fill available space
+                            height: double.infinity,
                             color: AppColors.neutralBackground,
                             child: hasImage
                                 ? CachedNetworkImage(
                               imageUrl: product.images[0],
-                              fit: BoxFit.contain, // Fit entire image, prevent cropping
+                              fit: BoxFit.contain,
                               placeholder: (context, url) => Center(
                                 child: CircularProgressIndicator(
                                   strokeWidth: 2,
@@ -216,7 +201,6 @@ class AllProductGridCard extends StatelessWidget {
                         ),
                       ),
                     ),
-                    // Discount Banner (positioned over image, top-left)
                     if (discountPercentage.isNotEmpty)
                       Positioned(
                         top: 8,
@@ -224,7 +208,7 @@ class AllProductGridCard extends StatelessWidget {
                         child: Container(
                           padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
                           decoration: BoxDecoration(
-                            color: AppColors.primaryPurple, // Or a distinct color for discount
+                            color: AppColors.primaryPurple,
                             borderRadius: BorderRadius.circular(4),
                           ),
                           child: Text(
@@ -237,25 +221,24 @@ class AllProductGridCard extends StatelessWidget {
                           ),
                         ),
                       ),
-                    // ADD Button / Quantity Selector (positioned on image, bottom-right)
                     Positioned(
                       bottom: 2,
                       right: 2,
-                      // The SizedBox directly wrapping the Obx will handle the sizing conditionally
                       child: Obx(() {
+                        // ✅ Access the map reactively without using `.value`
+                        final variantQuantities = cartController.productVariantQuantities;
+
                         int totalProductQuantityInCart = 0;
                         for (var variantEntry in product.variants.entries) {
-                          totalProductQuantityInCart += cartController.getVariantQuantity(
-                            productId: product.id,
-                            variantName: variantEntry.key,
-                          );
+                          final String quantityKey = '${product.id}_${variantEntry.key}';
+                          totalProductQuantityInCart += variantQuantities[quantityKey] ?? 0;
                         }
+
                         final int availableVariantCount = product.variants.entries
                             .where((entry) => entry.value > 0)
                             .length;
 
                         if (totalProductQuantityInCart > 0) {
-                          // Quantity Selector: No fixed width, allow it to size flexibly
                           return _buildQuantitySelectorButton(
                             totalProductQuantityInCart,
                             product,
@@ -264,29 +247,20 @@ class AllProductGridCard extends StatelessWidget {
                           );
                         } else {
                           if (availableVariantCount > 0) {
-                            // ADD button: Fixed width
                             return SizedBox(
-                              width: addBtnFixedWidth, // Fixed width for ADD button
+                              width: addBtnFixedWidth,
                               height: buttonHeight,
                               child: ElevatedButton(
-                                onPressed: () {
+                                onPressed: () async {
                                   HapticFeedback.lightImpact();
                                   if (availableVariantCount > 1) {
-                                    _showVariantBottomSheet(context, product.variants, product);
+                                    _showVariantBottomSheet(context, product);
                                   } else {
-                                    final singleVariant = product.variants.entries.firstWhere(
-                                            (element) => element.value > 0);
-                                    cartController.addToCart(
+                                    final singleVariant = product.variants.entries
+                                        .firstWhere((element) => element.value > 0);
+                                    await cartController.addToCart(
                                       productId: product.id,
                                       variantName: singleVariant.key,
-                                    );
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      SnackBar(
-                                        content: Text('Added ${singleVariant.key} to cart!'),
-                                        backgroundColor: AppColors.success,
-                                        behavior: SnackBarBehavior.floating,
-                                        duration: const Duration(seconds: 1),
-                                      ),
                                     );
                                   }
                                 },
@@ -315,9 +289,8 @@ class AllProductGridCard extends StatelessWidget {
                               ),
                             );
                           } else {
-                            // Sold Out button: Fixed width for consistency
                             return SizedBox(
-                              width: addBtnFixedWidth, // Fixed width for Sold Out
+                              width: addBtnFixedWidth,
                               height: buttonHeight,
                               child: Container(
                                 alignment: Alignment.center,
@@ -339,12 +312,12 @@ class AllProductGridCard extends StatelessWidget {
                         }
                       }),
                     ),
+
                   ],
                 ),
               ),
-              // Product Name (BELOW IMAGE)
               Padding(
-                padding: const EdgeInsets.fromLTRB(10.0, 4.0, 10.0, 2.0), // Tighter padding
+                padding: const EdgeInsets.fromLTRB(10.0, 4.0, 10.0, 2.0),
                 child: Text(
                   product.name,
                   style: textTheme.bodyMedium?.copyWith(
@@ -355,42 +328,41 @@ class AllProductGridCard extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
-              // Price and Rating (BOTTOM)
               Padding(
-                padding: const EdgeInsets.fromLTRB(10.0, 2.0, 10.0, 8.0), // Tighter padding
+                padding: const EdgeInsets.fromLTRB(10.0, 2.0, 10.0, 8.0),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    AppStarRating(
+                      rating: demoRating,
+                      ratingCount: demoRatingCount,
+                      starSize: 12,
+                    ),
+                    const SizedBox(height: 2),
                     Row(
                       children: [
                         Text(
-                          "₹$sellingPrice", // Discounted price
+                          "₹$sellingPrice",
                           style: textTheme.titleSmall?.copyWith(
                             fontWeight: FontWeight.w800,
                             color: AppColors.textDark,
-                            fontSize: 14, // Slightly smaller for compactness
+                            fontSize: 14,
                           ),
                         ),
                         if (actualPrice > sellingPrice)
                           Padding(
                             padding: const EdgeInsets.only(left: 6.0),
                             child: Text(
-                              "₹$actualPrice", // Original price struck through
+                              "₹$actualPrice",
                               style: textTheme.labelSmall?.copyWith(
                                 decoration: TextDecoration.lineThrough,
                                 color: AppColors.textLight,
                                 fontWeight: FontWeight.w500,
-                                fontSize: 10, // Smallest font for original price
+                                fontSize: 10,
                               ),
                             ),
                           ),
                       ],
-                    ),
-                    const SizedBox(height: 2), // Very small space
-                    AppStarRating(
-                      rating: demoRating,
-                      ratingCount: demoRatingCount,
-                      starSize: 10, // Smallest stars for compactness
                     ),
                   ],
                 ),
@@ -402,9 +374,6 @@ class AllProductGridCard extends StatelessWidget {
     );
   }
 }
-
-// _AnimatedQuantityText and _showVariantBottomSheet remain unchanged
-// as they serve a general purpose and their styling is consistent.
 
 class _AnimatedQuantityText extends StatelessWidget {
   final int quantity;
@@ -440,7 +409,8 @@ class _AnimatedQuantityText extends StatelessWidget {
   }
 }
 
-void _showVariantBottomSheet(BuildContext context, Map<String, int> variantsMap, ProductModel product) {
+// ✅ OPTIMIZED: _showVariantBottomSheet
+void _showVariantBottomSheet(BuildContext context, ProductModel product) {
   final TextTheme textTheme = Theme.of(context).textTheme;
   final CartController cartController = Get.find<CartController>();
 
@@ -449,15 +419,11 @@ void _showVariantBottomSheet(BuildContext context, Map<String, int> variantsMap,
     isScrollControlled: true,
     backgroundColor: Colors.transparent,
     builder: (BuildContext context) {
-      final List<MapEntry<String, int>> variantEntries = variantsMap.entries.toList();
+      final List<MapEntry<String, int>> variantEntries = product.variants.entries.toList();
 
-      final Map<String, RxBool> isAddingToCart = {};
-      final Map<String, RxBool> isRemovingFromCart = {};
-
-      for (var entry in variantEntries) {
-        isAddingToCart[entry.key] = false.obs;
-        isRemovingFromCart[entry.key] = false.obs;
-      }
+      // No need for separate RxBools for adding/removing.
+      // We can use cartController.isLoading or local loading states if strictly necessary per item.
+      // For a more performant approach in the sheet, let's keep it lean.
 
       return DraggableScrollableSheet(
         initialChildSize: 0.5,
@@ -518,11 +484,11 @@ void _showVariantBottomSheet(BuildContext context, Map<String, int> variantsMap,
                           child: Row(
                             children: [
                               ClipRRect(
-                                borderRadius: BorderRadius.circular(8), // Applies the curve to the content
+                                borderRadius: BorderRadius.circular(8),
                                 child: Container(
                                   height: 50,
                                   width: 50,
-                                  color: AppColors.white, // Sets the background color
+                                  color: AppColors.white,
                                   child: isOutOfStock
                                       ? Center(
                                     child: Text(
@@ -575,9 +541,14 @@ void _showVariantBottomSheet(BuildContext context, Map<String, int> variantsMap,
                               ),
                               if (!isOutOfStock)
                                 Obx(() {
-                                  final currentVariantQuantity = cartController.getVariantQuantity(productId: product.id, variantName: variantName);
-                                  final bool adding = isAddingToCart[variantName]?.value ?? false;
-                                  final bool removing = isRemovingFromCart[variantName]?.value ?? false;
+                                  // ✅ OPTIMIZED: Get quantity directly from the pre-calculated map
+                                  final currentVariantQuantity = cartController.productVariantQuantities['${product.id}_$variantName'] ?? 0;
+
+                                  // Using cartController.isLoading for a global loading indicator
+                                  // If you need per-item loading, you'd reintroduce individual RxBool for each item.
+                                  // For simplicity and common UX, global loading is often sufficient for cart operations.
+                                  final bool isProcessing = cartController.isLoading.value;
+
 
                                   if (currentVariantQuantity > 0) {
                                     return Container(
@@ -590,15 +561,14 @@ void _showVariantBottomSheet(BuildContext context, Map<String, int> variantsMap,
                                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                         children: [
                                           InkWell(
-                                            onTap: removing ? null : () async {
-                                              isRemovingFromCart[variantName]?.value = true;
-                                              await Future.delayed(const Duration(milliseconds: 300));
-                                              cartController.removeFromCart(productId: product.id, variantName: variantName);
-                                              isRemovingFromCart[variantName]?.value = false;
+                                            onTap: isProcessing ? null : () async {
+                                              HapticFeedback.lightImpact();
+                                              await cartController.removeFromCart(productId: product.id, variantName: variantName);
+                                              // No need for local isRemovingFromCart state, cartController.isLoading handles it
                                             },
                                             child: Padding(
                                               padding: const EdgeInsets.all(4.0),
-                                              child: removing
+                                              child: isProcessing
                                                   ? SizedBox(
                                                 width: 16,
                                                 height: 16,
@@ -621,15 +591,14 @@ void _showVariantBottomSheet(BuildContext context, Map<String, int> variantsMap,
                                           ),
                                           const SizedBox(width: 4),
                                           InkWell(
-                                            onTap: adding ? null : () async {
-                                              isAddingToCart[variantName]?.value = true;
-                                              await Future.delayed(const Duration(milliseconds: 300));
-                                              cartController.addToCart(productId: product.id, variantName: variantName);
-                                              isAddingToCart[variantName]?.value = false;
+                                            onTap: isProcessing ? null : () async {
+                                              HapticFeedback.lightImpact();
+                                              await cartController.addToCart(productId: product.id, variantName: variantName);
+                                              // No need for local isAddingToCart state
                                             },
                                             child: Padding(
                                               padding: const EdgeInsets.all(4.0),
-                                              child: adding
+                                              child: isProcessing
                                                   ? SizedBox(
                                                 width: 16,
                                                 height: 16,
@@ -646,41 +615,42 @@ void _showVariantBottomSheet(BuildContext context, Map<String, int> variantsMap,
                                     );
                                   } else {
                                     return SizedBox(
-                                      width: 60, // Fixed width for ADD button in the bottom sheet
+                                      width: 60,
                                       height: 30,
                                       child: ElevatedButton(
-                                        onPressed: adding ? null : () async {
-                                          isAddingToCart[variantName]?.value = true;
-                                          await Future.delayed(const Duration(milliseconds: 300));
-                                          cartController.addToCart(productId: product.id, variantName: variantName);
-                                          isAddingToCart[variantName]?.value = false;
+                                        onPressed: isProcessing ? null : () async {
+                                          HapticFeedback.lightImpact();
+                                          await cartController.addToCart(productId: product.id, variantName: variantName);
                                         },
                                         style: ElevatedButton.styleFrom(
-                                          backgroundColor: AppColors.success,
-                                          foregroundColor: AppColors.white,
+                                          backgroundColor: AppColors.white,
+                                          foregroundColor: AppColors.success,
                                           padding: EdgeInsets.zero,
                                           shape: RoundedRectangleBorder(
                                             borderRadius: BorderRadius.circular(6),
+                                            side: BorderSide(color: AppColors.success, width: 1.5),
                                           ),
                                           elevation: 0,
                                           tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                                           minimumSize: Size.zero,
                                         ),
-                                        child: adding
-                                            ? SizedBox(
-                                          width: 16,
-                                          height: 16,
-                                          child: CircularProgressIndicator(
-                                            strokeWidth: 2,
-                                            color: AppColors.white,
-                                          ),
-                                        )
-                                            : Text(
-                                          'ADD',
-                                          style: textTheme.labelSmall?.copyWith(
-                                            color: AppColors.white,
-                                            fontWeight: FontWeight.w700,
-                                            fontSize: 11,
+                                        child: Center(
+                                          child: isProcessing
+                                              ? SizedBox(
+                                            width: 16,
+                                            height: 16,
+                                            child: CircularProgressIndicator(
+                                              strokeWidth: 2,
+                                              color: AppColors.success,
+                                            ),
+                                          )
+                                              : Text(
+                                            'ADD',
+                                            style: textTheme.labelSmall?.copyWith(
+                                              color: AppColors.success,
+                                              fontWeight: FontWeight.w700,
+                                              fontSize: 12,
+                                            ),
                                           ),
                                         ),
                                       ),
@@ -702,3 +672,5 @@ void _showVariantBottomSheet(BuildContext context, Map<String, int> variantsMap,
     },
   );
 }
+
+// _AnimatedQuantityText remains unchanged as it's a generic animation helper.

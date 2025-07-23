@@ -107,13 +107,13 @@ class AddressService extends GetxService {
   }
 
   void _showError(String title, String message) {
-    Get.snackbar(
-      title,
-      message,
-      snackPosition: SnackPosition.BOTTOM,
-      backgroundColor: Colors.red.shade600,
-      colorText: Colors.white,
-    );
+    // Get.snackbar(
+    //   title,
+    //   message,
+    //   snackPosition: SnackPosition.BOTTOM,
+    //   backgroundColor: Colors.red.shade600,
+    //   colorText: Colors.white,
+    // );
   }
 
   Future<AddressModel?> addAddress(AddressModel address) async {

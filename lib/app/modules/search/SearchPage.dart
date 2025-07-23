@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:mobiking/app/controllers/product_controller.dart';
-import 'package:mobiking/app/modules/home/widgets/ProductCard.dart'; // Ensure this is still used if applicable or remove
-import 'package:mobiking/app/themes/app_theme.dart';
-import '../../data/product_model.dart'; // Ensure this is still used if applicable or remove
-import '../../services/product_service.dart'; // Ensure this is still used if applicable or remove
+import 'package:google_fonts/google_fonts.dart'; // Keep if used elsewhere or remove
+import 'package:mobiking/app/modules/home/widgets/AllProductGridCard.dart'; // Keep if used elsewhere or remove
+
+
+import '../../controllers/product_controller.dart';
+import '../../services/product_service.dart'; // Keep if used elsewhere or remove
+import '../../themes/app_theme.dart';
 import 'Serach_product_card.dart';
 
 class SearchPage extends StatefulWidget {
@@ -19,20 +21,8 @@ class _SearchPageState extends State<SearchPage> {
   final FocusNode _searchFocusNode = FocusNode();
 
   final RxList<String> _recentSearches = <String>[].obs;
-  // _allProducts and _filteredProducts are no longer strictly needed here
-  // if ProductController is managing all product data and search results.
-  // Keeping them for now, but consider removing if redundant.
-  final RxList<ProductModel> _allProducts = <ProductModel>[].obs;
-  final RxList<ProductModel> _filteredProducts = <ProductModel>[].obs;
 
   final RxBool _showClearButton = false.obs;
-
-  // ProductService and _isLoadingProducts/_productErrorMessage might be redundant
-  // if ProductController is handling all data fetching and error states.
-  // Review if these can be removed or managed solely by ProductController.
-  final ProductService _productService = ProductService();
-  final RxBool _isLoadingProducts = true.obs; // Consider removing
-  final RxString _productErrorMessage = ''.obs; // Consider removing
 
   // ⭐ GetX Controller instance
   final ProductController controller = Get.find<ProductController>();
@@ -48,9 +38,6 @@ class _SearchPageState extends State<SearchPage> {
     });
 
     _searchPageController.addListener(_onSearchPageControllerChanged);
-    // Removed _fetchAllProducts call from here as ProductController handles it onInit.
-    // If you need to ensure products are always loaded when search page is opened,
-    // ensure ProductController.fetchProducts() is called or its state persists.
   }
 
   @override
@@ -86,7 +73,6 @@ class _SearchPageState extends State<SearchPage> {
     controller.searchProducts(trimmedQuery);
   }
 
-
   void _addRecentSearch(String query) {
     final cleanQuery = query.trim();
     if (cleanQuery.isNotEmpty) {
@@ -95,26 +81,6 @@ class _SearchPageState extends State<SearchPage> {
       }
       _recentSearches.insert(0, cleanQuery);
       if (_recentSearches.length > 5) _recentSearches.removeLast();
-    }
-  }
-
-  // _fetchAllProducts is likely redundant now if ProductController fetches all products
-  // and search results are managed by ProductController.searchProducts.
-  // Consider removing this method if ProductController handles all product data.
-  Future<void> _fetchAllProducts() async {
-    // This method might not be needed if controller.productList is the source of truth
-    // and controller.searchProducts is the main way to get filtered data.
-    // For now, keeping it as a fallback or if it has another purpose.
-    _isLoadingProducts.value = true;
-    _productErrorMessage.value = '';
-    try {
-      final products = await _productService.getAllProducts();
-      _allProducts.assignAll(products);
-      _filteredProducts.assignAll(products); // Still assigning to _filteredProducts, but likely unused
-    } catch (e) {
-      _productErrorMessage.value = 'Failed to load products: ${e.toString()}';
-    } finally {
-      _isLoadingProducts.value = false;
     }
   }
 
@@ -136,7 +102,7 @@ class _SearchPageState extends State<SearchPage> {
             child: Row(
               children: [
                 IconButton(
-                  icon: const Icon(Icons.arrow_back_ios_new_rounded,size: 18,),
+                  icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 18),
                   onPressed: () => Get.back(),
                 ),
                 const SizedBox(width: 8),
@@ -146,7 +112,9 @@ class _SearchPageState extends State<SearchPage> {
                     decoration: BoxDecoration(
                       color: AppColors.white,
                       borderRadius: BorderRadius.circular(28),
-                      border: Border.all(color: AppColors.lightPurple.withOpacity(0.2), width: 1.0),
+                      border: Border.all(
+                          color: AppColors.lightPurple.withOpacity(0.2),
+                          width: 1.0),
                       boxShadow: [
                         BoxShadow(
                           color: AppColors.textDark.withOpacity(0.08),
@@ -175,18 +143,21 @@ class _SearchPageState extends State<SearchPage> {
                           fontWeight: FontWeight.w400,
                         ),
                         border: InputBorder.none,
-                        prefixIcon: const Icon(Icons.search_rounded, color: AppColors.textLight, size: 24),
+                        prefixIcon: const Icon(Icons.search_rounded,
+                            color: AppColors.textLight, size: 24),
                         suffixIcon: Obx(
                               () => _showClearButton.value
                               ? IconButton(
-                            icon: const Icon(Icons.clear_rounded, color: AppColors.textLight, size: 24),
+                            icon: const Icon(Icons.clear_rounded,
+                                color: AppColors.textLight, size: 24),
                             onPressed: () {
                               _searchPageController.clear();
                               _onSearchInputChanged('');
                             },
                           )
                               : IconButton(
-                            icon: const Icon(Icons.mic_none_rounded, color: AppColors.textLight, size: 24),
+                            icon: const Icon(Icons.mic_none_rounded,
+                                color: AppColors.textLight, size: 24),
                             onPressed: () {
                               debugPrint('Microphone tapped');
                             },
@@ -254,8 +225,9 @@ class _SearchPageState extends State<SearchPage> {
               ),
             ),
             const SizedBox(height: 12),
+            // ⭐ OPTIMIZED: Separate Obx widgets for different states
             Obx(() {
-              // ⭐ Display validation message
+              // Priority 1: Validation message
               if (_validationMessage.isNotEmpty) {
                 return Center(
                   child: Padding(
@@ -274,29 +246,55 @@ class _SearchPageState extends State<SearchPage> {
                   ),
                 );
               }
-              // Existing loading and no results logic
+              // Priority 2: Loading state
               else if (controller.isLoading.value) {
                 return const Center(child: CircularProgressIndicator());
-              } else if (controller.searchResults.isEmpty && _searchPageController.text.isNotEmpty) {
+              }
+              // Priority 3: No results found after a search query
+              else if (controller.searchResults.isEmpty && _searchPageController.text.isNotEmpty) {
                 return Center(
                   child: Padding(
-                    padding: const EdgeInsets.all(24.0),
+                    padding: const EdgeInsets.all(32.0),
                     child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Icon(Icons.search_off_rounded, size: 64, color: AppColors.textLight),
+                        Icon(
+                          Icons.search_off_rounded,
+                          size: 72,
+                          color: AppColors.textLight.withOpacity(0.6),
+                        ),
+                        const SizedBox(height: 20),
+                        Text(
+                          'Nothing matched your search',
+                          style: textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.textDark,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
                         const SizedBox(height: 12),
                         Text(
-                          'No results found for "${_searchPageController.text}".',
-                          style: textTheme.bodyMedium?.copyWith(color: AppColors.textLight),
+                          'We couldn’t find any results for:\n"${_searchPageController.text}"',
+                          style: textTheme.bodyMedium?.copyWith(
+                            color: AppColors.textLight,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          'Try a different keyword or check for typos.',
+                          style: textTheme.bodySmall?.copyWith(
+                            color: AppColors.textLight,
+                          ),
                           textAlign: TextAlign.center,
                         ),
                       ],
                     ),
                   ),
                 );
-              } else if (controller.searchResults.isEmpty && _searchPageController.text.isEmpty) {
-                // This block might become redundant if _validationMessage handles initial hint.
-                // Keeping it for now but review if it can be merged with _validationMessage logic.
+              }
+              // Priority 4: Initial state when search bar is empty
+              else if (controller.searchResults.isEmpty && _searchPageController.text.isEmpty) {
                 return Center(
                   child: Padding(
                     padding: const EdgeInsets.all(24.0),
@@ -306,7 +304,9 @@ class _SearchPageState extends State<SearchPage> {
                     ),
                   ),
                 );
-              } else {
+              }
+              // Priority 5: Display search results
+              else {
                 return Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 16),
                   child: GridView.builder(
@@ -314,16 +314,14 @@ class _SearchPageState extends State<SearchPage> {
                     physics: const NeverScrollableScrollPhysics(),
                     itemCount: controller.searchResults.length,
                     gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: 2,
-                      mainAxisSpacing: 12,
-                      crossAxisSpacing: 12,
-                      childAspectRatio: 0.78,
+                      crossAxisCount: 3,
+                      childAspectRatio: 0.45,
                     ),
                     itemBuilder: (context, index) {
                       final product = controller.searchResults[index];
                       return SearchProductCard(
                         product: product,
-                        heroTag: 'search-product-image-${product.id ?? index}',
+                        heroTag: 'search-product-image-${product.id}',
                       );
                     },
                   ),

@@ -2,6 +2,7 @@ import 'package:flutter/cupertino.dart'; // For iOS-style icons, if needed
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:get/get.dart';
+import 'package:mobiking/app/modules/Product_page/product_page.dart';
 
 import 'package:mobiking/app/modules/address/AddressPage.dart';
 import 'package:mobiking/app/modules/checkout/widget/bill_section.dart';
@@ -213,7 +214,7 @@ class CheckoutScreen extends StatelessWidget {
               ),
               const SizedBox(height: 12),
               SizedBox(
-                height: 250, // Increased height for suggested products to give them more space
+                height: 280, // Increased height for suggested products to give them more space
                 child: ListView.builder(
                   scrollDirection: Axis.horizontal,
                   itemCount: cartProductsWithDetails.length, // Using cart products as dummy data for suggestions
@@ -230,14 +231,14 @@ class CheckoutScreen extends StatelessWidget {
                           // or let ProductCards handle it using its internal Get.to() as configured.
                           // If ProductCards handles navigation, ensure it passes the correct heroTag.
                           // Example of explicit navigation:
-                          // Get.to(
-                          //   () => ProductPage(
-                          //     product: tappedProduct,
-                          //     heroTag: 'product_image_checkout_suggested_${tappedProduct.id}_$index',
-                          //   ),
-                          //   transition: Transition.fadeIn,
-                          //   duration: const Duration(milliseconds: 300),
-                          // );
+                           Get.to(
+                             () => ProductPage(
+                               product: tappedProduct,
+                               heroTag: 'product_image_checkout_suggested_${tappedProduct.id}_$index',
+                             ),
+                             transition: Transition.fadeIn,
+                             duration: const Duration(milliseconds: 300),
+                           );
                         },
                       ),
                     );
@@ -526,7 +527,24 @@ class CheckoutScreen extends StatelessWidget {
                         }
 
                         // If all checks pass, proceed with placing the order
+                        if (_selectedPaymentMethod.value.isEmpty) {
+                          Get.snackbar(
+                            'Payment Method Required',
+                            'Please select a payment method before placing your order.',
+                            snackPosition: SnackPosition.TOP,
+                            backgroundColor: Colors.redAccent,
+                            colorText: AppColors.white,
+                            icon: const Icon(Icons.warning_amber_rounded, color: AppColors.white),
+                            margin: const EdgeInsets.all(10),
+                            borderRadius: 10,
+                            duration: const Duration(seconds: 3),
+                            animationDuration: const Duration(milliseconds: 300),
+                          );
+                          return;
+                        }
+
                         orderController.isLoading.value = true;
+
                         if (_selectedPaymentMethod.value == 'COD') {
                           await orderController.placeOrder(method: 'COD');
                         } else if (_selectedPaymentMethod.value == 'Online') {
@@ -534,7 +552,7 @@ class CheckoutScreen extends StatelessWidget {
                             'Online Payment',
                             'Initiating secure payment...',
                             snackPosition: SnackPosition.BOTTOM,
-                            backgroundColor: AppColors.primaryPurple.withOpacity(0.8), // Purple snackbar
+                            backgroundColor: AppColors.primaryPurple.withOpacity(0.8),
                             colorText: AppColors.white,
                             icon: const Icon(Icons.credit_card_outlined, color: AppColors.white),
                             margin: const EdgeInsets.all(10),
@@ -544,6 +562,7 @@ class CheckoutScreen extends StatelessWidget {
                           );
                           await orderController.placeOrder(method: 'Online');
                         }
+
                       },
                       borderRadius: BorderRadius.circular(14),
                       child: Container(

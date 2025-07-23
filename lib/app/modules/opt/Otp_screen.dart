@@ -47,7 +47,7 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
     if (_isSendingOrResending.value) return;
 
     _isSendingOrResending.value = true;
-    Get.snackbar(
+/* Get.snackbar(
       'Sending OTP',
       'An OTP is being sent to ${widget.phoneNumber}...',
       snackPosition: SnackPosition.TOP,
@@ -57,19 +57,21 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
       borderRadius: 8,
       icon: const Icon(Icons.send_time_extension, color: Colors.white),
       duration: const Duration(seconds: 2),
-    );
+    );*/
 
     try {
       // This line was causing the error because it's called during build via initState
       // By deferring _sendOrResendOtpAction, this is no longer during build.
       _loginController.phoneController.text = widget.phoneNumber;
-      await _loginController.login(); // This should be the method that sends the OTP
+      // IMPORTANT: Ensure _loginController.login() ONLY sends the OTP
+      // and DOES NOT perform a full user login/session creation here.
+      await _loginController.login();
 
       debugPrint("OTP sent to ${widget.phoneNumber} (via _loginController.login())");
       _isSendingOrResending.value = false;
       _startResendCountdown();
 
-      Get.snackbar(
+      /*Get.snackbar(
         'OTP Sent!',
         'Please check your SMS for the code.',
         snackPosition: SnackPosition.TOP,
@@ -79,7 +81,7 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
         borderRadius: 8,
         icon: const Icon(Icons.check_circle_outline, color: Colors.white),
         duration: const Duration(seconds: 3),
-      );
+      );*/
     } catch (error) {
       _isSendingOrResending.value = false;
       Get.snackbar(
@@ -116,10 +118,14 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
 
       debugPrint('OTP Submitted: $otp');
       try {
-       /* await _loginController.verifyOtp(widget.phoneNumber, otp); // Use the actual verifyOtp*/
+        // This is where the actual OTP verification and subsequent login should happen.
+        // The _loginController.verifyOtp() method should handle calling your backend
+        // to confirm the OTP and if successful, perform the user login/session creation.
+    /*    await _loginController.verifyOtp(widget.phoneNumber, otp);*/
 
         _isVerifyButtonLoading.value = false;
 
+        // ONLY navigate to MainContainerScreen AFTER successful OTP verification
         Get.offAll(() => const MainContainerScreen());
       } catch (error) {
         _isVerifyButtonLoading.value = false;
@@ -246,7 +252,7 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
               ),
               animationDuration: const Duration(milliseconds: 200),
               enableActiveFill: true,
-              onCompleted: (v) => _handleVerifyOtp(),
+              onCompleted: (v) => _handleVerifyOtp(), // This triggers when 6 digits are entered
               onChanged: (value) {
                 debugPrint(value);
               },
@@ -275,7 +281,7 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
                         elevation: 8,
                         shadowColor: AppColors.primaryPurple.withOpacity(0.4),
                       ),
-                      onPressed: buttonIsLoading ? null : _handleVerifyOtp,
+                      onPressed: buttonIsLoading ? null : _handleVerifyOtp, // This is the button click
                       child: buttonIsLoading
                           ? const SizedBox(
                         width: 28,

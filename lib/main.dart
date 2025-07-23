@@ -36,6 +36,7 @@ import 'package:mobiking/app/controllers/connectivity_controller.dart';
 import 'package:mobiking/app/modules/no_network/no_network_screen.dart';
 
 import 'app/controllers/fcm_controller.dart';
+import 'app/modules/bottombar/Bottom_bar.dart';
 import 'firebase_options.dart';
 
 // FCM Background Message Handler - MUST be a top-level function
@@ -90,7 +91,7 @@ Future<void> main() async {
   Get.put(ConnectivityService());
   Get.put(SoundService());
   Get.put(QueryService());
-
+  Get.put(CategoryController());
 
   // Controllers (in order of dependency if applicable)
   Get.put(ConnectivityController());
@@ -98,7 +99,7 @@ Future<void> main() async {
   Get.put(AddressController());
   Get.put(CartController());
   Get.put(HomeController());
-  Get.put(CategoryController());
+
   Get.put(SubCategoryController());
   Get.put(WishlistController());
   Get.put(LoginController());
@@ -126,6 +127,7 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     // Get the ConnectivityController instance
     final ConnectivityController connectivityController = Get.find<ConnectivityController>();
+    final LoginController loginController = Get.find<LoginController>();
 
     // Define your desired global padding/margin
     const EdgeInsets globalPadding = EdgeInsets.symmetric(vertical: 0); // Changed to 0 as padding usually applies inside the widget structure, not to GetMaterialApp content directly. Adjust if needed.
@@ -135,30 +137,34 @@ class MyApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       theme: AppTheme.lightTheme,
       home: Obx(() {
+        final isConnected = connectivityController.isConnected.value;
+        final user = loginController.currentUser.value;
+
         Widget content;
-        if (connectivityController.isConnected.value) {
-          // If you have an initial check for user login status (e.g., from GetStorage),
-          // you'd place that logic here to decide between LoginScreen and MainAppScreen.
-          content = PhoneAuthScreen(); // Your normal starting screen (e.g., Login screen)
+
+        if (isConnected) {
+          if (user != null) {
+            // ✅ User is logged in and connected
+            content = MainContainerScreen();
+          } else {
+            // ✅ Not logged in, show PhoneAuth
+            content = PhoneAuthScreen();
+          }
         } else {
+          // ❌ No internet, show retry UI
           content = NoNetworkScreen(
             onRetry: () {
-              // When RETRY is pressed, attempt to recheck connectivity
               connectivityController.retryConnection();
             },
           );
         }
 
-        // Applying Padding directly to the 'home' widget might cause layout issues
-        // or unexpected behavior with GetMaterialApp's navigation.
-        // It's generally better to apply padding within the screen's Scaffold body.
-        // If you truly need global padding, consider a custom widget that wraps all your screens.
-        // For now, I've set it to 0 as a safer default.
         return Padding(
-          padding: globalPadding, // Consider if this padding is truly global or per-screen.
+          padding: globalPadding,
           child: content,
         );
       }),
+
       // If you decide to use GetX routing (recommended), remove 'home:' and use 'initialRoute' and 'getPages'.
       // For example:
       // initialRoute: AppRoutes.LOGIN, // Assuming you have an AppRoutes class

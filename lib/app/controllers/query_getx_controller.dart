@@ -65,11 +65,11 @@ class QueryGetXController extends GetxController {
       print('QueryGetXController: Access token loaded and set for QueryService.');
     } else {
       print('QueryGetXController: No access token found in GetStorage. Authenticated calls might fail.');
-      _showModernSnackbar(
-        title: 'Authentication Missing',
-        message: 'No access token found. Please log in.',
-        isSuccess: false,
-      );
+      // _showModernSnackbar( // Commented out
+      //   title: 'Authentication Missing',
+      //   message: 'No access token found. Please log in.',
+      //   isSuccess: false,
+      // );
     }
   }
 
@@ -111,20 +111,20 @@ class QueryGetXController extends GetxController {
     try {
       final queries = await _queryService.getMyQueries();
       _myQueries.value = queries;
-      _showModernSnackbar(
-        title: 'Success',
-        message: 'Queries fetched successfully!',
-        isSuccess: true,
-      );
+      // _showModernSnackbar( // Commented out
+      //   title: 'Success',
+      //   message: 'Queries fetched successfully!',
+      //   isSuccess: true,
+      // );
       print('QueryGetXController: Fetched queries: ${queries.length} items.');
     } catch (e) {
       final userFriendlyMessage = _getFriendlyErrorMessage(e, 'Error fetching queries.');
       _errorMessage.value = userFriendlyMessage;
-      _showModernSnackbar(
-        title: 'Error',
-        message: userFriendlyMessage,
-        isSuccess: false,
-      );
+      // _showModernSnackbar( // Commented out
+      //   title: 'Error',
+      //   message: userFriendlyMessage,
+      //   isSuccess: false,
+      // );
       print('QueryGetXController: Error fetching queries: $e');
     } finally {
       _isLoading.value = false;
@@ -149,20 +149,20 @@ class QueryGetXController extends GetxController {
         orderId: orderId,
       );
       _myQueries.insert(0, newQuery);
-      _showModernSnackbar(
-        title: 'Success',
-        message: 'Query raised successfully! ID: ${newQuery.id}',
-        isSuccess: true,
-      );
+      // _showModernSnackbar( // Commented out
+      //   title: 'Success',
+      //   message: 'Query raised successfully! ID: ${newQuery.id}',
+      //   isSuccess: true,
+      // );
       print('QueryGetXController: New query raised: ${newQuery.toJson()}');
     } catch (e) {
       final userFriendlyMessage = _getFriendlyErrorMessage(e, 'Error raising query.');
       _errorMessage.value = userFriendlyMessage;
-      _showModernSnackbar(
-        title: 'Error',
-        message: userFriendlyMessage,
-        isSuccess: false,
-      );
+      // _showModernSnackbar( // Commented out
+      //   title: 'Error',
+      //   message: userFriendlyMessage,
+      //   isSuccess: false,
+      // );
       print('QueryGetXController: Error raising query: $e');
     } finally {
       _isLoading.value = false;
@@ -183,20 +183,20 @@ class QueryGetXController extends GetxController {
         review: review,
       );
       _updateQueryInList(updatedQuery);
-      _showModernSnackbar(
-        title: 'Success',
-        message: 'Query rated successfully! ID: ${updatedQuery.id}',
-        isSuccess: true,
-      );
+      // _showModernSnackbar( // Commented out
+      //   title: 'Success',
+      //   message: 'Query rated successfully! ID: ${updatedQuery.id}',
+      //   isSuccess: true,
+      // );
       print('QueryGetXController: Query rated: ${updatedQuery.toJson()}');
     } catch (e) {
       final userFriendlyMessage = _getFriendlyErrorMessage(e, 'Error rating query.');
       _errorMessage.value = userFriendlyMessage;
-      _showModernSnackbar(
-        title: 'Error',
-        message: userFriendlyMessage,
-        isSuccess: false,
-      );
+      // _showModernSnackbar( // Commented out
+      //   title: 'Error',
+      //   message: userFriendlyMessage,
+      //   isSuccess: false,
+      // );
       print('QueryGetXController: Error rating query: $e');
     } finally {
       _isLoading.value = false;
@@ -208,11 +208,11 @@ class QueryGetXController extends GetxController {
     required String replyText,
   }) async {
     if (replyText.trim().isEmpty) {
-      _showModernSnackbar(
-        title: 'Input Error',
-        message: 'Reply message cannot be empty.',
-        isSuccess: false,
-      );
+      // _showModernSnackbar( // Commented out
+      //   title: 'Input Error',
+      //   message: 'Reply message cannot be empty.',
+      //   isSuccess: false,
+      // );
       return;
     }
     _isLoading.value = true;
@@ -224,20 +224,20 @@ class QueryGetXController extends GetxController {
       );
       _updateQueryInList(updatedQuery);
       _replyInputController.clear();
-      _showModernSnackbar(
-        title: 'Success',
-        message: 'Replied to query successfully! ID: ${updatedQuery.id}',
-        isSuccess: true,
-      );
+      // _showModernSnackbar( // Commented out
+      //   title: 'Success',
+      //   message: 'Replied to query successfully! ID: ${updatedQuery.id}',
+      //   isSuccess: true,
+      // );
       print('QueryGetXController: Replied to query: ${updatedQuery.toJson()}');
     } catch (e) {
       final userFriendlyMessage = _getFriendlyErrorMessage(e, 'Error replying to query.');
       _errorMessage.value = userFriendlyMessage;
-      _showModernSnackbar(
-        title: 'Error',
-        message: userFriendlyMessage,
-        isSuccess: false,
-      );
+      // _showModernSnackbar( // Commented out
+      //   title: 'Error',
+      //   message: userFriendlyMessage,
+      //   isSuccess: false,
+      // );
       print('QueryGetXController: Error replying to query: $e');
     } finally {
       _isLoading.value = false;

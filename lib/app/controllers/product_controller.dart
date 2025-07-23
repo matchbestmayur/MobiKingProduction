@@ -14,7 +14,7 @@ class ProductController extends GetxController {
   var isFetchingMore = false.obs;
   var hasMoreProducts = true.obs;
 
-  final int _productsPerPage = 10;
+  final int _productsPerPage = 9;
   int _currentPage = 1;
 
   // Date range filters
@@ -25,6 +25,7 @@ class ProductController extends GetxController {
   void onInit() {
     super.onInit();
     fetchInitialProducts();
+
   }
 
   /// 🔰 Fetch first page of products
@@ -36,8 +37,6 @@ class ProductController extends GetxController {
       final products = await _productService.getAllProducts(
         page: _currentPage,
         limit: _productsPerPage,
-        startDate: _startDate,
-        endDate: _endDate,
       );
 
       allProducts.assignAll(products);
@@ -54,6 +53,8 @@ class ProductController extends GetxController {
   Future<void> fetchMoreProducts() async {
     if (isFetchingMore.value || !hasMoreProducts.value) return;
 
+    print("🚀 Loading more products...");
+
     try {
       isFetchingMore.value = true;
       _currentPage++;
@@ -61,19 +62,26 @@ class ProductController extends GetxController {
       final newProducts = await _productService.getAllProducts(
         page: _currentPage,
         limit: _productsPerPage,
-        startDate: _startDate,
-        endDate: _endDate,
       );
 
-      allProducts.addAll(newProducts);
-      hasMoreProducts.value = newProducts.length == _productsPerPage;
+      print("✅ Fetched ${newProducts.length} products");
+
+      if (newProducts.isEmpty) {
+        hasMoreProducts.value = false;
+      } else {
+        allProducts.addAll(newProducts);
+        hasMoreProducts.value = newProducts.length == _productsPerPage;
+      }
     } catch (e) {
-      Get.snackbar('Error loading more products', e.toString(), snackPosition: SnackPosition.BOTTOM);
-      print('Error: $e');
+      Get.snackbar('Error loading more products', e.toString(),
+          snackPosition: SnackPosition.BOTTOM);
+      print('❌ Error: $e');
     } finally {
       isFetchingMore.value = false;
+      print("⬇ Done loading page $_currentPage");
     }
   }
+
 
   /// 🆕 Add new product
   Future<void> addProduct(ProductModel product) async {
@@ -119,11 +127,7 @@ class ProductController extends GetxController {
       isLoading.value = true;
 
       final results = await _productService.searchProducts(
-        trimmedQuery,
-        page: 1,
-        limit: _productsPerPage,
-        startDate: _startDate,
-        endDate: _endDate,
+        trimmedQuery.toString(),
       );
 
       searchResults.assignAll(results);
@@ -134,4 +138,19 @@ class ProductController extends GetxController {
       isLoading.value = false;
     }
   }
+
+  List<ProductModel> getProductsInSameParentCategory(String currentProductId, String? parentCategory) {
+    // If no parent category is provided or it's empty, there's nothing to filter by.
+    if (parentCategory == null || parentCategory.isEmpty) {
+      return [];
+    }
+
+    // Filter the 'allProducts' list
+    return allProducts
+        .where((product) =>
+    product.id != currentProductId && // Exclude the current product by its ID
+        product.categoryId.contains(parentCategory)) // Check if the product's categories list contains the specified parentCategory
+        .toList(); // Convert the filtered iterable to a List
+  }
 }
+

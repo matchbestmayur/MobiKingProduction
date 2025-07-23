@@ -383,14 +383,7 @@ class _UserInfoScreenState extends State<UserInfoScreen> {
                                   color: AppColors.danger, width: 2.0),
                             ),
                           ),
-                          validator: (value) {
-                            if (value != null &&
-                                value.isNotEmpty &&
-                                !GetUtils.isEmail(value)) {
-                              return 'Enter a valid email address';
-                            }
-                            return null;
-                          },
+                          // No validator for email since it's optional and always considered valid if left empty.
                           autovalidateMode: AutovalidateMode.onUserInteraction,
                         ),
 

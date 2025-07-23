@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:intl/intl.dart'; // Import for date formatting
@@ -16,11 +18,55 @@ import '../profile/query/Query_Detail_Screen.dart';
 import 'shipping_details_screen.dart'; // IMPORT THE NEW SCREEN HERE - Adjust path if necessary
 // import '../profile/query/query_screen.dart'; // REMOVED: No longer navigating to a separate QueriesScreen
 
-class OrderHistoryScreen extends StatelessWidget {
-  OrderHistoryScreen({super.key});
+import 'dart:async';
+import 'package:flutter/material.dart';
+import 'package:get/get.dart';
 
-  // Get the QueryGetXController instance (still needed to check existing queries if stored there)
+
+class OrderHistoryScreen extends StatefulWidget {
+  const OrderHistoryScreen({super.key});
+
+  @override
+  State<OrderHistoryScreen> createState() => _OrderHistoryScreenState();
+}
+
+class _OrderHistoryScreenState extends State<OrderHistoryScreen> {
   final QueryGetXController queryController = Get.find<QueryGetXController>();
+  final ScrollController _scrollController = ScrollController();
+  final OrderController controller = Get.put(OrderController());
+
+  Timer? _pollingTimer;
+  bool _isScrolling = false;
+
+  @override
+  void initState() {
+    super.initState();
+    controller.fetchOrderHistory(); // initial call shows loader
+    _startPolling(); // silent background polling every 30s
+  }
+
+  void _startPolling() {
+    _pollingTimer = Timer.periodic(const Duration(seconds: 30), (timer) {
+      if (!_isScrolling && mounted) {
+        controller.fetchOrderHistory(isPoll: true); // 🔇 silent polling
+      }
+    });
+  }
+
+  void _pausePolling() => _isScrolling = true;
+
+  void _resumePolling() {
+    Future.delayed(const Duration(milliseconds: 3000), () {
+      if (mounted) _isScrolling = false;
+    });
+  }
+
+  @override
+  void dispose() {
+    _pollingTimer?.cancel();
+    _scrollController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -40,121 +86,43 @@ class OrderHistoryScreen extends StatelessWidget {
         elevation: 0.5,
         centerTitle: false,
         iconTheme: const IconThemeData(color: AppColors.textDark),
-        // REMOVED: The entire Stack and IconButton for global queries
-        actions: const [
-          SizedBox(width: 8), // Keep a small space if desired, or remove actions entirely if no other actions
-        ],
+        actions: const [SizedBox(width: 8)],
       ),
       body: GetX<OrderController>(
-        builder: (controller) {
+        builder: (_) {
           if (controller.isLoadingOrderHistory.value) {
-            return Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  CircularProgressIndicator(color: AppColors.success),
-                  const SizedBox(height: 16),
-                  Text(
-                    'Loading your orders...',
-                    style: textTheme.bodyLarge?.copyWith(color: AppColors.textMedium),
-                  ),
-                ],
-              ),
-            );
+            return _buildLoadingView(textTheme);
           } else if (controller.orderHistoryErrorMessage.isNotEmpty) {
-            return Center(
-              child: Padding(
-                padding: const EdgeInsets.all(32.0),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(Icons.error_outline, size: 70, color: AppColors.danger),
-                    const SizedBox(height: 24),
-                    Text(
-                      'Oops! Failed to load orders.',
-                      textAlign: TextAlign.center,
-                      style: textTheme.headlineSmall?.copyWith(color: AppColors.textDark, fontWeight: FontWeight.w700),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      controller.orderHistoryErrorMessage.value,
-                      textAlign: TextAlign.center,
-                      style: textTheme.bodyMedium?.copyWith(color: AppColors.textMedium),
-                    ),
-                    const SizedBox(height: 24),
-                    ElevatedButton.icon(
-                      onPressed: controller.fetchOrderHistory,
-                      icon: const Icon(Icons.refresh_rounded, color: AppColors.white),
-                      label: Text(
-                        'Try Again',
-                        style: textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w600, color: AppColors.white),
-                      ),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.success,
-                        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                        elevation: 2,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            );
+            return _buildErrorView(textTheme);
           } else if (controller.orderHistory.isEmpty) {
-            return Center(
-              child: Padding(
-                padding: const EdgeInsets.all(32.0),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(Icons.shopping_bag_outlined, size: 80, color: AppColors.textLight.withOpacity(0.6)),
-                    const SizedBox(height: 24),
-                    Text(
-                      'No orders found yet!',
-                      style: textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w700, color: AppColors.textDark),
-                    ),
-                    const SizedBox(height: 12),
-                    Text(
-                      'Looks like you haven\'t placed any orders. Start shopping to fill this space!',
-                      textAlign: TextAlign.center,
-                      style: textTheme.bodyMedium?.copyWith(color: AppColors.textMedium),
-                    ),
-                    const SizedBox(height: 32),
-                    ElevatedButton(
-                      onPressed: () {
-                        Get.offAll(() => HomeScreen());
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.success,
-                        foregroundColor: AppColors.white,
-                        padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 15),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                        elevation: 2,
-                      ),
-                      child: Text(
-                        'Start Shopping Now',
-                        style: textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w600, color: AppColors.white),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            );
+            return _buildEmptyView(textTheme);
           } else {
-            return RefreshIndicator(
-              onRefresh: () async {
-                await controller.fetchOrderHistory();
+            return NotificationListener<ScrollNotification>(
+              onNotification: (ScrollNotification scrollInfo) {
+                if (scrollInfo is ScrollStartNotification) {
+                  _pausePolling();
+                } else if (scrollInfo is ScrollEndNotification) {
+                  _resumePolling();
+                }
+                return false;
               },
-              color: AppColors.success,
-              backgroundColor: AppColors.neutralBackground,
-              child: ListView.builder(
-                padding: const EdgeInsets.all(16.0),
-                itemCount: controller.orderHistory.length,
-                itemBuilder: (context, index) {
-                  final order = controller.orderHistory[index];
-                  // Pass the queryController to the _OrderCard
-                  return _OrderCard(order: order, controller: controller, queryController: queryController);
-                },
+              child: RefreshIndicator(
+                onRefresh: () => controller.fetchOrderHistory(), // manual refresh
+                color: AppColors.success,
+                backgroundColor: AppColors.neutralBackground,
+                child: ListView.builder(
+                  controller: _scrollController,
+                  padding: const EdgeInsets.all(16.0),
+                  itemCount: controller.orderHistory.length,
+                  itemBuilder: (context, index) {
+                    final order = controller.orderHistory[index];
+                    return _OrderCard(
+                      order: order,
+                      controller: controller,
+                      queryController: queryController,
+                    );
+                  },
+                ),
               ),
             );
           }
@@ -162,7 +130,102 @@ class OrderHistoryScreen extends StatelessWidget {
       ),
     );
   }
+
+  Widget _buildLoadingView(TextTheme textTheme) => Center(
+    child: Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        const CircularProgressIndicator(color: AppColors.success),
+        const SizedBox(height: 16),
+        Text('Loading your orders...', style: textTheme.bodyLarge?.copyWith(color: AppColors.textMedium)),
+      ],
+    ),
+  );
+
+  Widget _buildErrorView(TextTheme textTheme) => Center(
+    child: Padding(
+      padding: const EdgeInsets.all(32.0),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const Icon(Icons.error_outline, size: 70, color: AppColors.danger),
+          const SizedBox(height: 24),
+          Text(
+            'Oops! Failed to load orders.',
+            textAlign: TextAlign.center,
+            style: textTheme.headlineSmall?.copyWith(
+              color: AppColors.textDark,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            controller.orderHistoryErrorMessage.value,
+            textAlign: TextAlign.center,
+            style: textTheme.bodyMedium?.copyWith(color: AppColors.textMedium),
+          ),
+          const SizedBox(height: 24),
+          ElevatedButton.icon(
+            onPressed: () => controller.fetchOrderHistory(),
+            icon: const Icon(Icons.refresh_rounded, color: AppColors.white),
+            label: Text(
+              'Try Again',
+              style: textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w600, color: AppColors.white),
+            ),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.success,
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              elevation: 2,
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
+
+  Widget _buildEmptyView(TextTheme textTheme) => Center(
+    child: Padding(
+      padding: const EdgeInsets.all(32.0),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.shopping_bag_outlined, size: 80, color: AppColors.textLight.withOpacity(0.6)),
+          const SizedBox(height: 24),
+          Text(
+            'No orders found yet!',
+            style: textTheme.headlineSmall?.copyWith(
+              fontWeight: FontWeight.w700,
+              color: AppColors.textDark,
+            ),
+          ),
+          const SizedBox(height: 12),
+          Text(
+            'Looks like you haven\'t placed any orders. Start shopping to fill this space!',
+            textAlign: TextAlign.center,
+            style: textTheme.bodyMedium?.copyWith(color: AppColors.textMedium),
+          ),
+          const SizedBox(height: 32),
+          ElevatedButton(
+            onPressed: () => Get.offAll(() => HomeScreen()),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.success,
+              foregroundColor: AppColors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 15),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              elevation: 2,
+            ),
+            child: Text(
+              'Start Shopping Now',
+              style: textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w600, color: AppColors.white),
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
 }
+
 
 class _OrderCard extends StatelessWidget {
   final OrderModel order;
@@ -585,13 +648,6 @@ class _OrderCard extends StatelessWidget {
                                   child: ElevatedButton.icon(
                                     onPressed: () {
                                       Get.to(() => QueryDetailScreen(orderId: order.id));
-                                      Get.snackbar(
-                                        'Query Already Raised',
-                                        'A query has already been raised for this order. You can view it in your query history.',
-                                        snackPosition: SnackPosition.BOTTOM,
-                                        backgroundColor: AppColors.info.withOpacity(0.9),
-                                        colorText: AppColors.white,
-                                      );
                                     },
                                     icon: Icon(Icons.info_outline, size: 20, color: AppColors.white),
                                     label: Text(

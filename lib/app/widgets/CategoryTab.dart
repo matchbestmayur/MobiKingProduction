@@ -101,17 +101,21 @@ class CustomTabBarSection extends StatelessWidget {
   }
 
   @override
+  @override
   Widget build(BuildContext context) {
     final TextTheme textTheme = Theme.of(context).textTheme;
 
     return Obx(() {
-      final HomeLayoutModel? homeLayout = homeController.homeData.value;
+      // Access the home data directly using the public getter
+      final HomeLayoutModel? homeLayout = homeController.homeData;
       final List<CategoryModel> categories = homeLayout?.categories ?? [];
 
-      if (homeController.isLoading.value || categories.isEmpty) {
+      if (homeController.isLoading || categories.isEmpty) {
         return const SizedBox(
           height: 70,
-          child: Center(child: CircularProgressIndicator(color: AppColors.white)),
+          child: Center(
+            child: CircularProgressIndicator(color: AppColors.white),
+          ),
         );
       }
 
@@ -144,6 +148,8 @@ class CustomTabBarSection extends StatelessWidget {
       );
     });
   }
+
+
 }
 
 class CustomTabBarViewSection extends StatelessWidget {
@@ -157,14 +163,12 @@ class CustomTabBarViewSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Obx(() {
-      final HomeLayoutModel? homeLayout = homeController.homeData.value;
+      final HomeLayoutModel? homeLayout = homeController.homeData; // ✅ Correct access
       final List<CategoryModel> categories = homeLayout?.categories ?? [];
       final selectedIndex = controller.selectedIndex.value;
 
-      if (homeController.isLoading.value ||
-          categories.isEmpty ||
-          selectedIndex < 0 ||
-          selectedIndex >= categories.length) {
+      // --- Initial Loading State ---
+      if (homeController.isLoading || categories.isEmpty) {
         return Container(
           height: 300,
           color: AppColors.neutralBackground,
@@ -174,23 +178,36 @@ class CustomTabBarViewSection extends StatelessWidget {
         );
       }
 
-      final selectedCategory = categories[selectedIndex];
-      final allGroups = homeLayout?.groups ?? [];
-
-      final updatedGroups = allGroups.where((group) {
-        return group.products.any((product) =>
-        product.categoryId != null && product.categoryId == selectedCategory.id);
-      }).toList();
-
-      final String bannerImageUrlToUse = selectedCategory.lowerBanner ?? '';
-
-      return buildSectionView(
-        productController: productController,
+      // --- IndexedStack for Cached Tab Views ---
+      return IndexedStack(
         index: selectedIndex,
-        groups: updatedGroups,
-        bannerImageUrl: bannerImageUrlToUse,
-        categoryGridItems: subCategoryController.subCategories,
-        subCategories: subCategoryController.subCategories,
+        children: List.generate(categories.length, (index) {
+          final category = categories[index];
+          final categoryId = category.id;
+
+          // 🆗 Fetch group data only once
+          if (!homeController.categoryGroups.containsKey(categoryId)) {
+            homeController.fetchGroupsByCategory(categoryId);
+          }
+
+          final updatedGroups = homeController.categoryGroups[categoryId] ?? [];
+          final String bannerImageUrlToUse = category.lowerBanner ?? '';
+
+          return Offstage(
+            offstage: selectedIndex != index,
+            child: TickerMode(
+              enabled: selectedIndex == index,
+              child: buildSectionView(
+                productController: productController,
+                index: index,
+                groups: updatedGroups,
+                bannerImageUrl: bannerImageUrlToUse,
+                categoryGridItems: subCategoryController.subCategories,
+                subCategories: subCategoryController.subCategories,
+              ),
+            ),
+          );
+        }),
       );
     });
   }
