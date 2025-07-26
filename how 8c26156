@@ -1,0 +1,40 @@
+[33ma721c85[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m, [m[1;31morigin/main[m[33m, [m[1;31morigin/HEAD[m[33m)[m HEAD@{0}: merge origin/main: Merge made by the 'ort' strategy.
+[33m8c26156[m HEAD@{1}: commit (amend): production update
+[33m5b7fa10[m HEAD@{2}: commit (amend): production update
+[33m5ff475c[m HEAD@{3}: checkout: moving from release to main
+[33m86bee5b[m[33m ([m[1;31morigin/release[m[33m, [m[1;32mrelease[m[33m)[m HEAD@{4}: commit: updated code
+[33m26378eb[m HEAD@{5}: commit: added mobiking updated
+[33mb73f495[m HEAD@{6}: commit: Commented out non-cart SnackBars and prepped for release
+[33m5ff475c[m HEAD@{7}: checkout: moving from main to release
+[33m5ff475c[m HEAD@{8}: commit: production update
+[33m7e9b8e8[m HEAD@{9}: Branch: renamed refs/heads/main to refs/heads/main
+[33m7e9b8e8[m HEAD@{11}: Branch: renamed refs/heads/main to refs/heads/main
+[33m7e9b8e8[m HEAD@{13}: commit: add new things
+[33m339ca89[m HEAD@{14}: Branch: renamed refs/heads/main to refs/heads/main
+[33m339ca89[m HEAD@{16}: commit: Fix order details layout and scroll issue
+[33mdae29e4[m HEAD@{17}: commit: razor pay added
+[33m1f58ff2[m HEAD@{18}: Branch: renamed refs/heads/main to refs/heads/main
+[33m1f58ff2[m HEAD@{20}: commit: first commit
+[33m9c87473[m HEAD@{21}: Branch: renamed refs/heads/main to refs/heads/main
+[33m9c87473[m HEAD@{23}: commit: first commit
+[33m7913e0e[m HEAD@{24}: Branch: renamed refs/heads/main to refs/heads/main
+[33m7913e0e[m HEAD@{26}: commit: first commit
+[33mb4f76b2[m HEAD@{27}: Branch: renamed refs/heads/main to refs/heads/main
+[33mb4f76b2[m HEAD@{29}: commit: first commit
+[33m678d6ed[m HEAD@{30}: Branch: renamed refs/heads/main to refs/heads/main
+[33m678d6ed[m HEAD@{32}: commit: first commit
+[33m2535605[m HEAD@{33}: Branch: renamed refs/heads/main to refs/heads/main
+[33m2535605[m HEAD@{35}: commit: Initial commit
+[33m27d9303[m HEAD@{36}: Branch: renamed refs/heads/main to refs/heads/main
+[33m27d9303[m HEAD@{38}: commit: first commit
+[33m4b14712[m HEAD@{39}: Branch: renamed refs/heads/main to refs/heads/main
+[33m4b14712[m HEAD@{41}: Branch: renamed refs/heads/main to refs/heads/main
+[33m4b14712[m HEAD@{43}: commit: Initial commit
+[33mb346d30[m HEAD@{44}: Branch: renamed refs/heads/main to refs/heads/main
+[33mb346d30[m HEAD@{46}: Branch: renamed refs/heads/main to refs/heads/main
+[33mb346d30[m HEAD@{48}: Branch: renamed refs/heads/main to refs/heads/main
+[33mb346d30[m HEAD@{50}: commit: first commit
+[33m831b6c2[m HEAD@{51}: Branch: renamed refs/heads/main to refs/heads/main
+[33m831b6c2[m HEAD@{53}: Branch: renamed refs/heads/main to refs/heads/main
+[33m831b6c2[m HEAD@{55}: Branch: renamed refs/heads/master to refs/heads/main
+[33m831b6c2[m HEAD@{57}: commit (initial): first commit
