@@ -3,13 +3,13 @@ import 'package:mobiking/app/themes/app_theme.dart'; // Import AppTheme
 
 class CategoryTile extends StatelessWidget {
   final String title;
-  final String imageUrl;
+  final String? imageUrl; // Made nullable to handle absent URLs
   final VoidCallback onTap;
 
   const CategoryTile({
     Key? key,
     required this.title,
-    required this.imageUrl,
+    this.imageUrl, // No longer required
     required this.onTap,
   }) : super(key: key);
 
@@ -23,28 +23,12 @@ class CategoryTile extends StatelessWidget {
         width: 90, // Fixed width for each tile in the horizontal list
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(10), // Slightly rounded corners
-          // No shadow or border here, let the parent list manage separation
         ),
         child: Column(
           children: [
             ClipRRect(
               borderRadius: BorderRadius.circular(8), // Image has slightly smaller radius
-              child: Image.network(
-                imageUrl,
-                width: 80, // Slightly smaller than container width
-                height: 80, // Fixed height for image
-                fit: BoxFit.fill,
-                errorBuilder: (context, error, stackTrace) => Container(
-                  width: 80,
-                  height: 80,
-                  color: AppColors.neutralBackground, // Light grey placeholder
-                  child: Icon(
-                    Icons.image_not_supported_rounded,
-                    color: AppColors.textLight, // Lighter icon
-                    size: 30,
-                  ),
-                ),
-              ),
+              child: _buildImageWidget(),
             ),
             const SizedBox(height: 8), // Space between image and text
             Expanded( // Use Expanded to handle potential long text
@@ -61,6 +45,34 @@ class CategoryTile extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildImageWidget() {
+    // Check if imageUrl is null or empty
+    if (imageUrl == null || imageUrl!.isEmpty) {
+      return _buildFallbackWidget();
+    }
+
+    return Image.network(
+      imageUrl!,
+      width: 80, // Slightly smaller than container width
+      height: 80, // Fixed height for image
+      fit: BoxFit.fill,
+      errorBuilder: (context, error, stackTrace) => _buildFallbackWidget(),
+    );
+  }
+
+  Widget _buildFallbackWidget() {
+    return Container(
+      width: 80,
+      height: 80,
+      color: AppColors.neutralBackground, // Light grey placeholder
+      child: Icon(
+        Icons.category_rounded, // More appropriate icon for categories
+        color: AppColors.textLight, // Lighter icon
+        size: 30,
       ),
     );
   }

@@ -2,21 +2,20 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
-import 'package:google_fonts/google_fonts.dart'; // Keep if used elsewhere or for specific cases
+import 'package:google_fonts/google_fonts.dart';
 
-// Assuming these are your local paths
-import 'package:mobiking/app/modules/home/widgets/FloatingCartButton.dart'; // Assuming this widget exists
-import '../../controllers/cart_controller.dart' show CartController; // Assuming this controller exists
-import '../../controllers/category_controller.dart'; // Assuming this controller exists
+import 'package:mobiking/app/modules/home/widgets/FloatingCartButton.dart';
+import '../../controllers/cart_controller.dart' show CartController;
+import '../../controllers/category_controller.dart';
 import '../../controllers/sub_category_controller.dart';
 import '../../controllers/tab_controller_getx.dart';
-import '../../themes/app_theme.dart'; // Make sure this import is correct
-import '../../widgets/CustomBottomBar.dart'; // Assuming this widget exists
-import '../../widgets/CategoryTab.dart'; // Assuming this widget exists
+import '../../controllers/product_controller.dart'; // ✅ Add this import
+import '../../themes/app_theme.dart';
+import '../../widgets/CustomBottomBar.dart';
+import '../../widgets/CategoryTab.dart';
 import '../../widgets/CustomAppBar.dart';
 import '../../widgets/SearchTabSliverAppBar.dart' show SearchTabSliverAppBar;
-import '../cart/cart_bottom_dialoge.dart'; // Assuming this widget exists
-
+import '../cart/cart_bottom_dialoge.dart';
 
 class HomeScreen extends StatefulWidget {
   HomeScreen({super.key});
@@ -26,15 +25,14 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  // Controllers should ideally be initialized here once
   final CategoryController categoryController = Get.find<CategoryController>();
   final SubCategoryController subCategoryController = Get.find<SubCategoryController>();
-  // Assuming TabControllerGetX is always available via Get.find()
   final TabControllerGetX tabController = Get.find<TabControllerGetX>();
-
+  final ProductController productController = Get.find<ProductController>(); // ✅ Add this
 
   late ScrollController _scrollController;
   final RxBool _showScrollToTopButton = false.obs;
+  bool _isLoadingTriggered = false; // ✅ Add infinite scroll state
 
   @override
   void initState() {
@@ -51,11 +49,38 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _scrollListener() {
+    // ✅ Scroll to top button logic
     if (_scrollController.offset >= 200 && !_showScrollToTopButton.value) {
       _showScrollToTopButton.value = true;
     } else if (_scrollController.offset < 200 && _showScrollToTopButton.value) {
       _showScrollToTopButton.value = false;
     }
+
+    // ✅ Infinite scroll logic
+    if (!_scrollController.hasClients) return;
+
+    final maxScroll = _scrollController.position.maxScrollExtent;
+    final currentScroll = _scrollController.position.pixels;
+
+    // Reset loading trigger when scroll position changes significantly
+    if (currentScroll < maxScroll * 0.7) {
+      _isLoadingTriggered = false;
+    }
+
+    // Trigger load more at 85% scroll
+    if (currentScroll >= maxScroll * 0.85) {
+      _triggerLoadMore();
+    }
+  }
+
+  void _triggerLoadMore() {
+    if (_isLoadingTriggered ||
+        productController.isFetchingMore.value ||
+        !productController.hasMoreProducts.value) return;
+
+    _isLoadingTriggered = true;
+    print("🚀 Infinite scroll triggered from HomeScreen");
+    productController.fetchMoreProducts();
   }
 
   void _scrollToTop() {
@@ -68,82 +93,49 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // Get the TextTheme from the current context
     final TextTheme textTheme = Theme.of(context).textTheme;
-
-    // Removed redundant backgroundImage and selectedIndex logic
-    // as CustomAppBar and SearchTabSliverAppBar handle their own backgrounds.
 
     return Scaffold(
       extendBodyBehindAppBar: false,
-      backgroundColor: AppColors.neutralBackground, // Use AppColors for background
+      backgroundColor: AppColors.neutralBackground,
       appBar: null,
       body: Stack(
         children: [
           CustomScrollView(
-            controller: _scrollController,
+            controller: _scrollController, // ✅ This controller now handles infinite scroll
             slivers: [
-           /*   // CustomAppBar is a regular Widget (RenderBox). It needs SliverToBoxAdapter.
-              SliverToBoxAdapter(
-                child: CustomAppBar(),
-              ),*/
-              // SearchTabSliverAppBar returns a SliverPersistentHeader (it IS a sliver).
-              // It MUST be a direct child of the CustomScrollView's slivers list.
-              // DO NOT wrap it in Column, Container, or another SliverToBoxAdapter.
+              // ✅ SearchTabSliverAppBar stays the same
               SearchTabSliverAppBar(
                 onSearchChanged: (value) {
                   print('Search query: $value');
                 },
               ),
-              // Assuming CustomTabBarViewSection is a regular Widget (RenderBox).
-              // It needs SliverToBoxAdapter.
+
+              // ✅ CustomTabBarViewSection in SliverToBoxAdapter
               SliverToBoxAdapter(
                 child: CustomTabBarViewSection(),
               ),
-              // The main content area is a regular Widget (RenderBox).
-              // It needs SliverToBoxAdapter.
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(12.0, 0.0, 24.0, 0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        "Mobiking",
-                        textAlign: TextAlign.left,
-                        style: textTheme.displayLarge?.copyWith(
-                          color: AppColors.textLight, // Use AppColors for consistent grey
-                          letterSpacing: -2.0,
-                          height: 1.0,
+
+              // ✅ Add loading indicator at the bottom when fetching more
+              Obx(() {
+                if (productController.isFetchingMore.value) {
+                  return const SliverToBoxAdapter(
+                    child: Padding(
+                      padding: EdgeInsets.all(16.0),
+                      child: Center(
+                        child: CircularProgressIndicator(
+                          color: AppColors.primaryPurple,
                         ),
                       ),
-                      const SizedBox(height: 10),
-                      Text(
-                        "Your Wholesale Partner",
-                        textAlign: TextAlign.left,
-                        style: textTheme.headlineMedium?.copyWith(
-                          color: AppColors.textLight, // Use AppColors for consistent grey
-                          height: 1.2,
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      Text(
-                        "Buy in bulk, save big. Get the best deals on mobile phones and accessories, delivered directly to your doorstep.",
-                        textAlign: TextAlign.left,
-                        style: textTheme.bodyLarge?.copyWith(
-                          color: AppColors.textLight, // Use AppColors for consistent grey
-                          height: 1.4,
-                        ),
-                      ),
-                      const SizedBox(height: 60),
-                    ],
-                  ),
-                ),
-              ),
+                    ),
+                  );
+                }
+                return const SliverToBoxAdapter(child: SizedBox.shrink());
+              }),
             ],
           ),
 
-          // --- Scroll to Top Button (Top Center) ---
+          // ✅ Scroll to Top Button (unchanged)
           Positioned(
             top: MediaQuery.of(context).padding.top + 120.0,
             left: 0,
@@ -156,7 +148,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 child: _showScrollToTopButton.value
                     ? FloatingActionButton(
                   mini: true,
-                  backgroundColor: AppColors.darkPurple, // Use AppColors
+                  backgroundColor: AppColors.darkPurple,
                   onPressed: _scrollToTop,
                   child: const Icon(Icons.arrow_upward, color: Colors.white),
                 )

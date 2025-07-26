@@ -2,52 +2,87 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
-import 'package:mobiking/app/themes/app_theme.dart'; // Ensure AppColors is accessible
+import '../themes/app_theme.dart';
 
-class SystemUiController extends GetxController {
-  // Use a Rx for the current system UI style that other parts of the app can request
-  // Initialize with a default style (e.g., the MainContainerScreen's default)
-  final Rx<SystemUiOverlayStyle> currentUiStyle = Rx<SystemUiOverlayStyle>(
-    const SystemUiOverlayStyle(
+class SystemUIController extends GetxController {
+  var currentUiStyle = const SystemUiOverlayStyle().obs;
+
+  @override
+  void onInit() {
+    super.onInit();
+    // Set default style
+    setHomeStyle();
+  }
+
+  void setHomeStyle() {
+    final style = SystemUiOverlayStyle(
       statusBarColor: Colors.transparent,
-      statusBarIconBrightness: Brightness.dark, // Default for most screens
-      systemNavigationBarColor: AppColors.white, // Default from your Blinkit bottom bar
-      systemNavigationBarIconBrightness: Brightness.dark, // Icons visible on white
-    ),
-  );
-
-  // Method to update the full system UI style
-  void setSystemUiStyle(SystemUiOverlayStyle style) {
-    currentUiStyle.value = style; // Update the observable
+      statusBarIconBrightness: Brightness.dark,
+      statusBarBrightness: Brightness.light,
+      systemNavigationBarColor: AppColors.white,
+      systemNavigationBarIconBrightness: Brightness.dark,
+    );
+    currentUiStyle.value = style;
     SystemChrome.setSystemUIOverlayStyle(style);
   }
 
-  // New method to update only the status bar brightness
-  void setStatusBarBrightness(Brightness brightness) {
-    final newStyle = currentUiStyle.value.copyWith(statusBarIconBrightness: brightness);
-    setSystemUiStyle(newStyle); // Apply the new style
+  void setCategoryStyle() {
+    final style = SystemUiOverlayStyle(
+      statusBarColor: Colors.transparent,
+      statusBarIconBrightness: Brightness.dark,
+      statusBarBrightness: Brightness.light,
+      systemNavigationBarColor: AppColors.neutralBackground,
+      systemNavigationBarIconBrightness: Brightness.dark,
+    );
+    currentUiStyle.value = style;
+    SystemChrome.setSystemUIOverlayStyle(style);
   }
 
-  // Define common UI styles for reuse
-  // These are now base styles, and statusBarIconBrightness can be overridden
-  static const SystemUiOverlayStyle defaultStyle = SystemUiOverlayStyle(
-    statusBarColor: Colors.transparent,
-    statusBarIconBrightness: Brightness.dark, // Default, will be overridden by BottomNavController
-    systemNavigationBarColor: AppColors.white, // Matches your Blinkit bottom bar
-    systemNavigationBarIconBrightness: Brightness.dark,
-  );
+  void setSearchStyle() {
+    final style = SystemUiOverlayStyle(
+      statusBarColor: Colors.transparent,
+      statusBarIconBrightness: Brightness.dark,
+      statusBarBrightness: Brightness.light,
+      systemNavigationBarColor: AppColors.white,
+      systemNavigationBarIconBrightness: Brightness.dark,
+    );
+    currentUiStyle.value = style;
+    SystemChrome.setSystemUIOverlayStyle(style);
+  }
 
-  static const SystemUiOverlayStyle darkNavBarStyle = SystemUiOverlayStyle(
-    statusBarColor: Colors.transparent,
-    statusBarIconBrightness: Brightness.light, // Example: for a screen with a very dark header
-    systemNavigationBarColor: AppColors.darkPurple, // Example dark color
-    systemNavigationBarIconBrightness: Brightness.light,
-  );
+  void setProfileStyle() {
+    final style = SystemUiOverlayStyle(
+      statusBarColor: Colors.transparent,
+      statusBarIconBrightness: Brightness.dark,
+      statusBarBrightness: Brightness.light,
+      systemNavigationBarColor: AppColors.neutralBackground,
+      systemNavigationBarIconBrightness: Brightness.dark,
+    );
+    currentUiStyle.value = style;
+    SystemChrome.setSystemUIOverlayStyle(style);
+  }
 
-  static const SystemUiOverlayStyle authScreenStyle = SystemUiOverlayStyle(
-    statusBarColor: Colors.transparent,
-    statusBarIconBrightness: Brightness.dark, // PhoneAuthScreen uses this
-    systemNavigationBarColor: AppColors.white,
-    systemNavigationBarIconBrightness: Brightness.dark,
-  );
+  // ✅ NEW: Auth Screen Style
+  void setAuthScreenStyle() {
+    final style = SystemUiOverlayStyle(
+      statusBarColor: Colors.transparent,
+      statusBarIconBrightness: Brightness.light, // Light icons for auth screens
+      statusBarBrightness: Brightness.dark,
+      systemNavigationBarColor: AppColors.primaryPurple, // Brand color for auth
+      systemNavigationBarIconBrightness: Brightness.light,
+    );
+    currentUiStyle.value = style;
+    SystemChrome.setSystemUIOverlayStyle(style);
+  }
+
+  // ✅ Static property for external access
+  static SystemUiOverlayStyle get authScreenStyle {
+    return const SystemUiOverlayStyle(
+      statusBarColor: Colors.transparent,
+      statusBarIconBrightness: Brightness.light,
+      statusBarBrightness: Brightness.dark,
+      systemNavigationBarColor: Color(0xFF6C63FF), // Replace with your primary color
+      systemNavigationBarIconBrightness: Brightness.light,
+    );
+  }
 }

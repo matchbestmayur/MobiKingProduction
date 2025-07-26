@@ -1,10 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'dart:async';
 
 import '../data/AddressModel.dart';
 import '../services/AddressService.dart';
+
 import 'package:collection/collection.dart';
 import 'package:mobiking/app/controllers/connectivity_controller.dart';
+
+import '../services/PincodeService.dart';
 
 class AddressController extends GetxController {
   final AddressService _addressService = Get.find<AddressService>();
@@ -24,6 +28,10 @@ class AddressController extends GetxController {
   final RxBool isLoading = false.obs;
   final RxString addressErrorMessage = ''.obs;
 
+  // ✅ Add new reactive variables for PIN code detection
+  final RxBool isDetectingLocation = false.obs;
+  final RxString detectionError = ''.obs;
+
   final TextEditingController streetController = TextEditingController();
   final TextEditingController cityController = TextEditingController();
   final TextEditingController stateController = TextEditingController();
@@ -32,15 +40,94 @@ class AddressController extends GetxController {
 
   final RxString selectedLabel = 'Home'.obs;
 
+  // ✅ Add timer for debouncing PIN code input
+  Timer? _pinCodeDebounceTimer;
+
   @override
   void onInit() {
     super.onInit();
     fetchAddresses();
+
+    // ✅ Add listener to PIN code controller for auto-detection
+    pinCodeController.addListener(_onPinCodeChanged);
+
     ever(_connectivityController.isConnected, (bool isConnected) {
       if (isConnected) {
         _handleConnectionRestored();
       }
     });
+  }
+
+  // ✅ Handle PIN code changes with debouncing
+  void _onPinCodeChanged() {
+    final pincode = pinCodeController.text.trim();
+
+    // Cancel previous timer
+    _pinCodeDebounceTimer?.cancel();
+
+    // Clear previous detection error
+    detectionError.value = '';
+
+    // Only proceed if we have a 6-digit PIN code
+    if (pincode.length == 6 && RegExp(r'^\d{6}$').hasMatch(pincode)) {
+      // Debounce the API call by 500ms
+      _pinCodeDebounceTimer = Timer(const Duration(milliseconds: 500), () {
+        // Double-check the PIN code hasn't changed during the delay
+        if (pinCodeController.text.trim() == pincode) {
+          detectLocationFromPincode(pincode);
+        }
+      });
+    }
+  }
+
+  // ✅ Detect location from PIN code
+  Future<void> detectLocationFromPincode(String pincode) async {
+    print('AddressController: Detecting location for PIN code: $pincode');
+
+    isDetectingLocation.value = true;
+    detectionError.value = '';
+
+    try {
+      final locationData = await PincodeService.getLocationByPincode(pincode);
+
+      if (locationData != null && locationData['city']!.isNotEmpty && locationData['state']!.isNotEmpty) {
+        // Auto-fill city and state
+        cityController.text = locationData['city']!;
+        stateController.text = locationData['state']!;
+
+        print('AddressController: Location detected - City: ${locationData['city']}, State: ${locationData['state']}');
+
+        // Show success message
+        _showSnackbar(
+          'Location Detected',
+          'City and state auto-filled based on PIN code',
+          Colors.green,
+          Icons.location_on,
+        );
+      } else {
+        detectionError.value = 'Could not detect location for this PIN code';
+        print('AddressController: Could not detect location for PIN code: $pincode');
+
+        _showSnackbar(
+          'Detection Failed',
+          'Could not auto-detect city and state. Please enter manually.',
+          Colors.orange,
+          Icons.location_off,
+        );
+      }
+    } catch (e) {
+      detectionError.value = 'Network error while detecting location';
+      print('AddressController: Error detecting location for PIN code $pincode: $e');
+
+      _showSnackbar(
+        'Network Error',
+        'Please check your internet connection and try again',
+        Colors.red,
+        Icons.signal_wifi_off,
+      );
+    } finally {
+      isDetectingLocation.value = false;
+    }
   }
 
   Future<void> _handleConnectionRestored() async {
@@ -55,6 +142,7 @@ class AddressController extends GetxController {
     stateController.dispose();
     pinCodeController.dispose();
     customLabelController.dispose();
+    _pinCodeDebounceTimer?.cancel(); // ✅ Clean up timer
     super.onClose();
   }
 
@@ -131,13 +219,21 @@ class AddressController extends GetxController {
         return false;
       }
 
+      // ✅ Enhanced PIN code validation
+      final pinCode = pinCodeController.text.trim();
+      if (!RegExp(r'^\d{6}$').hasMatch(pinCode)) {
+        _showSnackbar('Invalid PIN Code', 'Please enter a valid 6-digit PIN code.', Colors.amber, Icons.pin_drop);
+        isLoading.value = false;
+        return false;
+      }
+
       final AddressModel addressToSave = AddressModel(
         id: _addressBeingEdited.value?.id,
         label: finalLabel,
         street: streetController.text.trim(),
         city: cityController.text.trim(),
         state: stateController.text.trim(),
-        pinCode: pinCodeController.text.trim(),
+        pinCode: pinCode,
       );
 
       AddressModel? resultAddress;
@@ -223,6 +319,10 @@ class AddressController extends GetxController {
     _isAddingAddress.value = true;
     _isEditing.value = false;
     _addressBeingEdited.value = null;
+
+    // ✅ Clear detection states when starting new address
+    isDetectingLocation.value = false;
+    detectionError.value = '';
   }
 
   void cancelEditing() {
@@ -230,6 +330,11 @@ class AddressController extends GetxController {
     _isEditing.value = false;
     _addressBeingEdited.value = null;
     clearForm();
+
+    // ✅ Clear detection states when canceling
+    isDetectingLocation.value = false;
+    detectionError.value = '';
+    _pinCodeDebounceTimer?.cancel();
   }
 
   void clearForm() {
@@ -241,18 +346,22 @@ class AddressController extends GetxController {
     selectedLabel.value = 'Home';
   }
 
+  // ✅ Enhanced snackbar with better positioning and styling
   void _showSnackbar(String title, String message, Color color, IconData icon) {
     Get.snackbar(
       title,
       message,
-      snackPosition: SnackPosition.BOTTOM,
-      backgroundColor: color.withOpacity(0.8),
+      snackPosition: SnackPosition.TOP,
+      backgroundColor: color.withOpacity(0.9),
       colorText: Colors.white,
       icon: Icon(icon, color: Colors.white),
-      margin: const EdgeInsets.all(10),
-      borderRadius: 10,
+      margin: const EdgeInsets.all(16),
+      borderRadius: 12,
       animationDuration: const Duration(milliseconds: 300),
       duration: const Duration(seconds: 3),
+      isDismissible: true,
+      forwardAnimationCurve: Curves.easeOutBack,
+      reverseAnimationCurve: Curves.easeInBack,
     );
   }
 }

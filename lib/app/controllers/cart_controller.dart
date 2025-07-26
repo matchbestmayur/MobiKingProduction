@@ -200,7 +200,6 @@ class CartController extends GetxController {
   }) async {
     final cartId = box.read('cartId');
     if (cartId == null) {
-      _showSnackbar('Cart Error', 'Could not find your cart ID. Please log in again.', Colors.red, Icons.shopping_cart_outlined);
       return false;
     }
     print('🛒 CartController: Adding to cart: productId=$productId, variantName=$variantName, cartId=$cartId');
@@ -218,12 +217,10 @@ class CartController extends GetxController {
         _showSnackbar('Added to Cart', 'Product quantity increased successfully!', Colors.green, Icons.add_shopping_cart_outlined);
         return true;
       } else {
-        _showSnackbar('Add to Cart Failed', response['message'] ?? 'Could not add product to cart.', Colors.orange, Icons.error_outline);
         return false;
       }
     } catch (e) {
       print("🛒 CartController: Add to cart error: $e");
-      _showSnackbar('Cart Error', 'Something went wrong while adding to cart. Please try again.', Colors.red, Icons.cloud_off_outlined);
       return false;
     } finally {
       isLoading.value = false;
@@ -236,7 +233,6 @@ class CartController extends GetxController {
   }) async {
     final cartId = box.read('cartId');
     if (cartId == null) {
-      _showSnackbar('Cart Error', 'Could not find your cart ID. Please log in again.', Colors.red, Icons.shopping_cart_outlined);
       return;
     }
     print('🛒 CartController: Removing from cart: productId=$productId, variantName=$variantName, cartId=$cartId');
@@ -252,12 +248,9 @@ class CartController extends GetxController {
       if (response['success'] == true) {
         await _updateStorageAndCartData(response); // This will trigger cartData update, then quantity recalculation
         _showSnackbar('Removed from Cart', 'Product quantity decreased successfully!', Colors.blueGrey, Icons.remove_shopping_cart_outlined);
-      } else {
-        _showSnackbar('Remove Failed', response['message'] ?? 'Could not remove product from cart.', Colors.orange, Icons.error_outline);
       }
     } catch (e) {
       print("🛒 CartController: Remove from cart error: $e");
-      _showSnackbar('Cart Error', 'Something went wrong while removing from cart. Please try again.', Colors.red, Icons.cloud_off_outlined);
     } finally {
       isLoading.value = false;
     }

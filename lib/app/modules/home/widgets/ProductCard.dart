@@ -27,9 +27,20 @@ class ProductCards extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final screenWidth = MediaQuery.of(context).size.width;
     final TextTheme textTheme = Theme.of(context).textTheme;
     final cartController = Get.find<CartController>();
     final hasImage = product.images.isNotEmpty && product.images[0].isNotEmpty;
+
+    // Responsive dimensions for grid layout
+    final isSmallScreen = screenWidth < 360;
+    final isMediumScreen = screenWidth < 480;
+
+    // Optimized for 3x2 grid - no width constraints needed as GridView handles it
+    final imageHeight = isSmallScreen ? 85.0 : isMediumScreen ? 95.0 : 105.0;
+    final titleFontSize = isSmallScreen ? 11.0 : isMediumScreen ? 12.0 : 13.0;
+    final priceFontSize = isSmallScreen ? 13.0 : isMediumScreen ? 14.0 : 15.0;
+    final buttonHeight = isSmallScreen ? 32.0 : 36.0;
 
     // Price calculation logic
     final int originalPrice;
@@ -55,51 +66,49 @@ class ProductCards extends StatelessWidget {
     final double demoRating = 3.5 + _random.nextDouble() * 1.5;
     final int demoRatingCount = 50 + _random.nextInt(500);
 
-    return Container(
-      width: 160,
-      margin: const EdgeInsets.only(right: 12, bottom: 8),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: () {
-            HapticFeedback.lightImpact();
-            if (onTap != null) {
-              onTap!.call(product);
-            } else {
-              Get.to(
-                    () => ProductPage(product: product, heroTag: heroTag),
-                transition: Transition.fadeIn,
-                duration: const Duration(milliseconds: 300),
-              );
-            }
-          },
-          borderRadius: BorderRadius.circular(12),
-          child: Container(
-            decoration: BoxDecoration(
-              color: AppColors.white,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                color: AppColors.lightGreyBackground,
-                width: 0.5,
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.04),
-                  blurRadius: 8,
-                  offset: const Offset(0, 2),
-                ),
-              ],
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () {
+          HapticFeedback.lightImpact();
+          if (onTap != null) {
+            onTap!.call(product);
+          } else {
+            Get.to(
+                  () => ProductPage(product: product, heroTag: heroTag),
+              transition: Transition.fadeIn,
+              duration: const Duration(milliseconds: 300),
+            );
+          }
+        },
+        borderRadius: BorderRadius.circular(12),
+        child: Container(
+          decoration: BoxDecoration(
+            color: AppColors.white,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: AppColors.lightGreyBackground,
+              width: 0.5,
             ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Image Section with improved design
-                Stack(
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.04),
+                blurRadius: 8,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Image Section - optimized for grid
+              Expanded(
+                flex: 4, // Takes 4/7 of the available height
+                child: Stack(
                   children: [
                     Container(
-                      height: 120,
                       width: double.infinity,
-                      padding: const EdgeInsets.all(8),
+                      padding: EdgeInsets.all(isSmallScreen ? 6 : 8),
                       child: Stack(
                         children: [
                           // Main product image
@@ -131,7 +140,7 @@ class ProductCards extends StatelessWidget {
                                   errorBuilder: (context, error, stackTrace) => Center(
                                     child: Icon(
                                       Icons.image_not_supported_outlined,
-                                      size: 32,
+                                      size: isSmallScreen ? 24 : 28,
                                       color: AppColors.textLight,
                                     ),
                                   ),
@@ -139,7 +148,7 @@ class ProductCards extends StatelessWidget {
                                     : Center(
                                   child: Icon(
                                     Icons.image_not_supported_outlined,
-                                    size: 32,
+                                    size: isSmallScreen ? 24 : 28,
                                     color: AppColors.textLight,
                                   ),
                                 ),
@@ -150,10 +159,13 @@ class ProductCards extends StatelessWidget {
                           // Discount badge
                           if (discountPercent > 0)
                             Positioned(
-                              top: 6,
-                              left: 6,
+                              top: 4,
+                              left: 4,
                               child: Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                                padding: EdgeInsets.symmetric(
+                                    horizontal: isSmallScreen ? 4 : 6,
+                                    vertical: isSmallScreen ? 2 : 3
+                                ),
                                 decoration: BoxDecoration(
                                   color: AppColors.success,
                                   borderRadius: BorderRadius.circular(4),
@@ -163,7 +175,7 @@ class ProductCards extends StatelessWidget {
                                   style: textTheme.labelSmall?.copyWith(
                                     color: AppColors.white,
                                     fontWeight: FontWeight.w800,
-                                    fontSize: 10,
+                                    fontSize: isSmallScreen ? 8 : 9,
                                   ),
                                 ),
                               ),
@@ -174,8 +186,8 @@ class ProductCards extends StatelessWidget {
 
                     // Favorite button
                     Positioned(
-                      top: 8,
-                      right: 8,
+                      top: 6,
+                      right: 6,
                       child: Container(
                         decoration: BoxDecoration(
                           color: AppColors.white.withOpacity(0.9),
@@ -189,88 +201,107 @@ class ProductCards extends StatelessWidget {
                         ),
                         child: FavoriteToggleButton(
                           productId: product.id.toString(),
-                          iconSize: 16,
-                          padding: 6,
+                          iconSize: isSmallScreen ? 14 : 16,
+                          padding: isSmallScreen ? 4 : 6,
                         ),
                       ),
                     ),
                   ],
                 ),
+              ),
 
-                // Product details section - expanded to fill remaining space
-                Expanded(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
+              // Product details section - optimized for grid
+              Expanded(
+                flex: 3, // Takes 3/7 of the available height
+                child: Padding(
+                  padding: EdgeInsets.symmetric(
+                      horizontal: isSmallScreen ? 8 : 10,
+                      vertical: isSmallScreen ? 4 : 6
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Product name - takes available space
+                      Expanded(
+                        flex: 2,
+                        child: Text(
                           product.name,
                           style: textTheme.labelMedium?.copyWith(
                             color: AppColors.textDark,
                             fontWeight: FontWeight.w600,
-                            fontSize: 13,
-                            height: 1.2,
+                            fontSize: titleFontSize,
+                            height: 1.1,
                           ),
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
                         ),
+                      ),
 
-                        const SizedBox(height: 4),
-
-                        // Rating
-                        AppStarRating(
+                      // Rating - compact for grid
+                      SizedBox(
+                        height: isSmallScreen ? 16 : 18,
+                        child: AppStarRating(
                           rating: demoRating,
                           ratingCount: demoRatingCount,
-                          starSize: 14,
+                          starSize: isSmallScreen ? 12 : 14,
                         ),
+                      ),
 
-                        const SizedBox(height: 2),
+                      SizedBox(height: isSmallScreen ? 2 : 4),
 
-                        // Price section with improved layout
-                        Row(
+                      // Price section - compact
+                      Expanded(
+                        flex: 1,
+                        child: Row(
                           children: [
-                            Text(
-                              '₹$sellingPrice',
-                              style: textTheme.titleMedium?.copyWith(
-                                color: AppColors.textDark,
-                                fontWeight: FontWeight.w800,
-                                fontSize: 15,
+                            Flexible(
+                              child: Text(
+                                '₹$sellingPrice',
+                                style: textTheme.titleMedium?.copyWith(
+                                  color: AppColors.textDark,
+                                  fontWeight: FontWeight.w800,
+                                  fontSize: priceFontSize,
+                                ),
+                                overflow: TextOverflow.ellipsis,
                               ),
                             ),
-                            const SizedBox(width: 6),
-                            if (originalPrice > 0 && sellingPrice < originalPrice)
-                              Text(
-                                '₹$originalPrice',
-                                style: textTheme.bodySmall?.copyWith(
-                                  decoration: TextDecoration.lineThrough,
-                                  color: AppColors.textLight,
-                                  fontSize: 11,
+                            if (originalPrice > 0 && sellingPrice < originalPrice) ...[
+                              const SizedBox(width: 4),
+                              Flexible(
+                                child: Text(
+                                  '₹$originalPrice',
+                                  style: textTheme.bodySmall?.copyWith(
+                                    decoration: TextDecoration.lineThrough,
+                                    color: AppColors.textLight,
+                                    fontSize: isSmallScreen ? 10 : 11,
+                                  ),
+                                  overflow: TextOverflow.ellipsis,
                                 ),
                               ),
+                            ],
                           ],
                         ),
+                      ),
 
-                        const Spacer(),
-                      ],
-                    ),
+                      SizedBox(height: isSmallScreen ? 4 : 6),
+
+                      // Add to cart button - fixed height
+                      SizedBox(
+                        height: buttonHeight,
+                        child: _buildAddToCartSection(context, cartController, isSmallScreen),
+                      ),
+                    ],
                   ),
                 ),
-
-                // Add to cart button section - positioned at bottom
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                  child: _buildAddToCartSection(context, cartController),
-                ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
       ),
     );
   }
 
-  Widget _buildAddToCartSection(BuildContext context, CartController cartController) {
+  Widget _buildAddToCartSection(BuildContext context, CartController cartController, bool isSmallScreen) {
     return Obx(() {
       final Map<String, int> currentQuantities = cartController.productVariantQuantities.value;
 
@@ -285,26 +316,25 @@ class ProductCards extends StatelessWidget {
           .length;
 
       if (totalProductQuantityInCart > 0) {
-        return _buildQuantitySelector(context, totalProductQuantityInCart, cartController);
+        return _buildQuantitySelector(context, totalProductQuantityInCart, cartController, isSmallScreen);
       } else {
-        return _buildAddButton(context, availableVariantCount);
+        return _buildAddButton(context, availableVariantCount, isSmallScreen);
       }
     });
   }
 
-  Widget _buildQuantitySelector(BuildContext context, int quantity, CartController cartController) {
+  Widget _buildQuantitySelector(BuildContext context, int quantity, CartController cartController, bool isSmallScreen) {
     final TextTheme textTheme = Theme.of(context).textTheme;
     final bool hasMultipleVariants = product.variants.length > 1;
 
     return Container(
-      height: 36,
       decoration: BoxDecoration(
         color: AppColors.success,
         borderRadius: BorderRadius.circular(8),
         boxShadow: [
           BoxShadow(
             color: AppColors.success.withOpacity(0.3),
-            blurRadius: 8,
+            blurRadius: 6,
             offset: const Offset(0, 2),
           ),
         ],
@@ -333,10 +363,10 @@ class ProductCards extends StatelessWidget {
               ),
               child: Container(
                 alignment: Alignment.center,
-                child: const Icon(
+                child: Icon(
                   Icons.remove,
                   color: AppColors.white,
-                  size: 18,
+                  size: isSmallScreen ? 16 : 18,
                 ),
               ),
             ),
@@ -344,7 +374,7 @@ class ProductCards extends StatelessWidget {
 
           // Quantity display
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12),
+            padding: EdgeInsets.symmetric(horizontal: isSmallScreen ? 8 : 12),
             child: AnimatedSwitcher(
               duration: const Duration(milliseconds: 200),
               transitionBuilder: (child, animation) {
@@ -359,7 +389,7 @@ class ProductCards extends StatelessWidget {
                 style: textTheme.labelMedium?.copyWith(
                   color: AppColors.white,
                   fontWeight: FontWeight.w800,
-                  fontSize: 14,
+                  fontSize: isSmallScreen ? 12 : 14,
                 ),
               ),
             ),
@@ -384,10 +414,10 @@ class ProductCards extends StatelessWidget {
               ),
               child: Container(
                 alignment: Alignment.center,
-                child: const Icon(
+                child: Icon(
                   Icons.add,
                   color: AppColors.white,
-                  size: 18,
+                  size: isSmallScreen ? 16 : 18,
                 ),
               ),
             ),
@@ -397,13 +427,12 @@ class ProductCards extends StatelessWidget {
     );
   }
 
-  Widget _buildAddButton(BuildContext context, int availableVariantCount) {
+  Widget _buildAddButton(BuildContext context, int availableVariantCount, bool isSmallScreen) {
     final TextTheme textTheme = Theme.of(context).textTheme;
     final cartController = Get.find<CartController>();
 
     if (availableVariantCount == 0) {
       return Container(
-        height: 36,
         width: double.infinity,
         decoration: BoxDecoration(
           color: AppColors.lightGreyBackground,
@@ -416,6 +445,7 @@ class ProductCards extends StatelessWidget {
             style: textTheme.labelMedium?.copyWith(
               color: AppColors.textLight,
               fontWeight: FontWeight.w600,
+              fontSize: isSmallScreen ? 11 : 12,
             ),
           ),
         ),
@@ -423,7 +453,6 @@ class ProductCards extends StatelessWidget {
     }
 
     return SizedBox(
-      height: 36,
       width: double.infinity,
       child: ElevatedButton(
         onPressed: () {
@@ -455,14 +484,14 @@ class ProductCards extends StatelessWidget {
               style: textTheme.labelMedium?.copyWith(
                 color: AppColors.success,
                 fontWeight: FontWeight.w800,
-                fontSize: 13,
+                fontSize: isSmallScreen ? 11 : 12,
               ),
             ),
             Text(
               '$availableVariantCount options',
               style: textTheme.labelSmall?.copyWith(
                 color: AppColors.success.withOpacity(0.8),
-                fontSize: 9,
+                fontSize: isSmallScreen ? 8 : 9,
               ),
             ),
           ],
@@ -472,7 +501,7 @@ class ProductCards extends StatelessWidget {
           style: textTheme.labelMedium?.copyWith(
             color: AppColors.success,
             fontWeight: FontWeight.w800,
-            fontSize: 14,
+            fontSize: isSmallScreen ? 12 : 14,
           ),
         ),
       ),
@@ -495,7 +524,7 @@ class ProductCards extends StatelessWidget {
   }
 }
 
-// Enhanced variant bottom sheet
+// Enhanced variant bottom sheet (unchanged)
 void _showVariantBottomSheet(BuildContext context, Map<String, int> variantsMap, ProductModel product) {
   final TextTheme textTheme = Theme.of(context).textTheme;
   final CartController cartController = Get.find<CartController>();

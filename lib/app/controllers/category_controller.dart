@@ -13,10 +13,10 @@ class CategoryController extends GetxController {
   final CategoryService _service = CategoryService();
 
   var categories = <CategoryModel>[].obs;
-  var selectedCategory = Rxn<CategoryModel>(); 
+  var selectedCategory = Rxn<CategoryModel>();
   var isLoading = false.obs;
 
-  
+
   Future<void> fetchCategories() async {
     try {
       isLoading.value = true;
@@ -25,7 +25,6 @@ class CategoryController extends GetxController {
       print('Fetched categories count: ${response.length}');
       categories.assignAll(response);
     } catch (e) {
-      Get.snackbar('Error', e.toString());
       print('Error in fetchCategories: $e');
     } finally {
       isLoading.value = false;
@@ -38,10 +37,10 @@ class CategoryController extends GetxController {
       isLoading.value = true;
       final response = await CategoryService.getCategoryDetails(slug);
       selectedCategory.value = response['category'] as CategoryModel;
-      
-      
+
+
     } catch (e) {
-      Get.snackbar('Error', e.toString());
+      print('Error in fetchCategoryDetails: $e');
     } finally {
       isLoading.value = false;
     }

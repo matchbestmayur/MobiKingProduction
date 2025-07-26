@@ -1,76 +1,154 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:get_storage/get_storage.dart';
-import 'package:get/get.dart'; // Import GetX for potential error handling/navigation
+import 'package:get/get.dart';
 
 class CartService {
   final String baseUrl = 'https://mobiking-e-commerce-backend-prod.vercel.app/api/v1';
   final box = GetStorage();
 
-  // Helper to get common headers
-  Map<String, String> _getHeaders() {
-    // CORRECTED: Read accessToken directly from the 'accessToken' key
-    String? accessToken = box.read('accessToken');
-
-    print('CartService: Attempting to send Access Token: ${accessToken != null ? "Present" : "NULL"}'); // Debugging
-
-    return {
-      'Content-Type': 'application/json',
-      if (accessToken != null) 'Authorization': 'Bearer $accessToken', // Attach the token
-    };
+  void _log(String message) {
+    print('[CartService] $message');
   }
 
+  // ✅ ENHANCED: Helper to get common headers with error handling
+  Map<String, String>? _getHeaders() {
+    try {
+      String? accessToken = box.read('accessToken');
+
+      _log('Access Token Status: ${accessToken != null && accessToken.isNotEmpty ? "Present" : "Missing"}');
+
+      final headers = {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      };
+
+      if (accessToken != null && accessToken.isNotEmpty) {
+        // Basic token validation
+        if (accessToken.trim().split('.').length == 3) {
+          headers['Authorization'] = 'Bearer $accessToken';
+        } else {
+          _log('Warning: Invalid token format detected');
+          return null;
+        }
+      } else {
+        _log('Warning: No access token found');
+        return null;
+      }
+
+      return headers;
+    } catch (e) {
+      _log('Error preparing headers: $e');
+      return null;
+    }
+  }
+
+  // ✅ ENHANCED: Add to cart with comprehensive error handling
   Future<Map<String, dynamic>> addToCart({
     required String productId,
     required String cartId,
     required String variantName,
   }) async {
+    // Input validation
+    if (productId.trim().isEmpty) {
+      _log('Error: Product ID is required');
+      return {'success': false, 'message': 'Product ID is required.'};
+    }
+
+    if (cartId.trim().isEmpty) {
+      _log('Error: Cart ID is missing or invalid');
+      return {'success': false, 'message': 'Cart ID is missing or invalid.'};
+    }
+
+    if (variantName.trim().isEmpty) {
+      _log('Error: Variant name is required');
+      return {'success': false, 'message': 'Variant name is required.'};
+    }
+
     try {
-      // Ensure cartId is valid before proceeding
-      if (cartId == null || cartId.isEmpty) {
-        return {'success': false, 'message': 'Cart ID is missing or invalid.'};
+      final url = Uri.parse('$baseUrl/cart/add');
+      _log('Adding to cart - Product: $productId, Cart: $cartId, Variant: $variantName');
+
+      final headers = _getHeaders();
+      if (headers == null) {
+        _log('Failed to prepare headers for add to cart');
+        return {
+          'success': false,
+          'message': 'Authentication required. Please log in again.',
+        };
       }
 
-      // Check if the API endpoint is /carts/add-to-cart/:cartId or /cart/add
-      // Based on previous discussions, it was /carts/add-to-cart/:cartId
-      // If it's /cart/add, ensure your backend correctly uses the cartId from the body.
-      // For this example, I'll use the /cart/add endpoint as per your service code.
-      final url = Uri.parse('$baseUrl/cart/add'); // Endpoint as per your code
-
       final body = jsonEncode({
-        'productId': productId,
-        'cartId': cartId, // Ensure your backend expects cartId in the body for /cart/add
-        'variantName': variantName,
-        'quantity': 1, // Assuming add implies increasing quantity by 1
+        'productId': productId.trim(),
+        'cartId': cartId.trim(),
+        'variantName': variantName.trim(),
+        'quantity': 1,
       });
 
-      final response = await http.post(url, headers: _getHeaders(), body: body);
+      final response = await http.post(
+        url,
+        headers: headers,
+        body: body,
+      ).timeout(
+        const Duration(seconds: 30),
+        onTimeout: () {
+          _log('Request timeout while adding to cart');
+          return http.Response('Request timeout', 408);
+        },
+      );
 
-      // Detailed logging for debugging API responses
-      print('Add to Cart Response Status: ${response.statusCode}');
-      print('Add to Cart Response Body: ${response.body}');
+      _log('Add to Cart Response Status: ${response.statusCode}');
 
       if (response.statusCode == 200 || response.statusCode == 201) {
-        return jsonDecode(response.body);
+        try {
+          final responseData = jsonDecode(response.body);
+          _log('Successfully added to cart');
+          return responseData;
+        } catch (jsonError) {
+          _log('JSON parsing error in addToCart: $jsonError');
+          return {
+            'success': false,
+            'message': 'Invalid response format from server.',
+          };
+        }
       } else if (response.statusCode == 401) {
-        // Specific handling for 401 Unauthorized
-        // You might want to trigger a re-login or show a specific message
-        // Get.offAll(() => LoginScreen()); // Example: navigate to login
+        _log('Authentication failed during add to cart');
         return {
           'success': false,
           'message': 'Authentication failed. Please log in again.',
         };
-      } else {
-        // Attempt to parse error message from backend if available
-        String errorMessage = 'Failed with status code ${response.statusCode}.';
+      } else if (response.statusCode == 404) {
+        _log('Product or cart not found');
+        return {
+          'success': false,
+          'message': 'Product or cart not found.',
+        };
+      } else if (response.statusCode == 400) {
+        _log('Bad request during add to cart');
+        String errorMessage = 'Invalid request. Please check your input.';
         try {
           final errorBody = jsonDecode(response.body);
           if (errorBody is Map && errorBody.containsKey('message')) {
             errorMessage = errorBody['message'];
           }
         } catch (e) {
-          // If JSON parsing fails, use generic message
-          print('Failed to parse error response: $e');
+          _log('Failed to parse error response: $e');
+        }
+        return {
+          'success': false,
+          'message': errorMessage,
+        };
+      } else {
+        _log('Add to cart failed with status: ${response.statusCode}');
+        String errorMessage = 'Failed to add item to cart.';
+        try {
+          final errorBody = jsonDecode(response.body);
+          if (errorBody is Map && errorBody.containsKey('message')) {
+            errorMessage = errorBody['message'];
+          }
+        } catch (e) {
+          _log('Failed to parse error response: $e');
         }
         return {
           'success': false,
@@ -78,58 +156,117 @@ class CartService {
         };
       }
     } catch (e) {
-      print('Add to cart error: $e');
+      _log('Exception in addToCart: $e');
       return {
         'success': false,
-        'message': 'An unexpected error occurred: ${e.toString()}',
+        'message': 'An unexpected error occurred while adding to cart.',
       };
     }
   }
 
+  // ✅ ENHANCED: Remove from cart with comprehensive error handling
   Future<Map<String, dynamic>> removeFromCart({
     required String productId,
     required String cartId,
     required String variantName,
   }) async {
+    // Input validation
+    if (productId.trim().isEmpty) {
+      _log('Error: Product ID is required');
+      return {'success': false, 'message': 'Product ID is required.'};
+    }
+
+    if (cartId.trim().isEmpty) {
+      _log('Error: Cart ID is missing or invalid');
+      return {'success': false, 'message': 'Cart ID is missing or invalid.'};
+    }
+
+    if (variantName.trim().isEmpty) {
+      _log('Error: Variant name is required');
+      return {'success': false, 'message': 'Variant name is required.'};
+    }
+
     try {
-      // Ensure cartId is valid before proceeding
-      if (cartId == null || cartId.isEmpty) {
-        return {'success': false, 'message': 'Cart ID is missing or invalid.'};
+      final url = Uri.parse('$baseUrl/cart/remove');
+      _log('Removing from cart - Product: $productId, Cart: $cartId, Variant: $variantName');
+
+      final headers = _getHeaders();
+      if (headers == null) {
+        _log('Failed to prepare headers for remove from cart');
+        return {
+          'success': false,
+          'message': 'Authentication required. Please log in again.',
+        };
       }
 
-      final url = Uri.parse('$baseUrl/cart/remove'); // Endpoint as per your code
-
-      final request = http.Request('DELETE', url); // Still using DELETE with body
-      request.headers.addAll(_getHeaders());
+      final request = http.Request('DELETE', url);
+      request.headers.addAll(headers);
       request.body = jsonEncode({
-        'productId': productId,
-        'cartId': cartId, // Ensure backend expects cartId in body for /cart/remove DELETE
-        'variantName': variantName,
+        'productId': productId.trim(),
+        'cartId': cartId.trim(),
+        'variantName': variantName.trim(),
       });
 
-      final streamedResponse = await request.send();
-      final response = await http.Response.fromStream(streamedResponse);
+      final streamedResponse = await request.send().timeout(
+        const Duration(seconds: 30),
+        onTimeout: () {
+          _log('Request timeout while removing from cart');
+          throw TimeoutException('Request timeout', const Duration(seconds: 30));
+        },
+      );
 
-      // Detailed logging for debugging API responses
-      print('Remove from Cart Response Status: ${response.statusCode}');
-      print('Remove from Cart Response Body: ${response.body}');
+      final response = await http.Response.fromStream(streamedResponse);
+      _log('Remove from Cart Response Status: ${response.statusCode}');
 
       if (response.statusCode == 200) {
-        return jsonDecode(response.body);
+        try {
+          final responseData = jsonDecode(response.body);
+          _log('Successfully removed from cart');
+          return responseData;
+        } catch (jsonError) {
+          _log('JSON parsing error in removeFromCart: $jsonError');
+          return {
+            'success': false,
+            'message': 'Invalid response format from server.',
+          };
+        }
       } else if (response.statusCode == 401) {
+        _log('Authentication failed during remove from cart');
         return {
           'success': false,
           'message': 'Authentication failed. Please log in again.',
         };
-      } else {
-        String errorMessage = 'Failed with status code ${response.statusCode}.';
+      } else if (response.statusCode == 404) {
+        _log('Product or cart not found for removal');
+        return {
+          'success': false,
+          'message': 'Product not found in cart.',
+        };
+      } else if (response.statusCode == 400) {
+        _log('Bad request during remove from cart');
+        String errorMessage = 'Invalid request. Please check your input.';
         try {
           final errorBody = jsonDecode(response.body);
           if (errorBody is Map && errorBody.containsKey('message')) {
             errorMessage = errorBody['message'];
           }
         } catch (e) {
-          print('Failed to parse error response: $e');
+          _log('Failed to parse error response: $e');
+        }
+        return {
+          'success': false,
+          'message': errorMessage,
+        };
+      } else {
+        _log('Remove from cart failed with status: ${response.statusCode}');
+        String errorMessage = 'Failed to remove item from cart.';
+        try {
+          final errorBody = jsonDecode(response.body);
+          if (errorBody is Map && errorBody.containsKey('message')) {
+            errorMessage = errorBody['message'];
+          }
+        } catch (e) {
+          _log('Failed to parse error response: $e');
         }
         return {
           'success': false,
@@ -137,42 +274,82 @@ class CartService {
         };
       }
     } catch (e) {
-      print('Remove from cart error: $e');
+      _log('Exception in removeFromCart: $e');
       return {
         'success': false,
-        'message': 'An unexpected error occurred: ${e.toString()}',
+        'message': 'An unexpected error occurred while removing from cart.',
       };
     }
   }
 
-  // You might also want a method to fetch the entire cart (e.g., on cart screen load)
+  // ✅ ENHANCED: Fetch cart with comprehensive error handling
   Future<Map<String, dynamic>> fetchCart({required String cartId}) async {
-    try {
-      if (cartId == null || cartId.isEmpty) {
-        return {'success': false, 'message': 'Cart ID is missing for fetch.'};
-      }
-      final url = Uri.parse('$baseUrl/carts/$cartId'); // Assuming a GET endpoint like /api/v1/carts/:cartId
-      final response = await http.get(url, headers: _getHeaders());
+    // Input validation
+    if (cartId.trim().isEmpty) {
+      _log('Error: Cart ID is missing for fetch');
+      return {'success': false, 'message': 'Cart ID is missing for fetch.'};
+    }
 
-      print('Fetch Cart Response Status: ${response.statusCode}');
-      print('Fetch Cart Response Body: ${response.body}');
+    try {
+      final url = Uri.parse('$baseUrl/carts/${cartId.trim()}');
+      _log('Fetching cart: $cartId');
+
+      final headers = _getHeaders();
+      if (headers == null) {
+        _log('Failed to prepare headers for fetch cart');
+        return {
+          'success': false,
+          'message': 'Authentication required. Please log in again.',
+        };
+      }
+
+      final response = await http.get(
+        url,
+        headers: headers,
+      ).timeout(
+        const Duration(seconds: 30),
+        onTimeout: () {
+          _log('Request timeout while fetching cart');
+          return http.Response('Request timeout', 408);
+        },
+      );
+
+      _log('Fetch Cart Response Status: ${response.statusCode}');
 
       if (response.statusCode == 200) {
-        return jsonDecode(response.body);
+        try {
+          final responseData = jsonDecode(response.body);
+          _log('Successfully fetched cart');
+          return responseData;
+        } catch (jsonError) {
+          _log('JSON parsing error in fetchCart: $jsonError');
+          return {
+            'success': false,
+            'message': 'Invalid response format from server.',
+          };
+        }
       } else if (response.statusCode == 401) {
+        _log('Authentication failed during fetch cart');
         return {
           'success': false,
           'message': 'Authentication failed. Please log in again.',
         };
+      } else if (response.statusCode == 404) {
+        _log('Cart not found');
+        return {
+          'success': false,
+          'message': 'Cart not found.',
+        };
       } else {
-        String errorMessage = 'Failed to fetch cart with status code ${response.statusCode}.';
+        _log('Fetch cart failed with status: ${response.statusCode}');
+        String errorMessage = 'Failed to fetch cart.';
         try {
           final errorBody = jsonDecode(response.body);
           if (errorBody is Map && errorBody.containsKey('message')) {
             errorMessage = errorBody['message'];
           }
         } catch (e) {
-          print('Failed to parse error response: $e');
+          _log('Failed to parse error response: $e');
         }
         return {
           'success': false,
@@ -180,11 +357,240 @@ class CartService {
         };
       }
     } catch (e) {
-      print('Fetch cart error: $e');
+      _log('Exception in fetchCart: $e');
       return {
         'success': false,
-        'message': 'An unexpected error occurred during cart fetch: ${e.toString()}',
+        'message': 'An unexpected error occurred during cart fetch.',
       };
+    }
+  }
+
+  // ✅ NEW: Update cart item quantity
+  Future<Map<String, dynamic>> updateCartItemQuantity({
+    required String productId,
+    required String cartId,
+    required String variantName,
+    required int quantity,
+  }) async {
+    // Input validation
+    if (productId.trim().isEmpty) {
+      _log('Error: Product ID is required');
+      return {'success': false, 'message': 'Product ID is required.'};
+    }
+
+    if (cartId.trim().isEmpty) {
+      _log('Error: Cart ID is missing or invalid');
+      return {'success': false, 'message': 'Cart ID is missing or invalid.'};
+    }
+
+    if (variantName.trim().isEmpty) {
+      _log('Error: Variant name is required');
+      return {'success': false, 'message': 'Variant name is required.'};
+    }
+
+    if (quantity < 0) {
+      _log('Error: Quantity cannot be negative');
+      return {'success': false, 'message': 'Quantity cannot be negative.'};
+    }
+
+    try {
+      final url = Uri.parse('$baseUrl/cart/update');
+      _log('Updating cart quantity - Product: $productId, Cart: $cartId, Quantity: $quantity');
+
+      final headers = _getHeaders();
+      if (headers == null) {
+        _log('Failed to prepare headers for update cart');
+        return {
+          'success': false,
+          'message': 'Authentication required. Please log in again.',
+        };
+      }
+
+      final body = jsonEncode({
+        'productId': productId.trim(),
+        'cartId': cartId.trim(),
+        'variantName': variantName.trim(),
+        'quantity': quantity,
+      });
+
+      final response = await http.put(
+        url,
+        headers: headers,
+        body: body,
+      ).timeout(
+        const Duration(seconds: 30),
+        onTimeout: () {
+          _log('Request timeout while updating cart');
+          return http.Response('Request timeout', 408);
+        },
+      );
+
+      _log('Update Cart Response Status: ${response.statusCode}');
+
+      if (response.statusCode == 200) {
+        try {
+          final responseData = jsonDecode(response.body);
+          _log('Successfully updated cart quantity');
+          return responseData;
+        } catch (jsonError) {
+          _log('JSON parsing error in updateCartItemQuantity: $jsonError');
+          return {
+            'success': false,
+            'message': 'Invalid response format from server.',
+          };
+        }
+      } else {
+        _log('Update cart failed with status: ${response.statusCode}');
+        String errorMessage = 'Failed to update cart item quantity.';
+        try {
+          final errorBody = jsonDecode(response.body);
+          if (errorBody is Map && errorBody.containsKey('message')) {
+            errorMessage = errorBody['message'];
+          }
+        } catch (e) {
+          _log('Failed to parse error response: $e');
+        }
+        return {
+          'success': false,
+          'message': errorMessage,
+        };
+      }
+    } catch (e) {
+      _log('Exception in updateCartItemQuantity: $e');
+      return {
+        'success': false,
+        'message': 'An unexpected error occurred while updating cart.',
+      };
+    }
+  }
+
+  // ✅ NEW: Clear entire cart
+  Future<Map<String, dynamic>> clearCart({required String cartId}) async {
+    if (cartId.trim().isEmpty) {
+      _log('Error: Cart ID is missing for clear');
+      return {'success': false, 'message': 'Cart ID is missing for clear.'};
+    }
+
+    try {
+      final url = Uri.parse('$baseUrl/cart/clear');
+      _log('Clearing cart: $cartId');
+
+      final headers = _getHeaders();
+      if (headers == null) {
+        _log('Failed to prepare headers for clear cart');
+        return {
+          'success': false,
+          'message': 'Authentication required. Please log in again.',
+        };
+      }
+
+      final response = await http.delete(
+        url,
+        headers: headers,
+        body: jsonEncode({'cartId': cartId.trim()}),
+      ).timeout(
+        const Duration(seconds: 30),
+        onTimeout: () {
+          _log('Request timeout while clearing cart');
+          return http.Response('Request timeout', 408);
+        },
+      );
+
+      if (response.statusCode == 200) {
+        try {
+          final responseData = jsonDecode(response.body);
+          _log('Successfully cleared cart');
+          return responseData;
+        } catch (jsonError) {
+          _log('JSON parsing error in clearCart: $jsonError');
+          return {
+            'success': false,
+            'message': 'Invalid response format from server.',
+          };
+        }
+      } else {
+        _log('Clear cart failed with status: ${response.statusCode}');
+        String errorMessage = 'Failed to clear cart.';
+        try {
+          final errorBody = jsonDecode(response.body);
+          if (errorBody is Map && errorBody.containsKey('message')) {
+            errorMessage = errorBody['message'];
+          }
+        } catch (e) {
+          _log('Failed to parse error response: $e');
+        }
+        return {
+          'success': false,
+          'message': errorMessage,
+        };
+      }
+    } catch (e) {
+      _log('Exception in clearCart: $e');
+      return {
+        'success': false,
+        'message': 'An unexpected error occurred while clearing cart.',
+      };
+    }
+  }
+
+  // ✅ NEW: Health check method
+  Future<bool> checkServiceHealth() async {
+    try {
+      _log('Performing health check...');
+
+      // Try to fetch a cart with a test ID to check if service is responsive
+      final headers = _getHeaders();
+      if (headers == null) {
+        _log('Cannot perform health check: No valid headers');
+        return false;
+      }
+
+      final url = Uri.parse('$baseUrl/cart/health'); // Assuming health endpoint
+      final response = await http.get(url, headers: headers).timeout(
+        const Duration(seconds: 10),
+        onTimeout: () => http.Response('Timeout', 408),
+      );
+
+      final isHealthy = response.statusCode == 200;
+      _log('Service health check: ${isHealthy ? 'Healthy' : 'Unhealthy'} (Status: ${response.statusCode})');
+      return isHealthy;
+    } catch (e) {
+      _log('Health check failed: $e');
+      return false;
+    }
+  }
+
+  // ✅ NEW: Get cart ID from storage
+  String? getCartId() {
+    try {
+      return box.read('cartId');
+    } catch (e) {
+      _log('Error reading cart ID: $e');
+      return null;
+    }
+  }
+
+  // ✅ NEW: Store cart ID
+  Future<bool> storeCartId(String cartId) async {
+    try {
+      await box.write('cartId', cartId);
+      _log('Cart ID stored successfully');
+      return true;
+    } catch (e) {
+      _log('Error storing cart ID: $e');
+      return false;
+    }
+  }
+
+  // ✅ NEW: Clear stored cart ID
+  Future<bool> clearStoredCartId() async {
+    try {
+      await box.remove('cartId');
+      _log('Cart ID cleared successfully');
+      return true;
+    } catch (e) {
+      _log('Error clearing cart ID: $e');
+      return false;
     }
   }
 }

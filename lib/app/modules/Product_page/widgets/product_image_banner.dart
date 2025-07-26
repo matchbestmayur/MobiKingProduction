@@ -98,25 +98,6 @@ class _ProductImageBannerState extends State<ProductImageBanner> {
             ),
           ),
 
-          // Back Button
-          Positioned(
-            top: 16,
-            left: 16,
-            child: SafeArea(
-              child: GestureDetector(
-                onTap: widget.onBack ?? () => Get.back(),
-                child: Container(
-                  width: 32,
-                  height: 32,
-                  decoration: BoxDecoration(
-                    color: Colors.black.withOpacity(0.4),
-                    shape: BoxShape.circle,
-                  ),
-                  child: const Icon(Icons.arrow_back_ios_new, size: 18, color: Colors.white),
-                ),
-              ),
-            ),
-          ),
 
           // Favorite Button
           Positioned(
@@ -230,6 +211,25 @@ class _ProductImageBannerState extends State<ProductImageBanner> {
                     borderRadius: BorderRadius.circular(3),
                     color: _currentIndex == index ? AppColors.textDark : Colors.grey.withOpacity(0.5),
                   ),
+                ),
+              ),
+            ),
+          ),
+
+          Positioned(
+            top: 16,
+            left: 16,
+            child: SafeArea(
+              child: GestureDetector(
+                onTap: widget.onBack ?? () => Get.back(),
+                child: Container(
+                  width: 32,
+                  height: 32,
+                  decoration: BoxDecoration(
+                    color: Colors.black.withOpacity(0.4),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.arrow_back_ios_new, size: 18, color: Colors.white),
                 ),
               ),
             ),

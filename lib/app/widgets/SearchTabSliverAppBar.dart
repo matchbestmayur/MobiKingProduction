@@ -120,7 +120,7 @@ class _StickySearchAndTabBarDelegate extends SliverPersistentHeaderDelegate {
     }
 
     return Container(
-      padding: const EdgeInsets.only(top: 16),
+      padding: const EdgeInsets.only(top: 18),
       decoration: BoxDecoration(
         color: isCollapsed ? Colors.black45 : null,
         image: backgroundImage != null

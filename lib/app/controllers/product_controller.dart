@@ -25,7 +25,6 @@ class ProductController extends GetxController {
   void onInit() {
     super.onInit();
     fetchInitialProducts();
-
   }
 
   /// 🔰 Fetch first page of products
@@ -42,7 +41,6 @@ class ProductController extends GetxController {
       allProducts.assignAll(products);
       hasMoreProducts.value = products.length == _productsPerPage;
     } catch (e) {
-      Get.snackbar('Error fetching products', e.toString(), snackPosition: SnackPosition.BOTTOM);
       print('Error: $e');
     } finally {
       isLoading.value = false;
@@ -73,15 +71,12 @@ class ProductController extends GetxController {
         hasMoreProducts.value = newProducts.length == _productsPerPage;
       }
     } catch (e) {
-      Get.snackbar('Error loading more products', e.toString(),
-          snackPosition: SnackPosition.BOTTOM);
       print('❌ Error: $e');
     } finally {
       isFetchingMore.value = false;
       print("⬇ Done loading page $_currentPage");
     }
   }
-
 
   /// 🆕 Add new product
   Future<void> addProduct(ProductModel product) async {
@@ -91,7 +86,6 @@ class ProductController extends GetxController {
       allProducts.insert(0, newProduct);
       Get.snackbar('Success', 'Product added successfully!', snackPosition: SnackPosition.BOTTOM);
     } catch (e) {
-      Get.snackbar('Error adding product', e.toString(), snackPosition: SnackPosition.BOTTOM);
       print('Error adding product: $e');
     } finally {
       isLoading.value = false;
@@ -107,7 +101,6 @@ class ProductController extends GetxController {
       final product = await _productService.fetchProductBySlug(slug);
       selectedProduct.value = product;
     } catch (e) {
-      Get.snackbar('Error fetching product', e.toString(), snackPosition: SnackPosition.BOTTOM);
       print('Error: $e');
     } finally {
       isLoading.value = false;
@@ -132,7 +125,6 @@ class ProductController extends GetxController {
 
       searchResults.assignAll(results);
     } catch (e) {
-      Get.snackbar('Error searching products', e.toString(), snackPosition: SnackPosition.BOTTOM);
       print('Search error: $e');
     } finally {
       isLoading.value = false;
@@ -153,4 +145,3 @@ class ProductController extends GetxController {
         .toList(); // Convert the filtered iterable to a List
   }
 }
-

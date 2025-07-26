@@ -1,8 +1,10 @@
 // lib/screens/product_page.dart
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
+import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:mobiking/app/controllers/product_controller.dart';
+import 'package:mobiking/app/modules/home/widgets/AllProductGridCard.dart';
 import 'package:mobiking/app/modules/home/widgets/ProductCard.dart';
 import 'package:mobiking/app/themes/app_theme.dart';
 
@@ -762,78 +764,73 @@ class _ProductPageState extends State<ProductPage> with SingleTickerProviderStat
                   // START: Replaced "You might also like" Placeholder
 // ... (previous code before the Obx block)
 
+                  // Complete "You might also like" section with working navigation
+                  // Simplified working version
                   Obx(() {
-                    // If products are still being fetched and the list is empty, or
-                    // if products have been fetched but the list is genuinely empty.
                     if (productController.allProducts.isEmpty) {
-                      // Return an empty SizedBox or Container to display nothing
-                      return const SizedBox.shrink(); // Or Container()
+                      return const SizedBox.shrink();
                     }
-                    // Otherwise, process and display the related products
-                    else {
-                      // Determine the parent category of the current product.
-                      // Using product.categoryId as per your updated code.
-                      final String? parentCategory = widget.product.categoryId.isNotEmpty
-                          ? widget.product.categoryId
-                          : null;
 
-                      // Filter products from the controller that belong to the same parent category
-                      // and exclude the current product itself.
-                      final List<ProductModel> relatedProducts = productController.getProductsInSameParentCategory(
-                        widget.product.id, // Current product's ID
-                        parentCategory,     // Parent category to filter by
-                      );
+                    final String? parentCategory = widget.product.categoryId.isNotEmpty
+                        ? widget.product.categoryId
+                        : null;
 
-                      if (relatedProducts.isEmpty) {
-                        // If no related products are found in the same category, display nothing
-                        return const SizedBox.shrink(); // Or Container()
-                      }
+                    final List<ProductModel> relatedProducts = productController.getProductsInSameParentCategory(
+                      widget.product.id,
+                      parentCategory,
+                    );
 
-                      // If related products ARE found, then show the title and the list
-                      return Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Padding(
+                    if (relatedProducts.isEmpty) {
+                      return const SizedBox.shrink();
+                    }
+
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: _horizontalPagePadding),
+                          child: Text(
+                            'You might also like',
+                            style: textTheme.headlineSmall?.copyWith(
+                              color: AppColors.textDark,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        SizedBox(
+                          height: 280,
+                          child: ListView.builder(
                             padding: const EdgeInsets.symmetric(horizontal: _horizontalPagePadding),
-                            child: Text(
-                              'You might also like',
-                              style: textTheme.headlineSmall?.copyWith(color: AppColors.textDark, fontWeight: FontWeight.w700),
-                            ),
+                            scrollDirection: Axis.horizontal,
+                            itemCount: relatedProducts.length,
+                            itemBuilder: (context, index) {
+                              final relatedProduct = relatedProducts[index];
+
+                              return Container(
+                                width: 160,
+                                margin: const EdgeInsets.only(right: 12),
+                                child: Material(
+                                  color: Colors.transparent,
+                                  child:AllProductGridCard(
+                                    product: relatedProduct,
+                                    heroTag: 'product_image_${product.id}_${product.name}_all_view_${index}',
+    onTap: (product) {
+      Get.to(ProductPage(
+        product: product,
+        heroTag: 'product_image_${product.id}_${product
+            .name}_all_view_${index}',
+      ));
+    })
+                                ),
+                              );
+                            },
                           ),
-                          const SizedBox(height: 12),
-                          SizedBox(
-                            height: 275, // Fixed height for the horizontal ListView of product cards
-                            child: ListView.builder(
-                              padding: const EdgeInsets.symmetric(horizontal: _horizontalPagePadding),
-                              scrollDirection: Axis.horizontal, // Make the list horizontal
-                              itemCount: relatedProducts.length,
-                              itemBuilder: (context, index) {
-                                final relatedProduct = relatedProducts[index];
-                                return Padding(
-                                  padding: const EdgeInsets.only(right: 12.0), // Spacing between cards
-                                  child: GestureDetector(
-                                    onTap: () {
-                                      // Navigate to the ProductPage of the tapped related product
-                                      Get.to(() => ProductPage(
-                                        product: relatedProduct,
-                                        heroTag: 'related_product_${relatedProduct.id}',
-                                      ));
-                                    },
-                                    // Make sure you are using 'ProductCard' (PascalCase) here,
-                                    // consistent with your import `ProductCard.dart`
-                                    child: ProductCards( // Changed from ProductCards to ProductCard
-                                      product: relatedProduct,
-                                      heroTag: 'related_product_${relatedProduct.id}', // Unique heroTag for each card
-                                    ),
-                                  ),
-                                );
-                              },
-                            ),
-                          ),
-                        ],
-                      );
-                    }
+                        ),
+                      ],
+                    );
                   }),
+
 /*// ... (rest of your build method code)
                   const SizedBox(height: 12), // Keep larger spacing for major sections
 
@@ -889,6 +886,93 @@ class _ProductPageState extends State<ProductPage> with SingleTickerProviderStat
           _buildBottomCartBar(context)
 
         ],
+      ),
+    );
+  }
+
+  void _navigateToRelatedProduct(ProductModel product, String heroTag) {
+    try {
+      HapticFeedback.lightImpact();
+      debugPrint('🚀 Navigating to related product: ${product.name} with heroTag: $heroTag');
+
+      // Clear any existing routes to prevent conflicts
+      if (Get.isDialogOpen == true) {
+        Get.back();
+      }
+
+      Get.to(
+            () => ProductPage(
+          product: product,
+          heroTag: heroTag,
+        ),
+        transition: Transition.rightToLeft,
+        duration: const Duration(milliseconds: 400),
+        curve: Curves.easeInOut,
+        preventDuplicates: true,
+        popGesture: true,
+      )?.then((_) {
+        debugPrint('✅ Successfully navigated back from ${product.name}');
+      }).catchError((error) {
+        debugPrint('❌ Navigation error: $error');
+      });
+
+    } catch (e) {
+      debugPrint('❌ Exception during navigation: $e');
+      // Fallback navigation without hero animation
+      _fallbackNavigation(product);
+    }
+  }
+
+// ✅ Fallback navigation method
+  void _fallbackNavigation(ProductModel product) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => ProductPage(
+          product: product,
+          heroTag: 'fallback_${product.id}_${DateTime.now().millisecondsSinceEpoch}',
+        ),
+      ),
+    );
+  }
+  Widget _buildEmptyState(TextTheme textTheme) {
+    return Container(
+      height: 120,
+      margin: const EdgeInsets.symmetric(horizontal: _horizontalPagePadding),
+      decoration: BoxDecoration(
+        color: AppColors.neutralBackground.withOpacity(0.5),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: AppColors.lightGreyBackground,
+          width: 1,
+        ),
+      ),
+      child: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.recommend_outlined,
+              size: 40,
+              color: AppColors.textLight.withOpacity(0.6),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'No recommendations available',
+              style: textTheme.bodyMedium?.copyWith(
+                color: AppColors.textLight,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Check back later for suggestions',
+              style: textTheme.bodySmall?.copyWith(
+                color: AppColors.textLight.withOpacity(0.8),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

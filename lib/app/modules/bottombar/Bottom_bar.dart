@@ -29,7 +29,7 @@ class _MainContainerScreenState extends State<MainContainerScreen> with WidgetsB
   final CartController cartController = Get.find<CartController>();
   // Initialize SystemUiController here if it's the first place it's needed globally
   // or ensure it's put elsewhere (e.g., in your App's main binding)
-  final SystemUiController systemUiController = Get.put(SystemUiController());
+  final SystemUIController systemUiController = Get.put(SystemUIController());
 
   @override
   void initState() {
@@ -120,27 +120,16 @@ class _MainContainerScreenState extends State<MainContainerScreen> with WidgetsB
               productImageUrls: imageUrls,
               itemCount: totalItemsInCart,
               onTap: () {
-                showModalBottomSheet(
-                  context: Get.context!, // Use Get.context! for convenience
-                  isScrollControlled: true, // Allows the sheet to take up more height
-                  backgroundColor: Colors.transparent, // To show the custom rounded corners/background
-                  builder: (context) {
-                    return FractionallySizedBox(
-                      heightFactor: 0.8, // Make it occupy 80% of screen height
-                      child: Container(
-                        decoration: const BoxDecoration(
-                          color: AppColors.white, // Background color for the cart sheet content
-                          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-                        ),
-                        // Display the actual CartScreen content here
-                        child: CartScreen(), // <--- THIS IS THE KEY CHANGE
-                      ),
-                    );
-                  },
+                // ✅ Navigate with custom transition
+                Get.to(
+                      () => CartScreen(),
+                  transition: Transition.rightToLeft,
+                  duration: const Duration(milliseconds: 300),
                 );
               },
             ),
           );
+
         }),
         floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
       ),

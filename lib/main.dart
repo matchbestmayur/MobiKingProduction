@@ -104,7 +104,7 @@ Future<void> main() async {
   Get.put(WishlistController());
   Get.put(LoginController());
   Get.put(TabControllerGetX());
-  Get.put(SystemUiController());
+  Get.put(SystemUIController());
   Get.put(QueryGetXController());
   Get.put(ProductController());
 

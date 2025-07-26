@@ -152,6 +152,8 @@ class CustomTabBarSection extends StatelessWidget {
 
 }
 
+
+
 class CustomTabBarViewSection extends StatelessWidget {
   final TabControllerGetX controller = Get.find<TabControllerGetX>();
   final HomeController homeController = Get.find<HomeController>();
@@ -163,11 +165,11 @@ class CustomTabBarViewSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Obx(() {
-      final HomeLayoutModel? homeLayout = homeController.homeData; // ✅ Correct access
+      final HomeLayoutModel? homeLayout = homeController.homeData;
       final List<CategoryModel> categories = homeLayout?.categories ?? [];
       final selectedIndex = controller.selectedIndex.value;
 
-      // --- Initial Loading State ---
+      // Initial Loading State
       if (homeController.isLoading || categories.isEmpty) {
         return Container(
           height: 300,
@@ -178,17 +180,19 @@ class CustomTabBarViewSection extends StatelessWidget {
         );
       }
 
-      // --- IndexedStack for Cached Tab Views ---
+      // IndexedStack for Cached Tab Views
       return IndexedStack(
         index: selectedIndex,
         children: List.generate(categories.length, (index) {
           final category = categories[index];
           final categoryId = category.id;
 
-          // 🆗 Fetch group data only once
+          // Fetch group data only once
           if (!homeController.categoryGroups.containsKey(categoryId)) {
             homeController.fetchGroupsByCategory(categoryId);
           }
+
+          // ✅ Reset and fetch products when category changes
 
           final updatedGroups = homeController.categoryGroups[categoryId] ?? [];
           final String bannerImageUrlToUse = category.lowerBanner ?? '';
@@ -204,6 +208,7 @@ class CustomTabBarViewSection extends StatelessWidget {
                 bannerImageUrl: bannerImageUrlToUse,
                 categoryGridItems: subCategoryController.subCategories,
                 subCategories: subCategoryController.subCategories,
+
               ),
             ),
           );
@@ -212,3 +217,5 @@ class CustomTabBarViewSection extends StatelessWidget {
     });
   }
 }
+
+

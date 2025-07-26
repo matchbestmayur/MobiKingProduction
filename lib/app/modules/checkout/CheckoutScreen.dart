@@ -1,4 +1,4 @@
-import 'package:flutter/cupertino.dart'; // For iOS-style icons, if needed
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:get/get.dart';
@@ -13,11 +13,12 @@ import 'package:mobiking/app/modules/checkout/widget/suggested_product_card.dart
 import '../../controllers/address_controller.dart';
 import '../../controllers/cart_controller.dart';
 import '../../controllers/order_controller.dart';
+import '../../controllers/product_controller.dart';
 import '../../data/AddressModel.dart';
 import '../../data/product_model.dart';
 import '../../themes/app_theme.dart';
-import '../home/widgets/ProductCard.dart'; // Import your AppTheme and AppColors
-// Import your new screen
+import '../home/widgets/AllProductGridCard.dart';
+import '../home/widgets/ProductCard.dart';
 
 class CheckoutScreen extends StatelessWidget {
   CheckoutScreen({Key? key}) : super(key: key);
@@ -25,57 +26,133 @@ class CheckoutScreen extends StatelessWidget {
   final cartController = Get.find<CartController>();
   final addressController = Get.find<AddressController>();
   final orderController = Get.find<OrderController>();
+  final productController = Get.find<ProductController>();
 
   // Add an RxString to hold the selected payment method
   final RxString _selectedPaymentMethod = ''.obs;
 
-  // NEW: Method to navigate to payment method selection screen
-  void _navigateToPaymentMethodSelection(BuildContext context) async {
-    final TextTheme textTheme = Theme.of(context).textTheme; // Access TextTheme
+  // ✅ Method to get related products based on cart items' categories
+  List<ProductModel> _getRelatedProducts(List<Map<String, dynamic>> cartProductsWithDetails) {
+    // Get all products from ProductController
+    final allProducts = productController.allProducts;
 
-    // Navigate and await the result (the selected payment method string)
+    // Extract unique category IDs from cart items
+    final Set<String> cartCategoryIds = {};
+    for (var entry in cartProductsWithDetails) {
+      final ProductModel product = entry['product'] as ProductModel;
+      if (product.categoryId.isNotEmpty) {
+        cartCategoryIds.add(product.categoryId);
+      }
+    }
+
+    // Get cart product IDs to exclude them from suggestions
+    final Set<String> cartProductIds = {};
+    for (var entry in cartProductsWithDetails) {
+      final ProductModel product = entry['product'] as ProductModel;
+      cartProductIds.add(product.id);
+    }
+
+    // Filter products that belong to same categories but aren't in cart
+    final relatedProducts = allProducts.where((product) {
+      // Must be from same category
+      final bool isSameCategory = cartCategoryIds.contains(product.categoryId);
+
+      // Must not be in cart already
+      final bool isNotInCart = !cartProductIds.contains(product.id);
+
+      // Must be active and have stock
+      final bool isAvailable = product.active &&
+          product.variants.entries.any((variant) => variant.value > 0);
+
+      return isSameCategory && isNotInCart && isAvailable;
+    }).toList();
+
+    // Shuffle and limit to reasonable number for suggestions
+    relatedProducts.shuffle();
+    return relatedProducts.take(10).toList(); // Show max 10 related products
+  }
+
+  // Method to navigate to payment method selection screen
+  void _navigateToPaymentMethodSelection(BuildContext context) async {
     final String? result = await Get.to<String?>(
-          () => PaymentMethodSelectionScreen(
-        selectedPaymentMethod: _selectedPaymentMethod, // Pass the RxString
-        orderController: orderController, // Pass the controller
-      ),
-      fullscreenDialog: true, // Makes it a full screen modal
-      transition: Transition.rightToLeft, // Smooth transition
+          () => PaymentMethodSelectionScreen(),
+      fullscreenDialog: true,
+      transition: Transition.rightToLeft,
     );
 
-    // If a method was selected and returned
     if (result != null && result.isNotEmpty) {
-      _selectedPaymentMethod.value = result; // Update the selected method
-      // You can now immediately trigger the placeOrder logic here if desired,
-      // or rely on the "Place Order" button being enabled.
-      // For this setup, we'll wait for the "Place Order" button.
+      _selectedPaymentMethod.value = result;
+    }
+  }
+
+  // ✅ NEW: Enhanced place order method with automatic navigation
+  void _handlePlaceOrder(BuildContext context) async {
+    final isAddressSelected = addressController.selectedAddress.value != null;
+    final isCartEmpty = cartController.cartItems.isEmpty;
+    final isPaymentMethodSelected = _selectedPaymentMethod.value.isNotEmpty;
+
+    // ✅ Silent validation with automatic navigation to fix issues
+    if (!isAddressSelected) {
+      // Automatically navigate to address page
+      Get.to(() => AddressPage());
+      return;
+    }
+
+    if (isCartEmpty) {
+      // Navigate back since cart is empty
+      Get.back();
+      return;
+    }
+
+    if (!isPaymentMethodSelected) {
+      // Automatically navigate to payment method selection
+      _navigateToPaymentMethodSelection(context);
+      return;
+    }
+
+    // ✅ All validations passed, proceed with order
+    orderController.isLoading.value = true;
+
+    if (_selectedPaymentMethod.value == 'COD') {
+      await orderController.placeOrder(method: 'COD');
+    } else if (_selectedPaymentMethod.value == 'Online') {
+      // ✅ Keep only positive feedback for online payment
+      Get.snackbar(
+        'Online Payment',
+        'Initiating secure payment...',
+        snackPosition: SnackPosition.BOTTOM,
+        backgroundColor: AppColors.primaryPurple.withOpacity(0.8),
+        colorText: AppColors.white,
+        icon: const Icon(Icons.credit_card_outlined, color: AppColors.white),
+        margin: const EdgeInsets.all(10),
+        borderRadius: 10,
+        animationDuration: const Duration(milliseconds: 300),
+        duration: const Duration(seconds: 2),
+      );
+      await orderController.placeOrder(method: 'Online');
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    // Access TextTheme and AppColors for consistent theming
     final TextTheme textTheme = Theme.of(context).textTheme;
-
-    // Based on Blinkit, the background is a very light grey or off-white
     final Color blinkitBackground = AppColors.neutralBackground;
 
     return Scaffold(
-      backgroundColor: blinkitBackground, // Consistent light background
+      backgroundColor: blinkitBackground,
       appBar: AppBar(
         title: Text(
           "Checkout",
-          style: textTheme.titleLarge?.copyWith( // Using titleLarge for AppBar title
-            fontWeight: FontWeight.w600, // Semi-bold for prominence
-            color: AppColors.textDark, // Dark text color
+          style: textTheme.titleLarge?.copyWith(
+            fontWeight: FontWeight.w600,
+            color: AppColors.textDark,
           ),
         ),
-        backgroundColor: AppColors.white, // White AppBar background
-        foregroundColor: AppColors.textDark, // Dark icons/text
-        elevation: 0.5, // Subtle elevation for app bar
-        // Back button styling (default should be fine with foregroundColor)
+        backgroundColor: AppColors.white,
+        foregroundColor: AppColors.textDark,
+        elevation: 0.5,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded), // iOS style back icon
+          icon: const Icon(Icons.arrow_back_ios_new_rounded),
           onPressed: () => Get.back(),
         ),
       ),
@@ -104,7 +181,9 @@ class CheckoutScreen extends StatelessWidget {
             groupIds: [],
             totalStock: 0,
             variants: {},
-            images: [], descriptionPoints: [], keyInformation: [],
+            images: [],
+            descriptionPoints: [],
+            keyInformation: [],
           );
           final quantity = item['quantity'] as int? ?? 1;
           final variantName = item['variantName'] as String? ?? 'Default';
@@ -126,12 +205,14 @@ class CheckoutScreen extends StatelessWidget {
           return sum + itemPrice * quantity;
         });
 
-        // Delivery charge logic from original
         double deliveryCharge = itemTotal > 0 ? 40.0 : 0.0;
-        double gstCharge = 0.0; // Currently set to 0, as per your previous code
+        double gstCharge = 0.0;
+
+        // ✅ Get related products based on cart items' categories
+        final relatedProducts = _getRelatedProducts(cartProductsWithDetails);
 
         return SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12), // Adjusted padding
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -148,22 +229,21 @@ class CheckoutScreen extends StatelessWidget {
                     ),
                   ],
                 ),
-                padding: const EdgeInsets.all(16), // Padding inside the card
+                padding: const EdgeInsets.all(16),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
                       "Cart Items (${cartProductsWithDetails.length})",
-                      style: textTheme.titleMedium?.copyWith( // Consistent title style
-                        fontWeight: FontWeight.w700, // Make it bolder
+                      style: textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w700,
                         color: AppColors.textDark,
                       ),
                     ),
                     const SizedBox(height: 12),
-                    // Use ListView.builder for potentially many items
                     ListView.builder(
-                      shrinkWrap: true, // Crucial for nested ListViews
-                      physics: const NeverScrollableScrollPhysics(), // Disable internal scrolling
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
                       itemCount: cartProductsWithDetails.length,
                       itemBuilder: (context, index) {
                         final entry = cartProductsWithDetails[index];
@@ -180,7 +260,7 @@ class CheckoutScreen extends StatelessWidget {
                   ],
                 ),
               ),
-              const SizedBox(height: 20), // Space between cart items and bill section
+              const SizedBox(height: 20),
 
               // Bill Details Section
               Container(
@@ -198,84 +278,137 @@ class CheckoutScreen extends StatelessWidget {
                 child: BillSection(
                   itemTotal: itemTotal.toInt(),
                   deliveryCharge: deliveryCharge.toInt(),
-                  // gstCharge: gstCharge.toInt(), // Pass gstCharge if you re-enable it
                 ),
               ),
 
-              const SizedBox(height: 32), // Space before suggested products
+              const SizedBox(height: 32),
 
-              // You might also like section
-              Text(
-                "You might also like",
-                style: textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.w700, // Bolder title
-                  color: AppColors.textDark,
-                ),
-              ),
-              const SizedBox(height: 12),
-              SizedBox(
-                height: 280, // Increased height for suggested products to give them more space
-                child: ListView.builder(
-                  scrollDirection: Axis.horizontal,
-                  itemCount: cartProductsWithDetails.length, // Using cart products as dummy data for suggestions
-                  itemBuilder: (context, index) {
-                    return Padding(
-                      padding: const EdgeInsets.only(right: 14), // Space between cards
-                      child: ProductCards(
-                        product: cartProductsWithDetails[index]['product'] as ProductModel,
-                        // It is CRUCIAL to pass a unique heroTag here to avoid "multiple heroes" error.
-                        // The tag should be unique across all ProductCards visible on screen simultaneously.
-                        heroTag: 'product_image_checkout_suggested_${cartProductsWithDetails[index]['product']}_$index', // Example unique tag
-                        onTap: (tappedProduct) {
-                          // You can define specific navigation logic here if needed,
-                          // or let ProductCards handle it using its internal Get.to() as configured.
-                          // If ProductCards handles navigation, ensure it passes the correct heroTag.
-                          // Example of explicit navigation:
-                           Get.to(
-                             () => ProductPage(
-                               product: tappedProduct,
-                               heroTag: 'product_image_checkout_suggested_${tappedProduct.id}_$index',
-                             ),
-                             transition: Transition.fadeIn,
-                             duration: const Duration(milliseconds: 300),
-                           );
-                        },
+              // ✅ Updated "You might also like" section with related products
+              if (relatedProducts.isNotEmpty) ...[
+                Row(
+                  children: [
+                    Text(
+                      "You might also like",
+                      style: textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.textDark,
                       ),
-                    );
-                  },
+                    ),
+                    const SizedBox(width: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: AppColors.primaryPurple.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Text(
+                        '${relatedProducts.length}',
+                        style: textTheme.labelSmall?.copyWith(
+                          color: AppColors.primaryPurple,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
-              ),
-              const SizedBox(height: 100), // Ensures content doesn't get cut off by bottom bar
+                const SizedBox(height: 12),
+                SizedBox(
+                  height: 280,
+                  child: ListView.builder(
+                    scrollDirection: Axis.horizontal,
+                    itemCount: relatedProducts.length,
+                    itemBuilder: (context, index) {
+                      final relatedProduct = relatedProducts[index];
+                      return Padding(
+                        padding: const EdgeInsets.only(right: 14),
+                        child: SizedBox(
+                          width: 160,
+                          child: AllProductGridCard(
+                            product: relatedProduct,
+                            heroTag: 'product_image_checkout_related_${relatedProduct.id}_$index',
+                            onTap: (tappedProduct) {
+                              Get.to(
+                                    () => ProductPage(
+                                  product: tappedProduct,
+                                  heroTag: 'product_image_checkout_related_${tappedProduct.id}_$index',
+                                ),
+                                transition: Transition.fadeIn,
+                                duration: const Duration(milliseconds: 300),
+                              );
+                            },
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ] else if (cartProductsWithDetails.isNotEmpty) ...[
+                // ✅ Fallback: Show message when no related products found
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: AppColors.white,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: AppColors.neutralBackground),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.lightbulb_outline,
+                        color: AppColors.primaryPurple,
+                        size: 24,
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'No related products found',
+                              style: textTheme.titleSmall?.copyWith(
+                                fontWeight: FontWeight.w600,
+                                color: AppColors.textDark,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              'Explore more products after placing your order!',
+                              style: textTheme.bodySmall?.copyWith(
+                                color: AppColors.textMedium,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+
+              const SizedBox(height: 100),
             ],
           ),
         );
       }),
-      bottomNavigationBar: _buildDynamicBottomAppBar(context), // Pass context to access theme
+      bottomNavigationBar: _buildDynamicBottomAppBar(context),
     );
   }
 
-  // NOTE: _buildPaymentOption is ONLY needed if you use it somewhere else.
-  // If it was just for the dialog, it should now live in PaymentMethodSelectionScreen.
-  // I've removed it from here as it's no longer used in CheckoutScreen directly.
-  // If you re-introduce it elsewhere, ensure its usage context is appropriate.
-
-
-  // Refactored _buildDynamicBottomAppBar
   Widget _buildDynamicBottomAppBar(BuildContext context) {
-    final TextTheme textTheme = Theme.of(context).textTheme; // Access TextTheme
+    final TextTheme textTheme = Theme.of(context).textTheme;
 
     return Container(
       decoration: BoxDecoration(
-        color: AppColors.white, // White background for bottom bar
+        color: AppColors.white,
         borderRadius: const BorderRadius.only(
           topLeft: Radius.circular(20),
           topRight: Radius.circular(20),
         ),
         boxShadow: [
           BoxShadow(
-            color: AppColors.textDark.withOpacity(0.1), // More subtle shadow
+            color: AppColors.textDark.withOpacity(0.1),
             blurRadius: 15,
-            offset: const Offset(0, -5), // Slightly higher offset
+            offset: const Offset(0, -5),
           ),
         ],
       ),
@@ -283,23 +416,23 @@ class CheckoutScreen extends StatelessWidget {
       height: 230,
       width: double.infinity,
       child: SafeArea(
-        top: false, // Don't extend into safe area at the top
+        top: false,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Center(
               child: Container(
-                width: 40, // Slightly wider drag handle
+                width: 40,
                 height: 4,
                 decoration: BoxDecoration(
-                  color: AppColors.neutralBackground, // Light grey drag handle
+                  color: AppColors.neutralBackground,
                   borderRadius: BorderRadius.circular(4),
                 ),
               ),
             ),
-            const SizedBox(height: 16), // More space after handle
+            const SizedBox(height: 16),
 
-            // Address Section
+            // Address Section (unchanged)
             Obx(() {
               final selected = addressController.selectedAddress.value;
 
@@ -308,17 +441,17 @@ class CheckoutScreen extends StatelessWidget {
                 children: [
                   Icon(
                     Icons.location_pin,
-                    color: selected != null ? AppColors.success : AppColors.textLight, // Green for selected, light grey if not
-                    size: 24, // Slightly smaller icon
+                    color: selected != null ? AppColors.success : AppColors.textLight,
+                    size: 24,
                   ),
-                  const SizedBox(width: 10), // Reduced space
+                  const SizedBox(width: 10),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
                           selected?.label ?? 'No Address Selected',
-                          style: textTheme.bodyLarge?.copyWith( // BodyLarge for address label
+                          style: textTheme.bodyLarge?.copyWith(
                             fontWeight: FontWeight.w600,
                             color: selected != null ? AppColors.textDark : AppColors.textLight,
                           ),
@@ -326,7 +459,7 @@ class CheckoutScreen extends StatelessWidget {
                         if (selected != null) ...[
                           Text(
                             "${selected.street}, ${selected.city},",
-                            style: textTheme.bodySmall?.copyWith(color: AppColors.textMedium), // bodySmall for address details
+                            style: textTheme.bodySmall?.copyWith(color: AppColors.textMedium),
                             overflow: TextOverflow.ellipsis,
                           ),
                           Text(
@@ -346,13 +479,13 @@ class CheckoutScreen extends StatelessWidget {
                       Get.to(() => AddressPage());
                     },
                     style: TextButton.styleFrom(
-                      padding: EdgeInsets.zero, // Remove default padding
-                      minimumSize: Size.zero, // Remove default min size
-                      tapTargetSize: MaterialTapTargetSize.shrinkWrap, // Shrink tap area
+                      padding: EdgeInsets.zero,
+                      minimumSize: Size.zero,
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                     ),
                     child: Text(
                       selected != null ? "Change" : "Add/Select",
-                      style: textTheme.labelLarge?.copyWith( // labelLarge for button
+                      style: textTheme.labelLarge?.copyWith(
                         color: AppColors.primaryPurple,
                         fontWeight: FontWeight.w600,
                       ),
@@ -361,9 +494,9 @@ class CheckoutScreen extends StatelessWidget {
                 ],
               );
             }),
-            const SizedBox(height: 16), // Space before divider
-            const Divider(height: 1, color: AppColors.neutralBackground), // Lighter divider
-            const SizedBox(height: 16), // Space after divider
+            const SizedBox(height: 16),
+            const Divider(height: 1, color: AppColors.neutralBackground),
+            const SizedBox(height: 16),
 
             // Pay Using & Place Order Buttons
             Row(
@@ -373,19 +506,18 @@ class CheckoutScreen extends StatelessWidget {
                   flex: 2,
                   child: Obx(() {
                     return InkWell(
-                      // UPDATED: Call the navigation method
                       onTap: orderController.isLoading.value
                           ? null
-                          : () => _navigateToPaymentMethodSelection(context), // Now navigates to a screen
+                          : () => _navigateToPaymentMethodSelection(context),
                       borderRadius: BorderRadius.circular(14),
                       child: Container(
-                        height: 52, // Slightly taller button
+                        height: 52,
                         decoration: BoxDecoration(
                           color: orderController.isLoading.value
-                              ? AppColors.success.withOpacity(0.6) // Green for pay using button, lighter when loading
-                              : AppColors.success, // Solid green
+                              ? AppColors.success.withOpacity(0.6)
+                              : AppColors.success,
                           borderRadius: BorderRadius.circular(14),
-                          boxShadow: [ // Add subtle shadow for consistency
+                          boxShadow: [
                             BoxShadow(
                               color: AppColors.success.withOpacity(0.2),
                               blurRadius: 8,
@@ -409,8 +541,8 @@ class CheckoutScreen extends StatelessWidget {
                             Text(
                               orderController.isLoading.value
                                   ? "Processing..."
-                                  : (_selectedPaymentMethod.value.isEmpty ? "Pay Using" : _selectedPaymentMethod.value), // Show selected method
-                              style: textTheme.bodyMedium?.copyWith( // labelLarge for button text
+                                  : (_selectedPaymentMethod.value.isEmpty ? "Pay Using" : _selectedPaymentMethod.value),
+                              style: textTheme.bodyMedium?.copyWith(
                                 color: AppColors.white,
                                 fontWeight: FontWeight.w600,
                               ),
@@ -447,7 +579,10 @@ class CheckoutScreen extends StatelessWidget {
                           stockIds: [],
                           orderIds: [],
                           groupIds: [],
-                          totalStock: 0, descriptionPoints: [], keyInformation: []);
+                          totalStock: 0,
+                          descriptionPoints: [],
+                          keyInformation: []
+                      );
                       final quantity = item['quantity'] ?? 1;
                       double itemPrice = 0.0;
                       if (product.sellingPrice.isNotEmpty &&
@@ -458,121 +593,29 @@ class CheckoutScreen extends StatelessWidget {
                     });
 
                     final deliveryCharge = subTotal > 0 ? 40.0 : 0.0;
-                    final gstCharge = 0.0; // Still 0
-                    final displayTotal = subTotal + deliveryCharge + gstCharge; // Include gstCharge for total even if 0
+                    final gstCharge = 0.0;
+                    final displayTotal = subTotal + deliveryCharge + gstCharge;
 
                     final isAddressSelected = addressController.selectedAddress.value != null;
                     final isCartEmpty = cartController.cartItems.isEmpty;
                     final isPaymentMethodSelected = _selectedPaymentMethod.value.isNotEmpty;
 
-                    // Determine if the button should be disabled
-                    final bool isPlaceOrderDisabled = orderController.isLoading.value ||
-                        !isAddressSelected ||
-                        isCartEmpty ||
-                        !isPaymentMethodSelected;
+                    // ✅ FIXED: Only disable when loading OR cart is empty
+                    // Allow clicking when address or payment method is missing (for auto-navigation)
+                    final bool isPlaceOrderDisabled = orderController.isLoading.value || isCartEmpty;
 
                     return InkWell(
-                      onTap: isPlaceOrderDisabled
-                          ? null
-                          : () async {
-                        // Check all conditions again before placing order
-                        if (!isAddressSelected) {
-                          Get.snackbar(
-                            'Address Required',
-                            'Please select a delivery address.',
-                            snackPosition: SnackPosition.BOTTOM,
-                            backgroundColor: AppColors.danger.withOpacity(0.8), // Red snackbar
-                            colorText: AppColors.white,
-                            icon: const Icon(Icons.location_on, color: AppColors.white),
-                            margin: const EdgeInsets.all(10),
-                            borderRadius: 10,
-                            animationDuration: const Duration(milliseconds: 300),
-                            duration: const Duration(seconds: 3),
-                          );
-                          return;
-                        }
-
-                        if (isCartEmpty) {
-                          Get.snackbar(
-                            'Cart Empty',
-                            'Your cart is empty. Please add items before placing an order.',
-                            snackPosition: SnackPosition.BOTTOM,
-                            backgroundColor: AppColors.danger.withOpacity(0.8),
-                            colorText: AppColors.white,
-                            icon: const Icon(Icons.shopping_cart, color: AppColors.white),
-                            margin: const EdgeInsets.all(10),
-                            borderRadius: 10,
-                            animationDuration: const Duration(milliseconds: 300),
-                            duration: const Duration(seconds: 3),
-                          );
-                          return;
-                        }
-
-                        if (!isPaymentMethodSelected) {
-                          Get.snackbar(
-                            'Payment Method Required',
-                            'Please select a payment method before placing your order.',
-                            snackPosition: SnackPosition.BOTTOM,
-                            backgroundColor: AppColors.danger.withOpacity(0.8),
-                            colorText: AppColors.white,
-                            icon: const Icon(Icons.payment, color: AppColors.white),
-                            margin: const EdgeInsets.all(10),
-                            borderRadius: 10,
-                            animationDuration: const Duration(milliseconds: 300),
-                            duration: const Duration(seconds: 3),
-                          );
-                          // Trigger navigation to payment method selection if not selected
-                          _navigateToPaymentMethodSelection(context);
-                          return;
-                        }
-
-                        // If all checks pass, proceed with placing the order
-                        if (_selectedPaymentMethod.value.isEmpty) {
-                          Get.snackbar(
-                            'Payment Method Required',
-                            'Please select a payment method before placing your order.',
-                            snackPosition: SnackPosition.TOP,
-                            backgroundColor: Colors.redAccent,
-                            colorText: AppColors.white,
-                            icon: const Icon(Icons.warning_amber_rounded, color: AppColors.white),
-                            margin: const EdgeInsets.all(10),
-                            borderRadius: 10,
-                            duration: const Duration(seconds: 3),
-                            animationDuration: const Duration(milliseconds: 300),
-                          );
-                          return;
-                        }
-
-                        orderController.isLoading.value = true;
-
-                        if (_selectedPaymentMethod.value == 'COD') {
-                          await orderController.placeOrder(method: 'COD');
-                        } else if (_selectedPaymentMethod.value == 'Online') {
-                          Get.snackbar(
-                            'Online Payment',
-                            'Initiating secure payment...',
-                            snackPosition: SnackPosition.BOTTOM,
-                            backgroundColor: AppColors.primaryPurple.withOpacity(0.8),
-                            colorText: AppColors.white,
-                            icon: const Icon(Icons.credit_card_outlined, color: AppColors.white),
-                            margin: const EdgeInsets.all(10),
-                            borderRadius: 10,
-                            animationDuration: const Duration(milliseconds: 300),
-                            duration: const Duration(seconds: 2),
-                          );
-                          await orderController.placeOrder(method: 'Online');
-                        }
-
-                      },
+                      // ✅ FIXED: Always allow tap unless loading or cart empty
+                      onTap: isPlaceOrderDisabled ? null : () => _handlePlaceOrder(context),
                       borderRadius: BorderRadius.circular(14),
                       child: Container(
-                        height: 52, // Match height of 'Pay Using' button
+                        height: 52,
                         decoration: BoxDecoration(
                           color: isPlaceOrderDisabled
-                              ? AppColors.primaryPurple.withOpacity(0.6) // Lighter purple when disabled
-                              : AppColors.primaryPurple, // Solid purple
+                              ? AppColors.primaryPurple.withOpacity(0.6)
+                              : AppColors.primaryPurple,
                           borderRadius: BorderRadius.circular(14),
-                          boxShadow: [ // Add subtle shadow for consistency
+                          boxShadow: [
                             BoxShadow(
                               color: AppColors.primaryPurple.withOpacity(0.2),
                               blurRadius: 8,
@@ -581,7 +624,7 @@ class CheckoutScreen extends StatelessWidget {
                           ],
                         ),
                         child: Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 12), // Adjusted horizontal padding
+                          padding: const EdgeInsets.symmetric(horizontal: 12),
                           child: Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
@@ -591,15 +634,15 @@ class CheckoutScreen extends StatelessWidget {
                                 children: [
                                   Text(
                                     "₹${displayTotal.toStringAsFixed(0)}",
-                                    style: textTheme.bodyMedium?.copyWith( // TitleMedium for total amount
+                                    style: textTheme.bodyMedium?.copyWith(
                                       color: AppColors.white,
                                       fontWeight: FontWeight.bold,
                                     ),
                                   ),
                                   Text(
                                     "Total",
-                                    style: textTheme.labelSmall?.copyWith( // labelSmall for "Total" label
-                                      color: AppColors.white.withOpacity(0.8), // Slightly transparent white
+                                    style: textTheme.labelSmall?.copyWith(
+                                      color: AppColors.white.withOpacity(0.8),
                                     ),
                                   ),
                                 ],
@@ -616,7 +659,7 @@ class CheckoutScreen extends StatelessWidget {
                                   else
                                     Text(
                                       "Place Order",
-                                      style: textTheme.bodyMedium?.copyWith( // labelLarge for "Place Order" text
+                                      style: textTheme.bodyMedium?.copyWith(
                                         color: AppColors.white,
                                         fontWeight: FontWeight.w600,
                                       ),
@@ -642,6 +685,4 @@ class CheckoutScreen extends StatelessWidget {
     );
   }
 
-// REMOVED: _showPaymentMethodSelectionDialog method is now removed from CheckoutScreen
-// as it has been replaced by navigation to PaymentMethodSelectionScreen.
 }

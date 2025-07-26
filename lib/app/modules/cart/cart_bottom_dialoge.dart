@@ -195,7 +195,7 @@ class _CartScreenState extends State<CartScreen> {
               ],
             ),
             const SizedBox(height: 16),
-            SizedBox(
+            Obx(() => SizedBox(
               width: double.infinity,
               height: 54,
               child: ElevatedButton(
@@ -221,7 +221,7 @@ class _CartScreenState extends State<CartScreen> {
                   ),
                 ),
               ),
-            ),
+            )),
           ],
         ),
       );

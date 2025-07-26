@@ -5,7 +5,7 @@ import 'package:mobiking/app/themes/app_theme.dart';
 import '../data/group_model.dart';
 import '../modules/Product_page/product_page.dart';
 import '../modules/home/widgets/GroupProductsScreen.dart';
-import '../modules/home/widgets/ProductCard.dart';
+import '../modules/home/widgets/AllProductGridCard.dart'; // Import your new card
 
 class GroupWithProductsSection extends StatelessWidget {
   final List<GroupModel> groups;
@@ -13,7 +13,7 @@ class GroupWithProductsSection extends StatelessWidget {
   const GroupWithProductsSection({super.key, required this.groups});
 
   static const double horizontalContentPadding = 16.0;
-  static const double productCardUniformHeight = 288.0;
+  static const double gridCardHeight = 240.0; // Adjusted for your card design
 
   @override
   Widget build(BuildContext context) {
@@ -30,6 +30,15 @@ class GroupWithProductsSection extends StatelessWidget {
         final group = groups[index];
 
         if (group.products.isEmpty) return const SizedBox.shrink();
+
+        // ✅ Filter out products that are out of stock
+        final inStockProducts = group.products.where((product) {
+          // Check if product has any variant with stock > 0
+          return product.variants.entries.any((variant) => variant.value > 0);
+        }).toList();
+
+        // ✅ Don't show group if no products are in stock
+        if (inStockProducts.isEmpty) return const SizedBox.shrink();
 
         // ✅ Background Color Logic
         Color? sectionBackgroundColor;
@@ -57,7 +66,7 @@ class GroupWithProductsSection extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              SizedBox(height: 10,),
+              const SizedBox(height: 10),
               // ✅ Group Banner
               if (group.banner != null && group.banner!.isNotEmpty)
                 Padding(
@@ -157,39 +166,57 @@ class GroupWithProductsSection extends StatelessWidget {
 
                     const SizedBox(height: 12),
 
-                    // ✅ Product List
-                    SizedBox(
-                      height: productCardUniformHeight,
-                      child: ListView.separated(
-                        scrollDirection: Axis.horizontal,
-                        itemCount: group.products.length,
-                        padding: EdgeInsets.zero,
-                        separatorBuilder: (_, __) =>
-                        const SizedBox(width: 0.5),
-                        itemBuilder: (context, prodIndex) {
-                          final product = group.products[prodIndex];
-                          final String productHeroTag =
-                              'product_image_group_section_${group.id}_${product.id}_$prodIndex';
+                    // ✅ Product Grid (3x2) - Using filtered in-stock products
+                    LayoutBuilder(
+                      builder: (context, constraints) {
+                        // ✅ Show maximum 6 in-stock products (3x2 grid)
+                        final productsToShow = inStockProducts.take(6).toList();
 
-                          return ProductCards(
-                            product: product,
-                            heroTag: productHeroTag,
-                            onTap: (tappedProduct) {
-                              Get.to(
-                                    () => ProductPage(
-                                  product: tappedProduct,
-                                  heroTag: productHeroTag,
-                                ),
-                                transition: Transition.fadeIn,
-                                duration: const Duration(milliseconds: 300),
+                        // Calculate the number of rows needed
+                        final rowCount = (productsToShow.length / 3).ceil().clamp(1, 2);
+
+                        // Calculate total height needed
+                        final cardHeight = gridCardHeight;
+                        final mainAxisSpacing = 14.0;
+                        final totalHeight = (cardHeight * rowCount) + (mainAxisSpacing * (rowCount - 1));
+
+                        return SizedBox(
+                          height: totalHeight,
+                          child: GridView.builder(
+                            physics: const NeverScrollableScrollPhysics(), // Remove scroll
+                            padding: EdgeInsets.zero,
+                            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                              crossAxisCount: 3, // 3 products per row
+                              crossAxisSpacing: 8.0, // Horizontal spacing between cards
+                              mainAxisSpacing: 14.0, // Vertical spacing between rows
+                              childAspectRatio: 0.45, // Adjust based on your card design
+                            ),
+                            itemCount: productsToShow.length,
+                            itemBuilder: (context, prodIndex) {
+                              final product = productsToShow[prodIndex];
+                              final String productHeroTag =
+                                  'product_image_group_section_${group.id}_${product.id}_$prodIndex';
+
+                              return AllProductGridCard(
+                                product: product,
+                                heroTag: productHeroTag,
+                                onTap: (tappedProduct) {
+                                  Get.to(
+                                        () => ProductPage(
+                                      product: tappedProduct,
+                                      heroTag: productHeroTag,
+                                    ),
+                                    transition: Transition.fadeIn,
+                                    duration: const Duration(milliseconds: 300),
+                                  );
+                                  print('Navigating to product page for: ${tappedProduct.name}');
+                                },
                               );
-                              print('Navigating to product page for: ${tappedProduct.name}');
                             },
-                          );
-                        },
-                      ),
+                          ),
+                        );
+                      },
                     ),
-
                   ],
                 ),
               ),

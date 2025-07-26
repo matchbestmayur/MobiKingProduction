@@ -26,11 +26,9 @@ class LoginService extends GetxService {
   // Constructor to receive the Dio instance and GetStorage box
   LoginService(this._dio, this.box);
 
-  final String _baseUrl = 'https://mobiking-e-commerce-backend-prod.vercel.app/api/v1/users'; // Base URL for user-related endpoints
+  final String _baseUrl = 'https://mobiking-e-commerce-backend-prod.vercel.app/api/v1/users';
 
-  // --- Login Method ---
-  // Returns Future<dio.Response> as per your original code, but with improved error handling.
-  // The calling controller will be responsible for parsing response.data.
+  // --- Enhanced Login Method ---
   Future<dio.Response> login(String phone) async {
     try {
       final response = await _dio.post(
@@ -40,18 +38,19 @@ class LoginService extends GetxService {
           'role': 'user',
         },
       );
-      if (response.statusCode == 200) {
-        // Original comment: "No need to store 'userData' here if LoginController handles individual keys."
-        // We keep this as is, expecting the controller to extract and store.
-        print('Login successful. Response data: ${response.data}'); // Keep this for debugging response data
+
+      if (response.statusCode == 200 && response.data['success'] == true) {
+        print('Login successful. Response data: ${response.data}');
+
+        // ✅ Store token creation time for automatic refresh scheduling
+        await box.write('tokenCreationTime', DateTime.now().millisecondsSinceEpoch);
+
         return response;
       } else {
-        // Enhance error handling for non-200 responses
         final errorMessage = response.data?['message'] ?? 'Login failed. Please try again.';
         throw LoginServiceException(errorMessage, statusCode: response.statusCode);
       }
     } on dio.DioException catch (e) {
-      // Dio-specific error handling (e.g., network issues, server errors)
       if (e.response != null) {
         final errorMessage = e.response?.data?['message'] ?? 'Server error occurred.';
         throw LoginServiceException(errorMessage, statusCode: e.response?.statusCode);
@@ -59,22 +58,17 @@ class LoginService extends GetxService {
         throw LoginServiceException('Network error: ${e.message}');
       }
     } catch (e) {
-      // Catch any other unexpected errors
       print('Unexpected error during login: $e');
       throw LoginServiceException('An unexpected error occurred during login: $e');
     }
   }
 
-  // --- Logout Method ---
-  // Returns Future<dio.Response> as per your original code, but with improved error handling
-  // and a crucial `finally` block to ensure local token clearing.
+  // --- Enhanced Logout Method ---
   Future<dio.Response> logout() async {
     try {
-      final accessToken = box.read('accessToken'); // Read the accessToken directly from GetStorage
+      final accessToken = box.read('accessToken');
 
       if (accessToken == null) {
-        // If there's no access token, the user isn't truly "logged in" from a token perspective.
-        // We'll still throw here for consistency with original `throw Exception`, but indicate local state.
         print('No access token found for logout. User is already considered logged out locally.');
         throw LoginServiceException('Access token not found. User is not logged in locally.');
       }
@@ -83,7 +77,7 @@ class LoginService extends GetxService {
         '$_baseUrl/logout',
         options: dio.Options(
           headers: {
-            'Authorization': 'Bearer $accessToken', // Send the access token in the header
+            'Authorization': 'Bearer $accessToken',
           },
         ),
       );
@@ -106,87 +100,186 @@ class LoginService extends GetxService {
       print('Unexpected error during logout: $e');
       throw LoginServiceException('An unexpected error occurred during logout: $e');
     } finally {
-      // Crucial: Always clear local tokens regardless of server logout success/failure
-      box.remove('accessToken');
-      box.remove('refreshToken');
-      box.remove('accessTokenExpiry'); // Clear expiry time (important for automation)
-      // If you stored other user data, remove it here too, e.g.:
-      // box.remove('userData');
-      print('Local authentication tokens cleared during logout process.');
+      // ✅ Enhanced: Clear all token-related data
+      _clearAllTokenData();
     }
   }
 
-  // --- NEW METHOD: refreshAccessToken ---
-  /// Refreshes the access token using the stored refresh token.
-  /// Returns the `data` part of the backend response as a `Map<String, dynamic>`,
-  /// which contains the new `accessToken` and `refreshToken`.
-  /// Throws `LoginServiceException` if an error occurs, especially
-  /// if the refresh token is invalid or expired, signaling a forced logout.
-  Future<Map<String, dynamic>> refreshAccessToken() async {
-    final refreshToken = box.read('refreshToken');
+  // ✅ New: Comprehensive token data clearing
+  void _clearAllTokenData() {
+    box.remove('accessToken');
+    box.remove('refreshToken');
+    box.remove('tokenCreationTime'); // ✅ Clear creation time
+    box.remove('accessTokenExpiry'); // Clear expiry time if exists
+    box.remove('user'); // Clear user data
+    box.remove('cartId'); // Clear cart data
+    print('All authentication and user data cleared locally.');
+  }
 
-    if (refreshToken == null || refreshToken.isEmpty) {
-      print('Refresh token not found. Cannot refresh access token. User needs to re-login.');
+  // ✅ Enhanced: refreshToken method (renamed from refreshAccessToken for consistency)
+  Future<dio.Response> refreshToken(String refreshToken) async {
+    if (refreshToken.isEmpty) {
+      print('Refresh token is empty. Cannot refresh access token.');
       throw LoginServiceException('Refresh token missing. Please log in again.');
     }
 
     try {
+      print('LoginService: Attempting to refresh access token...');
+
       final response = await _dio.post(
         '$_baseUrl/refresh-token',
         options: dio.Options(
           headers: {
-            'Authorization': 'Bearer $refreshToken', // Send refresh token in header
-            'Content-Type': 'application/json', // Backend might expect this even for empty body
+            'Authorization': 'Bearer $refreshToken',
+            'Content-Type': 'application/json',
           },
+          // ✅ Add timeout for refresh requests
+          sendTimeout: const Duration(seconds: 30),
+          receiveTimeout: const Duration(seconds: 30),
         ),
-        // The curl command showed --data '', implying an empty body.
-        // If your backend expects a specific JSON body, you'd add it here:
-        // data: {},
+        // Empty data as per your curl command
+        data: {},
       );
 
       if (response.statusCode == 200 && response.data != null && response.data['success'] == true) {
-        final responseData = response.data['data'] as Map<String, dynamic>?;
+        print('LoginService: Token refresh successful');
 
-        if (responseData != null && responseData['accessToken'] is String && (responseData['accessToken'] as String).isNotEmpty) {
-          final newAccessToken = responseData['accessToken'] as String;
-          final newRefreshToken = responseData['refreshToken'] as String?; // This might be null if backend doesn't rotate refresh tokens
+        // ✅ Update token creation time for new token
+        await box.write('tokenCreationTime', DateTime.now().millisecondsSinceEpoch);
 
-          await box.write('accessToken', newAccessToken);
-          if (newRefreshToken != null) { // Only update refresh token if a new one is provided
-            await box.write('refreshToken', newRefreshToken);
-          }
-
-          // IMPORTANT: Your backend refresh-token response does NOT include 'expiresIn'.
-          // We will *assume* a 24-hour validity for the new access token for proactive scheduling.
-          // This timestamp will be used by the AuthController for scheduling the next refresh.
-          final assumedAccessTokenExpiry = DateTime.now().add(const Duration(hours: 24));
-          await box.write('accessTokenExpiry', assumedAccessTokenExpiry.toIso8601String());
-
-          print('Access token refreshed successfully!');
-          return responseData; // Return the 'data' part of the response
-        } else {
-          // Response was successful, but the 'data' structure was unexpected or missing accessToken
-          throw LoginServiceException('Failed to get new access token from refresh response data.');
-        }
+        return response;
       } else {
-        // Server returned an error (e.g., status code not 200 or success: false)
         final errorMessage = response.data?['message'] ?? 'Failed to refresh token: Unknown server response.';
         print('Error refreshing token: ${response.statusCode} - $errorMessage');
         throw LoginServiceException(errorMessage, statusCode: response.statusCode);
       }
     } on dio.DioException catch (e) {
-      // Dio-specific errors (network issues, timeout, etc.)
       if (e.response != null) {
+        final statusCode = e.response?.statusCode;
         final errorMessage = e.response?.data?['message'] ?? 'Server error during token refresh.';
-        print('Dio error refreshing token: ${e.response?.statusCode} - $errorMessage');
-        throw LoginServiceException(errorMessage, statusCode: e.response?.statusCode);
+
+        print('Dio error refreshing token: $statusCode - $errorMessage');
+
+        // ✅ Enhanced: Handle specific error codes
+        if (statusCode == 401) {
+          // Refresh token expired or invalid
+          _clearAllTokenData();
+          throw LoginServiceException('Refresh token expired. Please log in again.', statusCode: statusCode);
+        } else if (statusCode == 403) {
+          // Forbidden - refresh token might be revoked
+          _clearAllTokenData();
+          throw LoginServiceException('Access denied. Please log in again.', statusCode: statusCode);
+        } else {
+          throw LoginServiceException(errorMessage, statusCode: statusCode);
+        }
       } else {
+        // Network error
         throw LoginServiceException('Network error during token refresh: ${e.message}');
       }
     } catch (e) {
-      // Catch any other unexpected errors
       print('Unexpected error during token refresh: $e');
       throw LoginServiceException('An unexpected error occurred during token refresh: $e');
+    }
+  }
+
+  // ✅ New: Check if tokens exist locally
+  bool hasValidTokens() {
+    final accessToken = box.read('accessToken');
+    final refreshToken = box.read('refreshToken');
+    final tokenCreationTime = box.read('tokenCreationTime');
+
+    return accessToken != null &&
+        refreshToken != null &&
+        tokenCreationTime != null;
+  }
+
+  // ✅ New: Get token age in hours
+  double getTokenAgeInHours() {
+    final tokenCreationTime = box.read('tokenCreationTime');
+    if (tokenCreationTime == null) return 25.0; // Return > 24 to indicate expired
+
+    final now = DateTime.now().millisecondsSinceEpoch;
+    final tokenAge = now - tokenCreationTime;
+    return tokenAge / (1000 * 60 * 60); // Convert to hours
+  }
+
+  // ✅ New: Check if token needs refresh
+  bool needsTokenRefresh() {
+    return getTokenAgeInHours() >= 20.0; // Refresh after 20 hours
+  }
+
+  // ✅ New: Check if token is expired
+  bool isTokenExpired() {
+    return getTokenAgeInHours() >= 24.0; // Expire after 24 hours
+  }
+
+  // ✅ New: Get current access token
+  String? getCurrentAccessToken() {
+    return box.read('accessToken');
+  }
+
+  // ✅ New: Get current refresh token
+  String? getCurrentRefreshToken() {
+    return box.read('refreshToken');
+  }
+
+  // ✅ New: Validate token format (basic validation)
+  bool isValidTokenFormat(String? token) {
+    if (token == null || token.isEmpty) return false;
+
+    // Basic JWT format check (header.payload.signature)
+    final parts = token.split('.');
+    return parts.length == 3 && parts.every((part) => part.isNotEmpty);
+  }
+
+  // ✅ New: Get token status information
+  Map<String, dynamic> getTokenStatus() {
+    final accessToken = getCurrentAccessToken();
+    final refreshToken = getCurrentRefreshToken();
+    final ageInHours = getTokenAgeInHours();
+
+    return {
+      'hasAccessToken': accessToken != null,
+      'hasRefreshToken': refreshToken != null,
+      'isValidFormat': isValidTokenFormat(accessToken),
+      'ageInHours': ageInHours,
+      'needsRefresh': needsTokenRefresh(),
+      'isExpired': isTokenExpired(),
+      'creationTime': box.read('tokenCreationTime'),
+    };
+  }
+
+  // ✅ New: Emergency token cleanup (for extreme cases)
+  Future<void> emergencyTokenCleanup() async {
+    try {
+      print('LoginService: Performing emergency token cleanup...');
+      _clearAllTokenData();
+
+      // Clear any cached data
+      await box.remove('last_login_phone');
+      await box.remove('user_preferences');
+
+      print('LoginService: Emergency cleanup completed');
+    } catch (e) {
+      print('LoginService: Error during emergency cleanup: $e');
+    }
+  }
+
+  // ✅ New: Health check method
+  Future<bool> checkServiceHealth() async {
+    try {
+      final response = await _dio.get(
+        '$_baseUrl/health',
+        options: dio.Options(
+          sendTimeout: const Duration(seconds: 10),
+          receiveTimeout: const Duration(seconds: 10),
+        ),
+      );
+
+      return response.statusCode == 200;
+    } catch (e) {
+      print('LoginService: Health check failed: $e');
+      return false;
     }
   }
 }

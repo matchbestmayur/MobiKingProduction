@@ -9,6 +9,7 @@ import '../../../controllers/cart_controller.dart';
 import '../../../data/product_model.dart';
 import '../../../themes/app_theme.dart';
 import 'app_star_rating.dart';
+import 'favorite_toggle_button.dart'; // Add this import
 
 import 'package:mobiking/app/modules/Product_page/product_page.dart';
 
@@ -50,17 +51,12 @@ class AllProductGridCard extends StatelessWidget {
             onTap: () async {
               HapticFeedback.lightImpact();
               if (hasMultipleVariants || totalQuantity > 1) {
-                // If there are multiple variants, always show the bottom sheet for removal choice
-                _showVariantBottomSheet(context, product); // Pass product for variants
+                _showVariantBottomSheet(context, product);
               } else {
-                // If only one variant and quantity is 1, directly remove it
-                // We need to know which single variant it is.
-                // Assuming 'product.variants' holds the actual variants, and the cart will have just one for this product.
                 final cartItemsForProduct = cartController.getCartItemsForProduct(productId: product.id);
                 if (cartItemsForProduct.isNotEmpty) {
                   final singleVariantName = cartItemsForProduct.keys.first;
                   await cartController.removeFromCart(productId: product.id, variantName: singleVariantName);
-                  // Snackbar is handled by the CartController now
                 }
               }
             },
@@ -83,12 +79,10 @@ class AllProductGridCard extends StatelessWidget {
             onTap: () async {
               HapticFeedback.lightImpact();
               if (hasMultipleVariants) {
-                _showVariantBottomSheet(context, product); // Pass product for variants
+                _showVariantBottomSheet(context, product);
               } else {
-                // Assuming there's at least one variant if we reach here
                 final singleVariant = product.variants.entries.first;
                 await cartController.addToCart(productId: product.id, variantName: singleVariant.key);
-                // Snackbar is handled by the CartController now
               }
             },
             child: const Padding(
@@ -97,6 +91,90 @@ class AllProductGridCard extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  // Build ADD button with variant indicator inside the button
+  Widget _buildAddButtonWithVariantCount(
+      BuildContext context,
+      int availableVariantCount,
+      ProductModel product,
+      CartController cartController,
+      ) {
+    final TextTheme textTheme = Theme.of(context).textTheme;
+    const double addBtnFixedWidth = 60.0;
+    const double buttonHeight = 28.0;
+
+    return SizedBox(
+      width: addBtnFixedWidth,
+      height: buttonHeight,
+      child: ElevatedButton(
+        onPressed: () async {
+          HapticFeedback.lightImpact();
+          if (availableVariantCount > 1) {
+            _showVariantBottomSheet(context, product);
+          } else {
+            final singleVariant = product.variants.entries
+                .firstWhere((element) => element.value > 0);
+            await cartController.addToCart(
+              productId: product.id,
+              variantName: singleVariant.key,
+            );
+          }
+        },
+        style: ElevatedButton.styleFrom(
+          backgroundColor: AppColors.white,
+          foregroundColor: AppColors.success,
+          padding: EdgeInsets.zero,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(6),
+            side: BorderSide(color: AppColors.success, width: 1.5),
+          ),
+          elevation: 0,
+          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          minimumSize: Size.zero,
+        ),
+        child: Stack(
+          children: [
+            Center(
+              child: Text(
+                'ADD',
+                style: textTheme.labelSmall?.copyWith(
+                  color: AppColors.success,
+                  fontWeight: FontWeight.w700,
+                  fontSize: 12,
+                ),
+              ),
+            ),
+            if (availableVariantCount > 1)
+              Positioned(
+                bottom: 0,
+                right: 1,
+                child: Container(
+                  width: 60,
+                  height: 10,
+                  decoration: BoxDecoration(
+                    color: AppColors.success.withOpacity(0.5),
+                    borderRadius: BorderRadius.only(
+                      bottomLeft: Radius.circular(8),
+                      bottomRight: Radius.circular(6),
+                    ),
+                  ),
+                  child: Center(
+                    child: Text(
+                      '$availableVariantCount Options',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 6,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        ),
       ),
     );
   }
@@ -143,7 +221,7 @@ class AllProductGridCard extends StatelessWidget {
       clipBehavior: Clip.antiAlias,
       child: Container(
         decoration: BoxDecoration(
-          color: AppColors.white, // Set to white for the card background
+          color: AppColors.white,
           borderRadius: BorderRadius.circular(12),
           border: Border.all(color: AppColors.neutralBackground, width: 1),
         ),
@@ -201,6 +279,7 @@ class AllProductGridCard extends StatelessWidget {
                         ),
                       ),
                     ),
+                    // Discount badge
                     if (discountPercentage.isNotEmpty)
                       Positioned(
                         top: 8,
@@ -221,11 +300,34 @@ class AllProductGridCard extends StatelessWidget {
                           ),
                         ),
                       ),
+                    // ✅ FAVORITE BUTTON - Added in top-right corner
+                    Positioned(
+                      top: 8,
+                      right: 8,
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: AppColors.white.withOpacity(0.9),
+                          shape: BoxShape.circle,
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.1),
+                              blurRadius: 4,
+                              offset: const Offset(0, 2),
+                            ),
+                          ],
+                        ),
+                        child: FavoriteToggleButton(
+                          productId: product.id.toString(),
+                          iconSize: 14,
+                          padding: 6,
+                        ),
+                      ),
+                    ),
+                    // Cart button
                     Positioned(
                       bottom: 2,
                       right: 2,
                       child: Obx(() {
-                        // ✅ Access the map reactively without using `.value`
                         final variantQuantities = cartController.productVariantQuantities;
 
                         int totalProductQuantityInCart = 0;
@@ -247,46 +349,11 @@ class AllProductGridCard extends StatelessWidget {
                           );
                         } else {
                           if (availableVariantCount > 0) {
-                            return SizedBox(
-                              width: addBtnFixedWidth,
-                              height: buttonHeight,
-                              child: ElevatedButton(
-                                onPressed: () async {
-                                  HapticFeedback.lightImpact();
-                                  if (availableVariantCount > 1) {
-                                    _showVariantBottomSheet(context, product);
-                                  } else {
-                                    final singleVariant = product.variants.entries
-                                        .firstWhere((element) => element.value > 0);
-                                    await cartController.addToCart(
-                                      productId: product.id,
-                                      variantName: singleVariant.key,
-                                    );
-                                  }
-                                },
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: AppColors.white,
-                                  foregroundColor: AppColors.success,
-                                  padding: EdgeInsets.zero,
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(6),
-                                    side: BorderSide(color: AppColors.success, width: 1.5),
-                                  ),
-                                  elevation: 0,
-                                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                                  minimumSize: Size.zero,
-                                ),
-                                child: Center(
-                                  child: Text(
-                                    'ADD',
-                                    style: textTheme.labelSmall?.copyWith(
-                                      color: AppColors.success,
-                                      fontWeight: FontWeight.w700,
-                                      fontSize: 12,
-                                    ),
-                                  ),
-                                ),
-                              ),
+                            return _buildAddButtonWithVariantCount(
+                              context,
+                              availableVariantCount,
+                              product,
+                              cartController,
                             );
                           } else {
                             return SizedBox(
@@ -312,7 +379,6 @@ class AllProductGridCard extends StatelessWidget {
                         }
                       }),
                     ),
-
                   ],
                 ),
               ),
@@ -409,7 +475,7 @@ class _AnimatedQuantityText extends StatelessWidget {
   }
 }
 
-// ✅ OPTIMIZED: _showVariantBottomSheet
+// Variant bottom sheet implementation
 void _showVariantBottomSheet(BuildContext context, ProductModel product) {
   final TextTheme textTheme = Theme.of(context).textTheme;
   final CartController cartController = Get.find<CartController>();
@@ -419,11 +485,9 @@ void _showVariantBottomSheet(BuildContext context, ProductModel product) {
     isScrollControlled: true,
     backgroundColor: Colors.transparent,
     builder: (BuildContext context) {
-      final List<MapEntry<String, int>> variantEntries = product.variants.entries.toList();
-
-      // No need for separate RxBools for adding/removing.
-      // We can use cartController.isLoading or local loading states if strictly necessary per item.
-      // For a more performant approach in the sheet, let's keep it lean.
+      final List<MapEntry<String, int>> variantEntries = product.variants.entries
+          .where((entry) => entry.value > 0)
+          .toList();
 
       return DraggableScrollableSheet(
         initialChildSize: 0.5,
@@ -466,8 +530,6 @@ void _showVariantBottomSheet(BuildContext context, ProductModel product) {
                       final variantName = entry.key;
                       final variantStock = entry.value;
 
-                      final bool isOutOfStock = variantStock <= 0;
-
                       final String variantImageUrl =
                       product.images.isNotEmpty ? product.images[0] : 'https://placehold.co/50x50/cccccc/ffffff?text=No+Img';
 
@@ -489,18 +551,7 @@ void _showVariantBottomSheet(BuildContext context, ProductModel product) {
                                   height: 50,
                                   width: 50,
                                   color: AppColors.white,
-                                  child: isOutOfStock
-                                      ? Center(
-                                    child: Text(
-                                      'Sold Out',
-                                      style: textTheme.labelSmall?.copyWith(
-                                        color: AppColors.danger,
-                                        fontWeight: FontWeight.w700,
-                                      ),
-                                      textAlign: TextAlign.center,
-                                    ),
-                                  )
-                                      : CachedNetworkImage(
+                                  child: CachedNetworkImage(
                                     imageUrl: variantImageUrl,
                                     width: 50,
                                     height: 50,
@@ -524,139 +575,122 @@ void _showVariantBottomSheet(BuildContext context, ProductModel product) {
                                     Text(
                                       variantName,
                                       style: textTheme.titleSmall?.copyWith(
-                                        color: isOutOfStock ? AppColors.textLight : AppColors.textDark,
+                                        color: AppColors.textDark,
                                         fontWeight: FontWeight.w600,
                                       ),
                                     ),
-                                    if (isOutOfStock)
-                                      Text(
-                                        'Out of Stock',
-                                        style: textTheme.bodySmall?.copyWith(
-                                          color: AppColors.danger,
-                                          fontWeight: FontWeight.w600,
-                                        ),
-                                      ),
                                   ],
                                 ),
                               ),
-                              if (!isOutOfStock)
-                                Obx(() {
-                                  // ✅ OPTIMIZED: Get quantity directly from the pre-calculated map
-                                  final currentVariantQuantity = cartController.productVariantQuantities['${product.id}_$variantName'] ?? 0;
+                              Obx(() {
+                                final currentVariantQuantity = cartController.productVariantQuantities['${product.id}_$variantName'] ?? 0;
+                                final bool isProcessing = cartController.isLoading.value;
 
-                                  // Using cartController.isLoading for a global loading indicator
-                                  // If you need per-item loading, you'd reintroduce individual RxBool for each item.
-                                  // For simplicity and common UX, global loading is often sufficient for cart operations.
-                                  final bool isProcessing = cartController.isLoading.value;
-
-
-                                  if (currentVariantQuantity > 0) {
-                                    return Container(
-                                      decoration: BoxDecoration(
-                                        color: AppColors.success,
-                                        borderRadius: BorderRadius.circular(6),
-                                      ),
-                                      padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 6),
-                                      child: Row(
-                                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                        children: [
-                                          InkWell(
-                                            onTap: isProcessing ? null : () async {
-                                              HapticFeedback.lightImpact();
-                                              await cartController.removeFromCart(productId: product.id, variantName: variantName);
-                                              // No need for local isRemovingFromCart state, cartController.isLoading handles it
-                                            },
-                                            child: Padding(
-                                              padding: const EdgeInsets.all(4.0),
-                                              child: isProcessing
-                                                  ? SizedBox(
-                                                width: 16,
-                                                height: 16,
-                                                child: CircularProgressIndicator(
-                                                  strokeWidth: 2,
-                                                  color: AppColors.white,
-                                                ),
-                                              )
-                                                  : Icon(Icons.remove, color: AppColors.white, size: 16),
-                                            ),
+                                if (currentVariantQuantity > 0) {
+                                  return Container(
+                                    decoration: BoxDecoration(
+                                      color: AppColors.success,
+                                      borderRadius: BorderRadius.circular(6),
+                                    ),
+                                    padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 6),
+                                    child: Row(
+                                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                      children: [
+                                        InkWell(
+                                          onTap: isProcessing ? null : () async {
+                                            HapticFeedback.lightImpact();
+                                            await cartController.removeFromCart(productId: product.id, variantName: variantName);
+                                          },
+                                          child: Padding(
+                                            padding: const EdgeInsets.all(4.0),
+                                            child: isProcessing
+                                                ? SizedBox(
+                                              width: 16,
+                                              height: 16,
+                                              child: CircularProgressIndicator(
+                                                strokeWidth: 2,
+                                                color: AppColors.white,
+                                              ),
+                                            )
+                                                : Icon(Icons.remove, color: AppColors.white, size: 16),
                                           ),
-                                          const SizedBox(width: 4),
-                                          Text(
-                                            '$currentVariantQuantity',
-                                            style: textTheme.labelSmall?.copyWith(
-                                              color: AppColors.white,
-                                              fontWeight: FontWeight.w700,
-                                              fontSize: 12,
-                                            ),
-                                          ),
-                                          const SizedBox(width: 4),
-                                          InkWell(
-                                            onTap: isProcessing ? null : () async {
-                                              HapticFeedback.lightImpact();
-                                              await cartController.addToCart(productId: product.id, variantName: variantName);
-                                              // No need for local isAddingToCart state
-                                            },
-                                            child: Padding(
-                                              padding: const EdgeInsets.all(4.0),
-                                              child: isProcessing
-                                                  ? SizedBox(
-                                                width: 16,
-                                                height: 16,
-                                                child: CircularProgressIndicator(
-                                                  strokeWidth: 2,
-                                                  color: AppColors.white,
-                                                ),
-                                              )
-                                                  : Icon(Icons.add, color: AppColors.white, size: 16),
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    );
-                                  } else {
-                                    return SizedBox(
-                                      width: 60,
-                                      height: 30,
-                                      child: ElevatedButton(
-                                        onPressed: isProcessing ? null : () async {
-                                          HapticFeedback.lightImpact();
-                                          await cartController.addToCart(productId: product.id, variantName: variantName);
-                                        },
-                                        style: ElevatedButton.styleFrom(
-                                          backgroundColor: AppColors.white,
-                                          foregroundColor: AppColors.success,
-                                          padding: EdgeInsets.zero,
-                                          shape: RoundedRectangleBorder(
-                                            borderRadius: BorderRadius.circular(6),
-                                            side: BorderSide(color: AppColors.success, width: 1.5),
-                                          ),
-                                          elevation: 0,
-                                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                                          minimumSize: Size.zero,
                                         ),
-                                        child: Center(
-                                          child: isProcessing
-                                              ? SizedBox(
-                                            width: 16,
-                                            height: 16,
-                                            child: CircularProgressIndicator(
-                                              strokeWidth: 2,
-                                              color: AppColors.success,
-                                            ),
-                                          )
-                                              : Text(
-                                            'ADD',
-                                            style: textTheme.labelSmall?.copyWith(
-                                              color: AppColors.success,
-                                              fontWeight: FontWeight.w700,
-                                              fontSize: 12,
-                                            ),
+                                        const SizedBox(width: 4),
+                                        Text(
+                                          '$currentVariantQuantity',
+                                          style: textTheme.labelSmall?.copyWith(
+                                            color: AppColors.white,
+                                            fontWeight: FontWeight.w700,
+                                            fontSize: 12,
+                                          ),
+                                        ),
+                                        const SizedBox(width: 4),
+                                        InkWell(
+                                          onTap: isProcessing ? null : () async {
+                                            HapticFeedback.lightImpact();
+                                            await cartController.addToCart(productId: product.id, variantName: variantName);
+                                          },
+                                          child: Padding(
+                                            padding: const EdgeInsets.all(4.0),
+                                            child: isProcessing
+                                                ? SizedBox(
+                                              width: 16,
+                                              height: 16,
+                                              child: CircularProgressIndicator(
+                                                strokeWidth: 2,
+                                                color: AppColors.white,
+                                              ),
+                                            )
+                                                : Icon(Icons.add, color: AppColors.white, size: 16),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  );
+                                } else {
+                                  return SizedBox(
+                                    width: 60,
+                                    height: 30,
+                                    child: ElevatedButton(
+                                      onPressed: isProcessing ? null : () async {
+                                        HapticFeedback.lightImpact();
+                                        await cartController.addToCart(productId: product.id, variantName: variantName);
+                                      },
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: AppColors.white,
+                                        foregroundColor: AppColors.success,
+                                        padding: EdgeInsets.zero,
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(6),
+                                          side: BorderSide(color: AppColors.success, width: 1.5),
+                                        ),
+                                        elevation: 0,
+                                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                        minimumSize: Size.zero,
+                                      ),
+                                      child: Center(
+                                        child: isProcessing
+                                            ? SizedBox(
+                                          width: 16,
+                                          height: 16,
+                                          child: CircularProgressIndicator(
+                                            strokeWidth: 2,
+                                            color: AppColors.success,
+                                          ),
+                                        )
+                                            : Text(
+                                          'ADD',
+                                          style: textTheme.labelSmall?.copyWith(
+                                            color: AppColors.success,
+                                            fontWeight: FontWeight.w700,
+                                            fontSize: 12,
                                           ),
                                         ),
                                       ),
-                                    );
-                                  }
-                                }),
+                                    ),
+                                  );
+                                }
+                              }),
                             ],
                           ),
                         ),
@@ -672,5 +706,3 @@ void _showVariantBottomSheet(BuildContext context, ProductModel product) {
     },
   );
 }
-
-// _AnimatedQuantityText remains unchanged as it's a generic animation helper.

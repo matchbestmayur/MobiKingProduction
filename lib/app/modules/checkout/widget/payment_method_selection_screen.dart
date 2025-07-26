@@ -2,17 +2,15 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:mobiking/app/themes/app_theme.dart';
-import '../../../controllers/order_controller.dart'; // Assuming you have an OrderController
+import '../../../controllers/order_controller.dart';
 
 class PaymentMethodSelectionScreen extends StatelessWidget {
-  final RxString selectedPaymentMethod;
-  final OrderController orderController; // Pass the OrderController
+  final OrderController orderController = Get.find<OrderController>();
 
-  PaymentMethodSelectionScreen({
-    Key? key,
-    required this.selectedPaymentMethod,
-    required this.orderController,
-  }) : super(key: key);
+  // ✅ Local RxString to manage state
+  final RxString selectedPaymentMethod = ''.obs;
+
+  PaymentMethodSelectionScreen({Key? key}) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
@@ -41,8 +39,7 @@ class PaymentMethodSelectionScreen extends StatelessWidget {
           padding: const EdgeInsets.all(16.0),
           child: Column(
             children: [
-              // Wrap _buildPaymentOption with Obx to react to changes
-              Obx(() { // <--- Added Obx here
+              Obx(() {
                 return _buildPaymentOption(
                   context: context,
                   title: "Cash on Delivery (COD)",
@@ -53,13 +50,13 @@ class PaymentMethodSelectionScreen extends StatelessWidget {
                       : () {
                     selectedPaymentMethod.value = 'COD';
                   },
-                  isLoading: orderController.isLoading.value && selectedPaymentMethod.value == 'COD',
+                  isLoading: orderController.isLoading.value &&
+                      selectedPaymentMethod.value == 'COD',
                   isSelected: selectedPaymentMethod.value == 'COD',
                 );
               }),
               const SizedBox(height: 12),
-              // Wrap _buildPaymentOption with Obx to react to changes
-              Obx(() { // <--- Added Obx here
+              Obx(() {
                 return _buildPaymentOption(
                   context: context,
                   title: "Online Payment",
@@ -70,17 +67,18 @@ class PaymentMethodSelectionScreen extends StatelessWidget {
                       : () {
                     selectedPaymentMethod.value = 'Online';
                   },
-                  isLoading: orderController.isLoading.value && selectedPaymentMethod.value == 'Online',
+                  isLoading: orderController.isLoading.value &&
+                      selectedPaymentMethod.value == 'Online',
                   isSelected: selectedPaymentMethod.value == 'Online',
                 );
               }),
-              const Spacer(), // Pushes buttons to the bottom
+              const Spacer(),
               Obx(() => Row(
                 children: [
                   Expanded(
                     child: ElevatedButton(
                       onPressed: () {
-                        Get.back(); // Just navigate back, don't set method
+                        Get.back();
                       },
                       style: ElevatedButton.styleFrom(
                         backgroundColor: AppColors.danger.withOpacity(0.1),
@@ -89,8 +87,8 @@ class PaymentMethodSelectionScreen extends StatelessWidget {
                             borderRadius: BorderRadius.circular(12)),
                         minimumSize: const Size.fromHeight(48),
                         elevation: 0,
-                        // The border color here had AppColors.danger, but subtle is better like the other elements
-                        side: const BorderSide(color: AppColors.danger, width: 1), // Changed to be consistent
+                        side: const BorderSide(
+                            color: AppColors.danger, width: 1),
                       ),
                       child: Text(
                         'Cancel',
@@ -104,25 +102,29 @@ class PaymentMethodSelectionScreen extends StatelessWidget {
                   const SizedBox(width: 12),
                   Expanded(
                     child: ElevatedButton(
-                      onPressed: (selectedPaymentMethod.value.isEmpty || orderController.isLoading.value)
+                      onPressed: (selectedPaymentMethod.value.isEmpty ||
+                          orderController.isLoading.value)
                           ? null
                           : () async {
-                        // Pass the selected method back to the previous screen
-                        Get.back(result: selectedPaymentMethod.value);
+                        Get.back(
+                            result: selectedPaymentMethod.value);
                       },
                       style: ElevatedButton.styleFrom(
                         backgroundColor: AppColors.primaryPurple,
                         foregroundColor: AppColors.white,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12)),
                         minimumSize: const Size.fromHeight(48),
                         elevation: 4,
-                        disabledBackgroundColor: AppColors.lightPurple.withOpacity(0.5),
+                        disabledBackgroundColor:
+                        AppColors.lightPurple.withOpacity(0.5),
                       ),
                       child: orderController.isLoading.value
                           ? const SizedBox(
                         width: 24,
                         height: 24,
-                        child: CircularProgressIndicator(color: AppColors.white, strokeWidth: 3),
+                        child: CircularProgressIndicator(
+                            color: AppColors.white, strokeWidth: 3),
                       )
                           : Text(
                         'Select',
@@ -142,7 +144,6 @@ class PaymentMethodSelectionScreen extends StatelessWidget {
     );
   }
 
-  // Helper method for payment options
   Widget _buildPaymentOption({
     required BuildContext context,
     required String title,
@@ -157,14 +158,18 @@ class PaymentMethodSelectionScreen extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: Opacity(
-        opacity: isLoading ? 0.6 : 1.0, // Dim if loading
+        opacity: isLoading ? 0.6 : 1.0,
         child: Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: isSelected ? AppColors.lightPurple.withOpacity(0.2) : AppColors.white,
+            color: isSelected
+                ? AppColors.lightPurple.withOpacity(0.2)
+                : AppColors.white,
             borderRadius: BorderRadius.circular(12),
             border: Border.all(
-              color: isSelected ? AppColors.primaryPurple : AppColors.lightPurple,
+              color: isSelected
+                  ? AppColors.primaryPurple
+                  : AppColors.lightPurple,
               width: isSelected ? 2 : 1,
             ),
             boxShadow: [
@@ -183,7 +188,11 @@ class PaymentMethodSelectionScreen extends StatelessWidget {
           ),
           child: Row(
             children: [
-              Icon(icon, color: isSelected ? AppColors.primaryPurple : AppColors.textMedium, size: 30),
+              Icon(icon,
+                  color: isSelected
+                      ? AppColors.primaryPurple
+                      : AppColors.textMedium,
+                  size: 30),
               const SizedBox(width: 16),
               Expanded(
                 child: Column(
@@ -193,7 +202,9 @@ class PaymentMethodSelectionScreen extends StatelessWidget {
                       title,
                       style: textTheme.titleMedium?.copyWith(
                         fontWeight: FontWeight.w600,
-                        color: isSelected ? AppColors.primaryPurple : AppColors.textDark,
+                        color: isSelected
+                            ? AppColors.primaryPurple
+                            : AppColors.textDark,
                       ),
                     ),
                     Text(
@@ -206,10 +217,8 @@ class PaymentMethodSelectionScreen extends StatelessWidget {
                 ),
               ),
               if (isSelected)
-                Icon(Icons.check_circle_rounded, color: AppColors.success, size: 24),
-              // No need for isLoading here, as the Opacity and onTap handle it.
-              // If you want a loader inside the tile, you can add it,
-              // but the primary loading state is handled by the buttons.
+                Icon(Icons.check_circle_rounded,
+                    color: AppColors.success, size: 24),
             ],
           ),
         ),

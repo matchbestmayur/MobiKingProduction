@@ -10,7 +10,7 @@ class PhoneAuthScreen extends StatelessWidget {
   PhoneAuthScreen({Key? key}) : super(key: key);
 
   final LoginController loginController = Get.find();
-  final SystemUiController systemUiController = Get.find<SystemUiController>();
+  final SystemUIController systemUiController = Get.find<SystemUIController>();
 
   @override
   Widget build(BuildContext context) {
@@ -19,7 +19,7 @@ class PhoneAuthScreen extends StatelessWidget {
     return Scaffold(
       backgroundColor: AppColors.white,
       body: AnnotatedRegion<SystemUiOverlayStyle>(
-        value: SystemUiController.authScreenStyle,
+        value: SystemUIController.authScreenStyle,
         child: SingleChildScrollView(
           child: Column(
             children: [

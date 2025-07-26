@@ -7,18 +7,52 @@ import 'package:flutter/material.dart';
 import 'package:mobiking/app/controllers/connectivity_controller.dart';
 import 'package:mobiking/app/modules/Order_confirmation/Confirmation_screen.dart';
 import 'package:razorpay_flutter/razorpay_flutter.dart';
+
 // Import your data models
 import '../data/AddressModel.dart';
-import '../data/Order_get_data.dart'; // Contains CreateOrderRequestModel
-import '../data/order_model.dart'; // The full OrderModel (Response Model) - CRUCIAL to have 'requests' field
-import '../data/razor_pay.dart'; // Contains RazorpayVerifyRequest
+import '../data/Order_get_data.dart';
+import '../data/order_model.dart';
+import '../data/razor_pay.dart';
+
 // Import your controllers and services
 import '../controllers/cart_controller.dart';
 import '../controllers/address_controller.dart';
+import '../modules/address/AddressPage.dart';
 import '../modules/bottombar/Bottom_bar.dart' show MainContainerScreen;
 import '../modules/checkout/widget/user_info_dialog_content.dart';
 import '../services/order_service.dart';
 import '../themes/app_theme.dart';
+
+// Helper classes for better organization
+class UserInfo {
+  final String userId;
+  final String name;
+  final String email;
+  final String phone;
+
+  UserInfo({
+    required this.userId,
+    required this.name,
+    required this.email,
+    required this.phone,
+  });
+}
+
+class OrderTotals {
+  final double subtotal;
+  final double deliveryCharge;
+  final double gst;
+  final double discount;
+  final double total;
+
+  OrderTotals({
+    required this.subtotal,
+    required this.deliveryCharge,
+    required this.gst,
+    required this.discount,
+    required this.total,
+  });
+}
 
 // Helper function for themed snackbars
 void _showModernSnackbar(
@@ -37,7 +71,7 @@ void _showModernSnackbar(
 
   Get.snackbar(
     '',
-    '', // hide default title & message placement
+    '',
     titleText: Text(
       title,
       style: TextStyle(
@@ -66,7 +100,7 @@ void _showModernSnackbar(
         : null,
     snackPosition: snackPosition,
     backgroundColor:
-    backgroundColor ?? (isError ? const Color(0xFFB00020) : const Color(0xFF1E88E5)), // Apple red or blue
+    backgroundColor ?? (isError ? const Color(0xFFB00020) : const Color(0xFF1E88E5)),
     colorText: textColor ?? Colors.white,
     margin: margin ?? const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
     borderRadius: borderRadius ?? 16,
@@ -86,13 +120,13 @@ void _showModernSnackbar(
   );
 }
 
-
 class OrderController extends GetxController {
   final GetStorage _box = GetStorage();
   final OrderService _orderService = Get.find<OrderService>();
   final ConnectivityController _connectivityController = Get.find<ConnectivityController>();
   final CartController _cartController = Get.find<CartController>();
   final AddressController _addressController = Get.find<AddressController>();
+
   var isLoading = false.obs;
   var orderHistory = <OrderModel>[].obs;
   var orderHistoryErrorMessage = ''.obs;
@@ -132,16 +166,7 @@ class OrderController extends GetxController {
     _razorpay.on(Razorpay.EVENT_PAYMENT_SUCCESS, _handlePaymentSuccess);
     _razorpay.on(Razorpay.EVENT_PAYMENT_ERROR, _handlePaymentError);
     _razorpay.on(Razorpay.EVENT_EXTERNAL_WALLET, _handleExternalWallet);
-
-    // Connectivity check
-    ever(_connectivityController.isConnected, (bool isConnected) {
-      if (isConnected) {
-        _handleConnectionRestored();
-      }
-    });
-
   }
-
 
   Future<void> _handleConnectionRestored() async {
     print('OrderController: Internet connection restored. Re-fetching order history...');
@@ -169,422 +194,519 @@ class OrderController extends GetxController {
     print('Razorpay listeners cleared.');
     super.onClose();
   }
+
   Future<void> _handlePaymentSuccess(PaymentSuccessResponse response) async {
     print('Razorpay Payment Success: ${response.paymentId}, ${response.orderId}, ${response.signature}');
     isLoading.value = true;
+
     try {
-      // Check if necessary backend order IDs are available
       if (_currentBackendOrderId == null || _currentRazorpayOrderId == null) {
-        _showModernSnackbar(
-          'Payment Success, but data missing! ⚠️', // Added emoji
-          'Could not retrieve backend order data for verification. Please contact support with Payment ID: ${response.paymentId}',
-          isError: true,
-          icon: Icons.error_outline,
-          backgroundColor: Colors.orange.shade700,
-        );
         return;
       }
 
-      // Construct the verification request to send to your backend
       final verifyRequest = RazorpayVerifyRequest(
         razorpayPaymentId: response.paymentId!,
         razorpayOrderId: response.orderId!,
         razorpaySignature: response.signature!,
-        orderId: _currentBackendOrderId!, // Use the backend's generated order ID
+        orderId: _currentBackendOrderId!,
       );
 
-      print('Calling backend for payment verification... 🔄'); // Added emoji
-      // Verify the payment with your backend
+      print('Calling backend for payment verification... 🔄');
+
       final verifiedOrder = await _orderService.verifyRazorpayPayment(verifyRequest);
-      print('Backend verification successful for order: ${verifiedOrder.orderId} ✅'); // Added emoji
+      print('Backend verification successful for order: ${verifiedOrder.orderId} ✅');
 
-      // Store the last placed order locally
-      await _box.write('last_placed_order', verifiedOrder.toJson());
-      // Clear the user's cart as the order is placed
-      _cartController.clearCartData();
+      await _completeOrderSuccess(verifiedOrder);
 
-      // Show a success message to the user
-      _showModernSnackbar(
-        'Order Placed! 🎉', // Added emoji
+      _showSuccessSnackbar(
+        'Order Placed! 🎉',
         'Your order ID ${verifiedOrder.orderId ?? 'N/A'} has been placed successfully!',
-        isError: false,
-        icon: Icons.receipt_long_outlined,
+        Icons.receipt_long_outlined,
         backgroundColor: Colors.green.shade600,
-        snackPosition: SnackPosition.TOP,
       );
 
-      // Navigate to the OrderConfirmationScreen, passing only the backend order ID string
-      // The OrderConfirmationScreen will then fetch its own full details using this ID.
       Get.offAll(() => OrderConfirmationScreen());
     } on OrderServiceException catch (e) {
-      // Handle specific errors from your order service during verification
-      _showModernSnackbar(
-        'Payment Verification Failed! ❌', // Added emoji
-        e.message,
-        isError: true,
-        icon: Icons.cancel_outlined,
-        backgroundColor: Colors.red.shade400,
-        snackPosition: SnackPosition.TOP,
-      );
-      print('Razorpay Verification Service Error: Status ${e.statusCode} - Message: ${e.message}');
+      print('OrderServiceException: Status ${e.statusCode} - ${e.message}');
     } catch (e) {
-      // Catch any other unexpected errors during the process
-      _showModernSnackbar(
-        'Payment Verification Error! 🚨', // Added emoji
-        'An unexpected error occurred during payment verification: $e',
-        isError: true,
-        icon: Icons.cloud_off_outlined,
-        backgroundColor: Colors.red.shade400,
-        snackPosition: SnackPosition.TOP,
-      );
-      print('Razorpay Verification Unexpected Error: $e');
+      print('Unexpected Exception: $e');
     } finally {
-      // Ensure loading indicator is hidden regardless of success or failure
       isLoading.value = false;
     }
   }
+
   void _handlePaymentError(PaymentFailureResponse response) {
     print('Razorpay Payment Error: Code ${response.code} - Description: ${response.message}');
     isLoading.value = false;
-    _showModernSnackbar(
-      'Payment Failed!',
-      'Code: ${response.code}\nDescription: ${response.message}',
-      isError: true,
-      icon: Icons.payments,
-      backgroundColor: Colors.red.shade700,
-      snackPosition: SnackPosition.TOP,
-    );
   }
 
   void _handleExternalWallet(ExternalWalletResponse response) {
     print('External Wallet Selected: ${response.walletName}');
-    _showModernSnackbar(
+    _showInfoSnackbar(
       'External Wallet Selected!',
       'Wallet: ${response.walletName ?? 'Unknown'}',
-      isError: false,
-      icon: Icons.account_balance_wallet_outlined,
-      backgroundColor: Colors.blue.shade400,
-      snackPosition: SnackPosition.TOP,
+      Icons.account_balance_wallet_outlined,
     );
   }
 
-// --- Main placeOrder method ---
+  // Main placeOrder method - OPTIMIZED
   Future<void> placeOrder({required String method}) async {
+    await _resetOrderState();
+
+    debugPrint('--- placeOrder method called with method: $method ---');
+
+    // Early validation checks
+    if (!await _validateOrderPrerequisites()) return;
+
+    // Get and validate user info
+    final UserInfo? userInfo = await _validateAndGetUserInfo();
+    if (userInfo == null) return;
+
+    // Build order request
+    final CreateOrderRequestModel? orderRequest = await _buildOrderRequest(
+      userInfo: userInfo,
+      method: method,
+    );
+    if (orderRequest == null) return;
+
+    // Process order based on payment method
+    await _processOrder(method: method, orderRequest: orderRequest);
+  }
+
+  // Reset order state
+  Future<void> _resetOrderState() async {
     _currentBackendOrderId = null;
     _currentRazorpayOrderId = null;
+    isLoading.value = false;
+  }
 
-    debugPrint('--- placeOrder method called with method: $method ---'); // Debug 1
-
+  // Validate basic order prerequisites
+  Future<bool> _validateOrderPrerequisites() async {
     if (_cartController.cartItems.isEmpty) {
-      debugPrint('🛑 Cart is empty. Aborting order placement.'); // Debug 2
-      _showModernSnackbar(
-        'Cart Empty!',
-        'Your cart is empty. Please add items before placing an order.',
-        isError: true,
-        icon: Icons.shopping_cart_outlined,
-        backgroundColor: Colors.red.shade400,
-        snackPosition: SnackPosition.TOP,
-      );
-      isLoading.value = false;
-      return;
+      debugPrint('🛑 Cart is empty. Aborting order placement.');
+      return false;
     }
 
     final AddressModel? address = _addressController.selectedAddress.value;
     if (address == null) {
-      debugPrint('🛑 Address is null. Aborting order placement.'); // Debug 3
-      _showModernSnackbar(
-        'Address Required!',
-        'Please select a shipping address to proceed.',
-        isError: true,
-        icon: Icons.location_off_outlined,
-        backgroundColor: Colors.amber.shade700,
-        snackPosition: SnackPosition.TOP,
-      );
-      isLoading.value = false;
-      return;
+      debugPrint('🛑 Address is null. Aborting order placement.');
+      return false;
     }
-    debugPrint('✅ Address selected: ${address.street}'); // Debug 4
 
+    debugPrint('✅ Prerequisites validated - Cart: ${_cartController.cartItems.length} items, Address: ${address.street}');
+    return true;
+  }
+
+  // Validate and get user info
+  Future<UserInfo?> _validateAndGetUserInfo() async {
     Map<String, dynamic> user = Map<String, dynamic>.from(_box.read('user') ?? {});
     String? userId = user['_id'];
     String? name = user['name'];
     String? email = user['email'];
     String? phone = user['phoneNo'] ?? user['phone'];
 
-    bool userInfoIncomplete = [userId, name, email, phone].any((e) => e == null || e.toString().trim().isEmpty);
-    if (userInfoIncomplete) {
-      debugPrint('⚠️ User info incomplete. Prompting...'); // Debug 5
-      isLoading.value = true;
+    if (_isUserInfoIncomplete(userId, name, email, phone)) {
+      debugPrint('⚠️ User info incomplete. Prompting...');
+
+      isLoading.value = false; // ✅ Ensure loading is false for navigation
+
       final bool detailsConfirmed = await _promptUserInfo();
       if (!detailsConfirmed) {
-        debugPrint('🛑 User info not confirmed. Aborting order placement.'); // Debug 6
-        _showModernSnackbar(
+        debugPrint('🛑 User info not confirmed. Aborting order placement.');
+        _showInfoSnackbar(
           'Details Not Saved',
           'User details were not updated. Please fill them out to proceed with your order.',
-          icon: Icons.info_outline_rounded,
-          backgroundColor: AppColors.textLight.withOpacity(0.8),
-          isError: false,
-          snackPosition: SnackPosition.TOP,
+          Icons.info_outline_rounded,
         );
-        isLoading.value = false;
-        return;
+        return null;
       }
-      user = Map<String, dynamic>.from(_box.read('user') ?? {}); // Refresh user data after prompt
+
+      // Refresh user data after prompt
+      user = Map<String, dynamic>.from(_box.read('user') ?? {});
       userId = user['_id'];
       name = user['name'];
       email = user['email'];
       phone = user['phoneNo'] ?? user['phone'];
-      if ([userId, name, email, phone].any((e) => e == null || e.toString().trim().isEmpty)) {
-        debugPrint('🛑 User info still incomplete after prompt. Aborting.'); // Debug 7
-        _showModernSnackbar(
-          'User Info Incomplete!',
-          'Despite confirming, some profile details are still missing. Please try again.',
-          isError: true,
-          icon: Icons.person_off_outlined,
-          backgroundColor: Colors.red.shade400,
-          snackPosition: SnackPosition.TOP,
-        );
-        isLoading.value = false;
-        return;
+
+      if (_isUserInfoIncomplete(userId, name, email, phone)) {
+        debugPrint('🛑 User info still incomplete after prompt. Aborting.');
+        return null;
       }
     }
-    debugPrint('✅ User info verified: ID=$userId, Name=$name, Email=$email, Phone=$phone'); // Debug 8
 
+    debugPrint('✅ User info verified: ID=$userId, Name=$name, Email=$email, Phone=$phone');
+
+    return UserInfo(
+      userId: userId!,
+      name: name!,
+      email: email!,
+      phone: phone!,
+    );
+  }
+
+  // Check if user info is incomplete
+  bool _isUserInfoIncomplete(String? userId, String? name, String? email, String? phone) {
+    return [userId, name, email, phone]
+        .any((field) => field == null || field.trim().isEmpty);
+  }
+
+  // Build order request
+  Future<CreateOrderRequestModel?> _buildOrderRequest({
+    required UserInfo userInfo,
+    required String method,
+  }) async {
     final cartId = _cartController.cartData['_id'];
     if (cartId == null) {
-      debugPrint('🛑 Cart ID is null. Aborting order placement.'); // Debug 9
-      _showModernSnackbar(
-        'Cart Error!',
-        'Could not find your cart ID. Please try again or re-add items.',
-        isError: true,
-        icon: Icons.shopping_cart_checkout_outlined,
-        backgroundColor: Colors.red.shade400,
-        snackPosition: SnackPosition.TOP,
-      );
-      isLoading.value = false;
-      return;
+      debugPrint('🛑 Cart ID is null. Aborting order placement.');
+      return null;
     }
-    debugPrint('✅ Cart ID: $cartId'); // Debug 10
 
-    final CreateUserReferenceRequestModel userRefRequest = CreateUserReferenceRequestModel(
-      id: userId!,
-      email: email!,
-      phoneNo: phone!,
+    final List<CreateOrderItemRequestModel> orderItems = _buildOrderItems();
+    if (orderItems.isEmpty) {
+      debugPrint('🛑 No valid order items found. Aborting.');
+      return null;
+    }
+
+    final OrderTotals totals = _calculateOrderTotals();
+    final AddressModel address = _addressController.selectedAddress.value!;
+    final String? addressId = _addressController.selectedAddress.value?.id;
+
+    debugPrint('✅ Order request built - Items: ${orderItems.length}, Total: ${totals.total}');
+
+    return CreateOrderRequestModel(
+      userId: CreateUserReferenceRequestModel(
+        id: userInfo.userId,
+        email: userInfo.email,
+        phoneNo: userInfo.phone,
+      ),
+      cartId: cartId,
+      name: userInfo.name,
+      email: userInfo.email,
+      phoneNo: userInfo.phone,
+      orderAmount: totals.total,
+      discount: totals.discount,
+      deliveryCharge: totals.deliveryCharge,
+      gst: totals.gst,
+      subtotal: totals.subtotal,
+      address: '${address.street}, ${address.city}, ${address.state}, ${address.pinCode}',
+      method: method,
+      items: orderItems,
+      addressId: addressId,
     );
+  }
 
+  // Calculate order totals
+  OrderTotals _calculateOrderTotals() {
     final double subtotal = _calculateSubtotal();
     const double deliveryCharge = 45.0;
-    final double gst = 0.0;
-    final double total = subtotal + deliveryCharge;
+    const double gst = 0.0;
+    const double discount = 0.0;
+    final double total = subtotal + deliveryCharge + gst - discount;
 
-    final List<CreateOrderItemRequestModel> orderItemsRequest = [];
+    return OrderTotals(
+      subtotal: subtotal,
+      deliveryCharge: deliveryCharge,
+      gst: gst,
+      discount: discount,
+      total: total,
+    );
+  }
+
+  // Build order items from cart
+  List<CreateOrderItemRequestModel> _buildOrderItems() {
+    final List<CreateOrderItemRequestModel> orderItems = [];
+
     for (var cartItem in _cartController.cartItems) {
       final productData = cartItem['productId'] as Map<String, dynamic>?;
-      final variantName = cartItem['variantName'] as String? ?? 'Default';
-      final int quantity = (cartItem['quantity'] as num?)?.toInt() ?? 1;
 
       if (productData == null) {
-        debugPrint('Error: Product data is null for cart item: $cartItem'); // Debug 11
+        debugPrint('Warning: Product data is null for cart item: $cartItem');
         continue;
       }
-      final String productIdString = productData['_id'] as String? ?? '';
-      if (productIdString.isEmpty) {
-        debugPrint('Error: Product ID missing for cart item: $cartItem'); // Debug 12
+
+      final String productId = productData['_id'] as String? ?? '';
+      if (productId.isEmpty) {
+        debugPrint('Warning: Product ID missing for cart item: $cartItem');
         continue;
       }
-      double itemPrice = 0.0;
-      if (productData.containsKey('sellingPrice') && productData['sellingPrice'] is List) {
-        final List<dynamic> sellingPricesList = productData['sellingPrice'];
-        if (sellingPricesList.isNotEmpty && sellingPricesList[0] is Map<String, dynamic>) {
-          itemPrice = (sellingPricesList[0]['price'] as num?)?.toDouble() ?? 0.0;
-        }
-      } else {
-        debugPrint('Warning: sellingPrice is not a List or is missing for product: $productIdString'); // Debug 13
-      }
-      orderItemsRequest.add(CreateOrderItemRequestModel(
-        productId: productIdString,
+
+      final String variantName = cartItem['variantName'] as String? ?? 'Default';
+      final int quantity = (cartItem['quantity'] as num?)?.toInt() ?? 1;
+      final double itemPrice = _extractItemPrice(productData, productId);
+
+      orderItems.add(CreateOrderItemRequestModel(
+        productId: productId,
         variantName: variantName,
         quantity: quantity,
         price: itemPrice,
       ));
     }
-    debugPrint('✅ Items prepared for order request: ${orderItemsRequest.length}'); // Debug 14
-    if (orderItemsRequest.isEmpty) {
-      debugPrint('🛑 orderItemsRequest is EMPTY! No items will be sent to the backend.'); // Debug 15
+
+    debugPrint('✅ Built ${orderItems.length} order items from ${_cartController.cartItems.length} cart items');
+    return orderItems;
+  }
+
+  // Extract item price from product data
+  double _extractItemPrice(Map<String, dynamic> productData, String productId) {
+    if (productData.containsKey('sellingPrice') && productData['sellingPrice'] is List) {
+      final List<dynamic> sellingPricesList = productData['sellingPrice'];
+      if (sellingPricesList.isNotEmpty && sellingPricesList[0] is Map<String, dynamic>) {
+        return (sellingPricesList[0]['price'] as num?)?.toDouble() ?? 0.0;
+      }
     }
 
-    final AddressController addressController = Get.find<AddressController>();
-    String? addressId;
-    if (addressController.selectedAddress.value != null) {
-      addressId = addressController.selectedAddress.value!.id;
-    }
+    debugPrint('Warning: Could not extract price for product: $productId');
+    return 0.0;
+  }
 
-    final createOrderRequest = CreateOrderRequestModel(
-      userId: userRefRequest,
-      cartId: cartId,
-      name: name!,
-      email: email!,
-      phoneNo: phone!,
-      orderAmount: total,
-      discount: 0,
-      deliveryCharge: deliveryCharge,
-      gst: gst,
-      subtotal: subtotal,
-      address: '${address.street}, ${address.city}, ${address.state}, ${address.pinCode}',
-      method: method,
-      items: orderItemsRequest, // This is the list that gets passed
-      addressId: addressId,
-    );
-    debugPrint('✅ CreateOrderRequestModel built. Total amount: $total'); // Debug 16
-
+  // Process order based on payment method
+  Future<void> _processOrder({
+    required String method,
+    required CreateOrderRequestModel orderRequest,
+  }) async {
     try {
       isLoading.value = true;
-      debugPrint('Loading indicator set to true.'); // Debug 17
+      debugPrint('🚀 Processing $method order...');
 
-
-      if (method == 'COD') {
-        debugPrint('🚀 Attempting to place COD order...');
-        if (total > 5000) {
-          debugPrint('🛑 COD not allowed for orders above ₹5000. Total: $total');
-          _showModernSnackbar(
-            'COD Not Available!',
-            'Cash on Delivery is not allowed for orders above ₹5000. Please choose online payment.',
-            isError: true,
-            icon: Icons.warning_amber_rounded,
-            backgroundColor: Colors.deepOrange.shade400,
-            snackPosition: SnackPosition.TOP,
-          );
-          isLoading.value = false;
-          return;
-        }
-
-
-
-        final createdOrder = await _orderService.placeCodOrder(createOrderRequest);
-        debugPrint('Received response from placeCodOrder. Order ID: ${createdOrder.orderId}, Items count: ${createdOrder.items.length}');
-
-        // Check if the orderId from the backend response is null or empty
-        if (createdOrder.orderId == null || createdOrder.orderId!.isEmpty) {
-          debugPrint('🛑 Backend returned a COD order with a null or empty orderId. This indicates a problem.');
-          throw OrderServiceException('COD Order placement failed: No Order ID returned from backend.', statusCode: 500);
-        }
-        if (createdOrder.items.isEmpty) {
-          debugPrint('🛑 Backend returned a COD order with an EMPTY items list.');
-        }
-
-        await _box.write('last_placed_order', createdOrder.toJson());
-        debugPrint('Last placed order written to local storage.');
-
-        _cartController.clearCartData();
-        debugPrint('Cart data cleared.');
-
-        isLoading.value = false;
-        debugPrint('Loading indicator set to false (COD success).');
-
-        _showModernSnackbar(
-          'Order Placed! Awaiting Confirmation Call',
-          'You will receive a call for confirmation shortly. If the call is not picked up, your order will be cancelled automatically.',
-          isError: false,
-          icon: Icons.phone_callback_outlined,
-          backgroundColor: Colors.blueAccent.shade400,
-          snackPosition: SnackPosition.TOP,
-          duration: const Duration(seconds: 7),
-        );
-
-        // --- CORRECTED LINE FOR COD ---
-        // Pass the backend's 'orderId' string to the OrderConfirmationScreen
-        debugPrint('Navigating to OrderConfirmationScreen with orderId: ${createdOrder.orderId}');
-        Get.offAll(() => OrderConfirmationScreen());
-      } else if (method == 'Online') {
-        debugPrint('🚀 Initiating online payment with backend...'); // Debug 26
-        final Map<String, dynamic> initiateResponse = await _orderService.initiateOnlineOrder(createOrderRequest);
-        debugPrint('Backend initiate response: $initiateResponse'); // Debug 27
-
-        final String? razorpayOrderId = initiateResponse['razorpayOrderId'] as String?;
-        final int? amountInPaise = initiateResponse['amount'] as int?;
-        final String? currency = initiateResponse['currency'] as String?;
-        final String? razorpayKey = initiateResponse['key'] as String?;
-        final String? newOrderId = initiateResponse['newOrderId'] as String?; // This is your backend's new order ID
-
-        if (razorpayOrderId == null || amountInPaise == null || currency == null || razorpayKey == null || newOrderId == null) {
-          debugPrint('🛑 Missing essential Razorpay initiation data from backend.'); // Debug 28
-          throw OrderServiceException(
-            'Missing essential Razorpay initiation data from backend.',
-            statusCode: 500,
-          );
-        }
-
-        _currentBackendOrderId = newOrderId; // Store the backend's order ID
-        _currentRazorpayOrderId = razorpayOrderId;
-        debugPrint('Razorpay order IDs set. Backend Order ID: $_currentBackendOrderId, Razorpay Order ID: $_currentRazorpayOrderId'); // Debug 29
-
-        final Map<String, dynamic> options = {
-          'key': razorpayKey,
-          'amount': amountInPaise,
-          'name': 'MobiKing E-commerce',
-          'description': 'Order from MobiKing',
-          'order_id': _currentRazorpayOrderId,
-          'currency': currency,
-          'prefill': {
-            'email': email,
-            'contact': phone,
-          },
-          'external': {
-            'wallets': ['paytm', 'google_pay'],
-          },
-          'theme': {
-            'color': '#3399FF'
-          },
-        };
-
-        print('Opening Razorpay checkout with options: $options'); // Debug 30
-        isLoading.value = false; // IMPORTANT: Set isLoading to false BEFORE opening Razorpay.
-        debugPrint('Loading indicator set to false (before Razorpay).'); // Debug 31
-        _razorpay.open(options);
-
-        // For online payments, the navigation to OrderConfirmationScreen happens
-        // in the Razorpay success callback (_handlePaymentSuccess)
-        // where _currentBackendOrderId (which holds the ID from `newOrderId`)
-        // should be used.
-      } else {
-        debugPrint('🛑 Invalid payment method: $method. Aborting.'); // Debug 32
-        isLoading.value = false;
-        _showModernSnackbar(
-          'Payment Method Invalid!',
-          'The selected payment method is not currently supported.',
-          isError: true,
-          icon: Icons.not_interested_outlined,
-          backgroundColor: Colors.red.shade400,
-          snackPosition: SnackPosition.TOP,
-        );
-        return;
+      switch (method.toUpperCase()) {
+        case 'COD':
+          await _processCODOrder(orderRequest);
+          break;
+        case 'ONLINE':
+          await _processOnlineOrder(orderRequest);
+          break;
+        default:
+          throw OrderServiceException('Invalid payment method: $method', statusCode: 400);
       }
     } on OrderServiceException catch (e) {
-      isLoading.value = false;
-      debugPrint('❌ OrderServiceException caught: Status ${e.statusCode} - Message: ${e.message}'); // Debug 33
-      _showModernSnackbar(
-        'Order Failed!',
-        e.message,
-        isError: true,
-        icon: Icons.cancel_outlined,
-        backgroundColor: Colors.orange.shade700,
-        snackPosition: SnackPosition.TOP,
-      );
-      print('Place Order Service Error: Status ${e.statusCode} - Message: ${e.message}');
+      debugPrint('❌ OrderServiceException: Status ${e.statusCode} - ${e.message}');
     } catch (e) {
-      isLoading.value = false;
-      debugPrint('❌ Unexpected Exception caught: $e'); // Debug 34
-      _showModernSnackbar(
-        'Order Error!',
-        'An unexpected client-side error occurred: $e. Please try again later.',
-        isError: true,
-        icon: Icons.cloud_off_outlined,
-        backgroundColor: Colors.red.shade400,
-        snackPosition: SnackPosition.TOP,
-      );
-      print('Place Order Unexpected Error: $e');
+      debugPrint('❌ Unexpected Exception: $e');
+    } finally {
+      if (method.toUpperCase() != 'ONLINE') {
+        isLoading.value = false;
+      }
     }
   }
+
+  // Process COD order
+  Future<void> _processCODOrder(CreateOrderRequestModel orderRequest) async {
+    if (orderRequest.orderAmount > 5000) {
+      debugPrint('🛑 COD not allowed for orders above ₹5000. Total: ${orderRequest.orderAmount}');
+      return;
+    }
+
+    final createdOrder = await _orderService.placeCodOrder(orderRequest);
+    debugPrint('✅ COD order created: ${createdOrder.orderId}');
+
+    if (createdOrder.orderId == null || createdOrder.orderId!.isEmpty) {
+      throw OrderServiceException('COD Order placement failed: No Order ID returned from backend.', statusCode: 500);
+    }
+
+    if (createdOrder.items.isEmpty) {
+      debugPrint('⚠️ Backend returned COD order with empty items list.');
+    }
+
+    await _completeOrderSuccess(createdOrder);
+
+    _showSuccessSnackbar(
+      'Order Placed! Awaiting Confirmation Call',
+      'You will receive a call for confirmation shortly. If the call is not picked up, your order will be cancelled automatically.',
+      Icons.phone_callback_outlined,
+      backgroundColor: Colors.blueAccent.shade400,
+      duration: const Duration(seconds: 7),
+    );
+
+    debugPrint('🎉 Navigating to OrderConfirmationScreen with orderId: ${createdOrder.orderId}');
+    Get.offAll(() => OrderConfirmationScreen());
+  }
+
+  // Process online order
+  Future<void> _processOnlineOrder(CreateOrderRequestModel orderRequest) async {
+    final Map<String, dynamic> response = await _orderService.initiateOnlineOrder(orderRequest);
+    debugPrint('✅ Online payment initiated: $response');
+
+    final paymentData = _validateOnlinePaymentResponse(response);
+    if (paymentData == null) return;
+
+    _currentBackendOrderId = paymentData['newOrderId'];
+    _currentRazorpayOrderId = paymentData['razorpayOrderId'];
+
+    debugPrint('💳 Opening Razorpay with order IDs - Backend: $_currentBackendOrderId, Razorpay: $_currentRazorpayOrderId');
+
+    final options = _buildRazorpayOptions(paymentData, orderRequest);
+    isLoading.value = false;
+    _razorpay.open(options);
+  }
+
+  // Validate online payment response
+  Map<String, dynamic>? _validateOnlinePaymentResponse(Map<String, dynamic> response) {
+    final requiredFields = ['razorpayOrderId', 'amount', 'currency', 'key', 'newOrderId'];
+
+    for (String field in requiredFields) {
+      if (response[field] == null) {
+        debugPrint('🛑 Missing $field in payment response');
+        return null;
+      }
+    }
+
+    return response;
+  }
+
+  // Build Razorpay options
+  Map<String, dynamic> _buildRazorpayOptions(
+      Map<String, dynamic> paymentData,
+      CreateOrderRequestModel orderRequest,
+      ) {
+    return {
+      'key': paymentData['key'],
+      'amount': paymentData['amount'],
+      'name': 'MobiKing E-commerce',
+      'description': 'Order from MobiKing',
+      'order_id': paymentData['razorpayOrderId'],
+      'currency': paymentData['currency'],
+      'prefill': {
+        'email': orderRequest.email,
+        'contact': orderRequest.phoneNo,
+      },
+      'external': {
+        'wallets': ['paytm', 'google_pay'],
+      },
+      'theme': {
+        'color': '#3399FF'
+      },
+    };
+  }
+
+  // Complete order success operations
+  Future<void> _completeOrderSuccess(dynamic createdOrder) async {
+    await _box.write('last_placed_order', createdOrder.toJson());
+    _cartController.clearCartData();
+    debugPrint('✅ Order saved locally and cart cleared');
+  }
+
+  // Improved snackbar methods
+  void _showSuccessSnackbar(String title, String message, IconData icon, {Color? backgroundColor, Duration? duration}) {
+    _showModernSnackbar(
+      title,
+      message,
+      isError: false,
+      icon: icon,
+      backgroundColor: backgroundColor ?? Colors.green.shade400,
+      snackPosition: SnackPosition.TOP,
+      duration: duration,
+    );
+  }
+
+  void _showInfoSnackbar(String title, String message, IconData icon) {
+    _showModernSnackbar(
+      title,
+      message,
+      isError: false,
+      icon: icon,
+      backgroundColor: AppColors.textLight.withOpacity(0.8),
+      snackPosition: SnackPosition.TOP,
+    );
+  }
+
+  // Simplified _promptUserInfo method - Navigate to AddressPage
+// ✅ FIXED _promptUserInfo method with better navigation handling
+  Future<bool> _promptUserInfo() async {
+    try {
+      debugPrint('🚀 Opening AddressPage for user profile management...');
+
+      // Ensure UI is not blocked
+      isLoading.value = false;
+
+      // Get current user data BEFORE navigation
+      final Map<String, dynamic> userBeforeNavigation = Map<String, dynamic>.from(_box.read('user') ?? {});
+      debugPrint('📱 Current user data before navigation: $userBeforeNavigation');
+
+      // Check if Get context is available
+      if (Get.context == null) {
+        debugPrint('❌ Get context is null, cannot navigate');
+        return false;
+      }
+
+      // Show informative snackbar to guide user
+      _showModernSnackbar(
+        'Complete Your Profile',
+        'Please update your personal information in the "User Info" section.',
+        isError: false,
+        icon: Icons.person_outline,
+        backgroundColor: AppColors.primaryGreen,
+        duration: const Duration(seconds: 4),
+      );
+
+      // ✅ Navigate to AddressPage and wait for result
+      final bool? navigationResult = await Get.to<bool>(
+            () => AddressPage(initialUser: userBeforeNavigation),
+        fullscreenDialog: true,
+        transition: Transition.rightToLeft,
+        duration: const Duration(milliseconds: 300),
+        preventDuplicates: true,
+      );
+
+      debugPrint('🔙 AddressPage navigation completed with result: $navigationResult');
+
+      // ✅ Get updated user data AFTER navigation
+      final Map<String, dynamic> updatedUser = Map<String, dynamic>.from(_box.read('user') ?? {});
+      debugPrint('📱 Updated user data after navigation: $updatedUser');
+
+      // ✅ Check if user data was actually updated (compare before and after)
+      final bool userDataChanged = _hasUserDataChanged(userBeforeNavigation, updatedUser);
+      debugPrint('🔄 User data changed: $userDataChanged');
+
+      // ✅ Check if all required fields are now present
+      final bool hasRequiredFields = [
+        updatedUser['_id'],
+        updatedUser['name'],
+        updatedUser['email'],
+        updatedUser['phoneNo']
+      ].every((field) => field != null && field.toString().trim().isNotEmpty);
+
+      debugPrint('✅ Has required fields: $hasRequiredFields');
+
+      // ✅ Determine success based on multiple criteria
+      if (navigationResult == true && hasRequiredFields) {
+        debugPrint('✅ Navigation result is true AND all required fields are present');
+        return true;
+      } else if (hasRequiredFields && userDataChanged) {
+        debugPrint('✅ All required fields are present AND user data was changed (even if navigationResult is null)');
+        return true;
+      } else if (navigationResult == false) {
+        debugPrint('❌ User explicitly cancelled (navigationResult is false)');
+        return false;
+      } else {
+        debugPrint('⚠️ Navigation completed but required fields are still missing');
+        return false;
+      }
+
+    } catch (e, stackTrace) {
+      debugPrint('❌ Exception in _promptUserInfo: $e');
+      debugPrint('Stack trace: $stackTrace');
+      return false;
+    }
+  }
+
+// ✅ Helper method to check if user data actually changed
+  bool _hasUserDataChanged(Map<String, dynamic> before, Map<String, dynamic> after) {
+    final fieldsToCheck = ['_id', 'name', 'email', 'phoneNo'];
+
+    for (String field in fieldsToCheck) {
+      final beforeValue = before[field]?.toString()?.trim() ?? '';
+      final afterValue = after[field]?.toString()?.trim() ?? '';
+
+      if (beforeValue != afterValue) {
+        debugPrint('🔄 Field "$field" changed from "$beforeValue" to "$afterValue"');
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  // Existing methods remain unchanged
   Future<void> fetchOrderHistory({bool isPoll = false}) async {
     if (!isPoll) {
       isLoadingOrderHistory.value = true;
@@ -617,34 +739,14 @@ class OrderController extends GetxController {
       orderHistory.clear();
       orderHistoryErrorMessage.value = e.message;
       if (!isPoll) {
-        _showModernSnackbar(
-          'Order History Failed!',
-          e.message,
-          isError: true,
-          icon: e.statusCode == 401
-              ? Icons.login_outlined
-              : (e.statusCode == 0 ? Icons.cloud_off_outlined : Icons.history_toggle_off_outlined),
-          backgroundColor: e.statusCode == 401
-              ? Colors.orange.shade700
-              : (e.statusCode == 0 ? Colors.red.shade700 : Colors.red.shade400),
-          snackPosition: SnackPosition.TOP,
-        );
+        print('OrderController: Order History Service Error: Status ${e.statusCode} - Message: ${e.message}');
       }
-      print('OrderController: Order History Service Error: Status ${e.statusCode} - Message: ${e.message}');
     } catch (e) {
       orderHistory.clear();
       orderHistoryErrorMessage.value = 'An unexpected error occurred while processing orders: $e';
       if (!isPoll) {
-        _showModernSnackbar(
-          'Critical Error',
-          'An unexpected client-side error occurred: $e',
-          isError: true,
-          icon: Icons.bug_report_outlined,
-          backgroundColor: Colors.red.shade700,
-          snackPosition: SnackPosition.TOP,
-        );
+        print('OrderController: Unexpected Exception in fetchOrderHistory: $e');
       }
-      print('OrderController: Unexpected Exception in fetchOrderHistory: $e');
     } finally {
       if (!isPoll) {
         isLoadingOrderHistory.value = false;
@@ -652,14 +754,11 @@ class OrderController extends GetxController {
     }
   }
 
-
   OrderModel? getOrderById(String orderId) {
     return orderHistory.firstWhereOrNull((order) => order.id == orderId);
   }
 
-
   Future<OrderModel?> OrderById(String orderId) async {
-    // First, try to find the order in the locally cached history
     OrderModel? order = orderHistory.firstWhereOrNull((o) => o.id == orderId);
 
     if (order != null) {
@@ -667,72 +766,33 @@ class OrderController extends GetxController {
       return order;
     }
 
-    // If not found in local cache, try to fetch it from the backend
-    isLoading.value = true; // Show loading indicator
+    isLoading.value = true;
     try {
       print('OrderController: Fetching order $orderId from backend...');
-      // Calls the getOrderDetails method from OrderService
       order = await _orderService.getOrderDetails(orderId: orderId);
       if (order != null) {
-        // Optionally, add/update this order in the local history
         final int index = orderHistory.indexWhere((o) => o.id == order!.id);
         if (index != -1) {
-          orderHistory[index] = order; // Update existing
+          orderHistory[index] = order;
         } else {
-          orderHistory.add(order); // Add new
+          orderHistory.add(order);
         }
-        orderHistory.sort((a, b) => b.createdAt?.compareTo(a.createdAt ?? DateTime(0)) ?? 0); // Keep sorted
+        orderHistory.sort((a, b) => b.createdAt?.compareTo(a.createdAt ?? DateTime(0)) ?? 0);
         print('OrderController: Order $orderId fetched from backend and updated/added to local cache.');
       } else {
         print('OrderController: Order $orderId not found on backend.');
-        _showModernSnackbar(
-          'Order Not Found',
-          'Could not find order with ID: $orderId',
-          isError: true,
-          icon: Icons.search_off_outlined,
-          backgroundColor: Colors.amber.shade700,
-        );
       }
       return order;
     } on OrderServiceException catch (e) {
       print('OrderController: Error fetching order $orderId from backend: ${e.message}');
-      _showModernSnackbar(
-        'Failed to Get Order Details',
-        e.message,
-        isError: true,
-        icon: e.statusCode == 401 ? Icons.login_outlined : (e.statusCode == 0 ? Icons.cloud_off_outlined : Icons.error_outline),
-        backgroundColor: e.statusCode == 401 ? Colors.orange.shade700 : (e.statusCode == 0 ? Colors.red.shade700 : Colors.red.shade400),
-      );
       return null;
     } catch (e) {
       print('OrderController: Unexpected error getting order $orderId: $e');
-      _showModernSnackbar(
-        'Error',
-        'An unexpected error occurred while fetching order details: $e',
-        isError: true,
-        icon: Icons.bug_report_outlined,
-        backgroundColor: Colors.red.shade700,
-      );
       return null;
     } finally {
-      isLoading.value = false; // Hide loading indicator
+      isLoading.value = false;
     }
   }
-
-  Future<bool> _promptUserInfo() async {
-    final GetStorage _box = GetStorage();
-    final user = _box.read('user') ?? {};
-    final bool? result = await Get.to<bool?>(
-          () => UserInfoScreen(initialUser: user),
-      fullscreenDialog: true,
-      transition: Transition.rightToLeft,
-    );
-    return result ?? false;
-  }
-
-  /// Retrieves an order from the local history by ID.
-  /// If not found locally, it attempts to fetch it from the backend.
-  /// Returns the OrderModel if found, otherwise null.
 
   Future<void> sendOrderRequest(String orderId, String requestType) async {
     selectedReasonForRequest.value = '';
@@ -833,15 +893,9 @@ class OrderController extends GetxController {
                   onPressed: () {
                     String currentReason = selectedReasonForRequest.value;
                     if (currentReason.isEmpty) {
-                      _showModernSnackbar('Reason Required', 'Please select a reason.', isError: true, icon: Icons.info_outline, backgroundColor: Colors.orange);
+                      // Removed error snackbar
                     } else if (currentReason == 'Other (please specify)' && (reasonController.text.trim().isEmpty || reasonController.text.trim().length < 10)) {
-                      _showModernSnackbar(
-                        'Reason Required',
-                        reasonController.text.trim().isEmpty ? 'Please enter a reason for "Other (please specify)".' : 'Reason must be at least 10 characters long.',
-                        isError: true,
-                        icon: Icons.info_outline,
-                        backgroundColor: Colors.orange,
-                      );
+                      // Removed error snackbar
                     } else {
                       Get.back(result: true);
                     }
@@ -899,17 +953,13 @@ class OrderController extends GetxController {
       _showModernSnackbar('Success', successMessage, isError: false, icon: Icons.check_circle_outline, backgroundColor: Colors.green);
       await fetchOrderHistory();
     } on OrderServiceException catch (e) {
-      _showModernSnackbar('Request Failed', e.message, isError: true, icon: Icons.error_outline, backgroundColor: Colors.red);
+      print('OrderServiceException: ${e.message}');
     } catch (e) {
-      _showModernSnackbar('Error', 'An unexpected error occurred: $e', isError: true, icon: Icons.error_outline, backgroundColor: Colors.red);
+      print('Unexpected error: $e');
     } finally {
       isLoading.value = false;
     }
   }
-  /// Retrieves an order from the local history by ID.
-  /// If not found locally, it attempts to fetch it from the backend.
-  /// Returns the OrderModel if found, otherwise null.
-
 
   bool _isSpecificRequestActive(OrderModel order, String type) {
     if (order.requests == null || order.requests!.isEmpty) return false;

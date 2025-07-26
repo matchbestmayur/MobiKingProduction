@@ -1,126 +1,207 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-// If your AppTheme exclusively defines all text styles, you can remove this.
-// Otherwise, if it uses GoogleFonts internally or for base styles, keep it.
-// import 'package:google_fonts/google_fonts.dart';
 
-import '../../themes/app_theme.dart'; // Import your AppTheme
+import '../../themes/app_theme.dart';
 
-class TermsAndConditionsScreen extends StatelessWidget {
+class TermsAndConditionsScreen extends StatefulWidget {
   const TermsAndConditionsScreen({super.key});
 
   @override
+  State<TermsAndConditionsScreen> createState() => _TermsAndConditionsScreenState();
+}
+
+class _TermsAndConditionsScreenState extends State<TermsAndConditionsScreen>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  late List<Animation<double>> _animations;
+  final ScrollController _scrollController = ScrollController();
+
+  final List<Map<String, String>> _sections = [
+    {
+      'title': 'Welcome',
+      'content':
+      'These Terms & Conditions govern your use of our app. By using our app, you agree to these terms in full.',
+    },
+    {
+      'title': 'User Accounts',
+      'content':
+      'When you create an account with us, you must provide us with information that is accurate, complete, and current at all times. Failure to do so constitutes a breach of the Terms, which may result in immediate termination of your account on our Service.',
+    },
+    {
+      'title': 'Intellectual Property',
+      'content':
+      'The Service and its original content, features, and functionality are and will remain the exclusive property of Mobiking and its licensors. Our trademarks and trade dress may not be used in connection with any product or service without the prior written consent of Mobiking.',
+    },
+    {
+      'title': 'User Responsibilities',
+      'content':
+      'You agree to use the app only for lawful purposes and not to infringe the rights of others or restrict their usage. This includes refraining from engaging in any unlawful, fraudulent, or harmful activities.',
+    },
+    {
+      'title': 'Limitation of Liability',
+      'content':
+      'In no event shall Mobiking, nor its directors, employees, partners, agents, suppliers, or affiliates, be liable for any indirect, incidental, special, consequential, or punitive damages.',
+    },
+    {
+      'title': 'Changes to Terms',
+      'content':
+      'We reserve the right to modify or replace these Terms at any time. If a revision is material, we will try to provide at least 30 days notice before any new terms take effect.',
+    },
+    {
+      'title': 'Governing Law',
+      'content':
+      'These Terms shall be governed and construed in accordance with the laws of India, without regard to its conflict of law provisions.',
+    },
+    {
+      'title': 'Contact Us',
+      'content':
+      'If you have any questions about these Terms & Conditions, please contact us at support@mobiking.com.',
+    },
+  ];
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      duration: const Duration(milliseconds: 800),
+      vsync: this,
+    );
+
+    _animations = List.generate(
+      _sections.length,
+          (index) => Tween<double>(begin: 0.0, end: 1.0).animate(
+        CurvedAnimation(
+          parent: _controller,
+          curve: Interval(
+            (index / _sections.length) * 0.6,
+            1.0,
+            curve: Curves.easeOutCubic,
+          ),
+        ),
+      ),
+    );
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _controller.forward();
+    });
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final TextTheme textTheme = Theme.of(context).textTheme; // Get TextTheme
+    final TextTheme textTheme = Theme.of(context).textTheme;
 
     return Scaffold(
-      backgroundColor: AppColors.neutralBackground, // Consistent Blinkit-like background
+      backgroundColor: AppColors.neutralBackground,
       appBar: AppBar(
-        leading: IconButton( // Use IconButton for standard back arrow styling
-            onPressed: () => Get.back(),
-            icon: const Icon(Icons.arrow_back, color: AppColors.textDark)), // Dark back arrow
+        leading: IconButton(
+          onPressed: () => Get.back(),
+          icon: const Icon(Icons.arrow_back, color: AppColors.textDark),
+        ),
         automaticallyImplyLeading: false,
         title: Text(
           'Terms & Conditions',
           style: textTheme.titleLarge?.copyWith(
-            fontWeight: FontWeight.w700, // Bolder title
-            color: AppColors.textDark, // Dark text for AppBar title
+            fontWeight: FontWeight.w700,
+            color: AppColors.textDark,
           ),
         ),
-        backgroundColor: AppColors.white, // White AppBar background
-        elevation: 0.5, // Subtle shadow for AppBar
+        backgroundColor: AppColors.white,
+        elevation: 0.5,
       ),
-      body: SafeArea(
-        child: SingleChildScrollView(
-          scrollDirection: Axis.vertical,
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24), // Consistent padding
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _buildSection(
+      body: SingleChildScrollView(
+        controller: _scrollController,
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: List.generate(_sections.length, (index) {
+            return AnimatedBuilder(
+              animation: _animations[index],
+              builder: (context, child) {
+                return Opacity(
+                  opacity: _animations[index].value,
+                  child: Transform.translate(
+                    offset: Offset(0, 30 * (1 - _animations[index].value)),
+                    child: child,
+                  ),
+                );
+              },
+              child: _buildSection(
                 textTheme,
-                'Welcome',
-                'These Terms & Conditions govern your use of our app. By using our app, you agree to these terms in full.',
+                _sections[index]['title']!,
+                _sections[index]['content']!,
               ),
-              const SizedBox(height: 24), // Consistent spacing between sections
-
-              _buildSection(
-                textTheme,
-                'User Accounts',
-                'When you create an account with us, you must provide us with information that is accurate, complete, and current at all times. Failure to do so constitutes a breach of the Terms, which may result in immediate termination of your account on our Service.',
-              ),
-              const SizedBox(height: 24),
-
-              _buildSection(
-                textTheme,
-                'Intellectual Property',
-                'The Service and its original content, features, and functionality are and will remain the exclusive property of Mobiking and its licensors. Our trademarks and trade dress may not be used in connection with any product or service without the prior written consent of Mobiking.',
-              ),
-              const SizedBox(height: 24),
-
-              _buildSection(
-                textTheme,
-                'User Responsibilities',
-                'You agree to use the app only for lawful purposes and not to infringe the rights of others or restrict their usage. This includes refraining from engaging in any unlawful, fraudulent, or harmful activities.',
-              ),
-              const SizedBox(height: 24),
-
-              _buildSection(
-                textTheme,
-                'Limitation of Liability',
-                'In no event shall Mobiking, nor its directors, employees, partners, agents, suppliers, or affiliates, be liable for any indirect, incidental, special, consequential, or punitive damages, including without limitation, loss of profits, data, use, goodwill, or other intangible losses, resulting from your access to or use of or inability to access or use the Service.',
-              ),
-              const SizedBox(height: 24),
-
-              _buildSection(
-                textTheme,
-                'Changes to Terms',
-                'We reserve the right, at our sole discretion, to modify or replace these Terms at any time. If a revision is material, we will try to provide at least 30 days notice prior to any new terms taking effect. What constitutes a material change will be determined at our sole discretion. By continuing to access or use our Service after those revisions become effective, you agree to be bound by the revised terms.',
-              ),
-              const SizedBox(height: 24),
-
-              _buildSection(
-                textTheme,
-                'Governing Law',
-                'These Terms shall be governed and construed in accordance with the laws of India, without regard to its conflict of law provisions.',
-              ),
-              const SizedBox(height: 24),
-
-              _buildSection(
-                textTheme,
-                'Contact Us',
-                'If you have any questions about these Terms & Conditions, please contact us at support@mobiking.com.', // Changed to your specific email
-              ),
-              const SizedBox(height: 16), // Padding at the bottom
-            ],
-          ),
+            );
+          }),
         ),
       ),
     );
   }
 
-  // Helper method for a section (heading + paragraph)
   Widget _buildSection(TextTheme textTheme, String heading, String paragraph) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          heading,
-          style: textTheme.headlineSmall?.copyWith( // Use headlineSmall for prominent headings
-            fontWeight: FontWeight.w700, // Bolder for section titles
-            color: AppColors.textDark, // Dark text for headings
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Heading with dividers
+          Row(
+            children: [
+              Expanded(
+                child: Divider(
+                  color: AppColors.textMedium.withOpacity(0.3),
+                  thickness: 1,
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                child: Text(
+                  heading.toUpperCase(),
+                  style: textTheme.headlineSmall?.copyWith(
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.textDark,
+                    letterSpacing: 1.1,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+              ),
+              Expanded(
+                child: Divider(
+                  color: AppColors.textMedium.withOpacity(0.3),
+                  thickness: 1,
+                ),
+              ),
+            ],
           ),
-        ),
-        const SizedBox(height: 10), // Space between heading and paragraph
-        Text(
-          paragraph,
-          style: textTheme.bodyLarge?.copyWith( // Use bodyLarge for main paragraph text
-            color: AppColors.textMedium, // Slightly darker grey for readability
-            height: 1.6, // Good line spacing
+          const SizedBox(height: 16),
+          // Paragraph container
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: AppColors.neutralBackground.withOpacity(0.7),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: AppColors.textMedium.withOpacity(0.2),
+                width: 1,
+              ),
+            ),
+            child: Text(
+              paragraph,
+              style: textTheme.bodyLarge?.copyWith(
+                color: AppColors.textMedium,
+                height: 1.6,
+              ),
+              textAlign: TextAlign.justify,
+            ),
           ),
-          textAlign: TextAlign.justify, // Justify text for a more formal look
-        ),
-      ],
+        ],
+      ),
     );
   }
 }
