@@ -1,8 +1,15 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="com.example.mobiking">
 
-    <!-- 👇 THIS IS REQUIRED FOR INTERNET ACCESS -->
+    <!-- 👇 EXISTING INTERNET PERMISSION -->
     <uses-permission android:name="android.permission.INTERNET" />
+
+    <!-- 👇 NEW LOCATION PERMISSIONS FOR GPS FUNCTIONALITY -->
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+
+    <!-- 👇 OPTIONAL: For better location accuracy on older devices -->
+    <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
 
     <application
         android:label="mobiking"

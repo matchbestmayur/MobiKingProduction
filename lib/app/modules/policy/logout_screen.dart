@@ -100,14 +100,14 @@ void showLogoutDialog(BuildContext context) {
             } catch (error) {
               // ✅ Handle logout error
               Get.back(); // Close loading dialog
-              Get.snackbar(
+           /*   Get.snackbar(
                 'Error',
                 'Failed to logout. Please try again.',
                 backgroundColor: AppColors.danger,
                 colorText: AppColors.white,
                 icon: Icon(Icons.error, color: AppColors.white),
                 duration: const Duration(seconds: 3),
-              );
+              );*/
             }
           },
           icon: const Icon(Icons.check_circle_outline, color: Colors.white), // Ensure icon color is white for contrast

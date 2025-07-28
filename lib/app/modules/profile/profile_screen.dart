@@ -113,7 +113,7 @@ class ProfileScreen extends StatelessWidget {
                       icon: Icons.headset_mic_outlined,
                       title: 'Support',
                       onPressed: () {
-                        showSupportDialog(context);
+                        Get.to(() => const QueriesScreen());
                       },
                     ),
                   ),
@@ -436,21 +436,21 @@ class ProfileScreen extends StatelessWidget {
     try {
       if (await canLaunchUrl(Uri.parse(whatsappUrl))) {
         await launchUrl(Uri.parse(whatsappUrl), mode: LaunchMode.externalApplication);
-      } else {
+      } else {/*
         Get.snackbar(
           'Error',
           'WhatsApp is not installed on your device',
           backgroundColor: AppColors.danger,
           colorText: AppColors.white,
-        );
+        );*/
       }
     } catch (e) {
-      Get.snackbar(
+      /*Get.snackbar(
         'Error',
         'Could not open WhatsApp',
         backgroundColor: AppColors.danger,
         colorText: AppColors.white,
-      );
+      );*/
     }
   }
 }

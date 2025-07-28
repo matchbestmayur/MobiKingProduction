@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:get_storage/get_storage.dart';
 import 'package:get/get.dart';
+import 'package:flutter/material.dart';
 
 class CartService {
   final String baseUrl = 'https://mobiking-e-commerce-backend-prod.vercel.app/api/v1';
@@ -12,7 +13,7 @@ class CartService {
     print('[CartService] $message');
   }
 
-  // ✅ ENHANCED: Helper to get common headers with error handling
+  // Helper to get common headers with error handling
   Map<String, String>? _getHeaders() {
     try {
       String? accessToken = box.read('accessToken');
@@ -44,7 +45,7 @@ class CartService {
     }
   }
 
-  // ✅ ENHANCED: Add to cart with comprehensive error handling
+  // Add to cart with comprehensive error handling
   Future<Map<String, dynamic>> addToCart({
     required String productId,
     required String cartId,
@@ -104,6 +105,13 @@ class CartService {
         try {
           final responseData = jsonDecode(response.body);
           _log('Successfully added to cart');
+
+          // Show success message to user
+          /*Get.snackbar('Success', 'Item added to cart successfully!',
+              snackPosition: SnackPosition.BOTTOM,
+              backgroundColor: Colors.green.shade600,
+              colorText: Colors.white);*/
+
           return responseData;
         } catch (jsonError) {
           _log('JSON parsing error in addToCart: $jsonError');
@@ -164,7 +172,7 @@ class CartService {
     }
   }
 
-  // ✅ ENHANCED: Remove from cart with comprehensive error handling
+  // Remove from cart with comprehensive error handling
   Future<Map<String, dynamic>> removeFromCart({
     required String productId,
     required String cartId,
@@ -222,6 +230,13 @@ class CartService {
         try {
           final responseData = jsonDecode(response.body);
           _log('Successfully removed from cart');
+
+          // Show success message to user
+         /* Get.snackbar('Success', 'Item removed from cart successfully!',
+              snackPosition: SnackPosition.BOTTOM,
+              backgroundColor: Colors.green.shade600,
+              colorText: Colors.white);
+*/
           return responseData;
         } catch (jsonError) {
           _log('JSON parsing error in removeFromCart: $jsonError');
@@ -282,7 +297,7 @@ class CartService {
     }
   }
 
-  // ✅ ENHANCED: Fetch cart with comprehensive error handling
+  // Fetch cart with comprehensive error handling
   Future<Map<String, dynamic>> fetchCart({required String cartId}) async {
     // Input validation
     if (cartId.trim().isEmpty) {
@@ -365,7 +380,7 @@ class CartService {
     }
   }
 
-  // ✅ NEW: Update cart item quantity
+  // Update cart item quantity
   Future<Map<String, dynamic>> updateCartItemQuantity({
     required String productId,
     required String cartId,
@@ -431,6 +446,13 @@ class CartService {
         try {
           final responseData = jsonDecode(response.body);
           _log('Successfully updated cart quantity');
+/*
+          // Show success message to user
+          Get.snackbar('Success', 'Cart updated successfully!',
+              snackPosition: SnackPosition.BOTTOM,
+              backgroundColor: Colors.green.shade600,
+              colorText: Colors.white);*/
+
           return responseData;
         } catch (jsonError) {
           _log('JSON parsing error in updateCartItemQuantity: $jsonError');
@@ -464,7 +486,7 @@ class CartService {
     }
   }
 
-  // ✅ NEW: Clear entire cart
+  // Clear entire cart
   Future<Map<String, dynamic>> clearCart({required String cartId}) async {
     if (cartId.trim().isEmpty) {
       _log('Error: Cart ID is missing for clear');
@@ -500,6 +522,13 @@ class CartService {
         try {
           final responseData = jsonDecode(response.body);
           _log('Successfully cleared cart');
+
+          // Show success message to user
+          Get.snackbar('Success', 'Cart cleared successfully!',
+              snackPosition: SnackPosition.BOTTOM,
+              backgroundColor: Colors.green.shade600,
+              colorText: Colors.white);
+
           return responseData;
         } catch (jsonError) {
           _log('JSON parsing error in clearCart: $jsonError');
@@ -533,7 +562,7 @@ class CartService {
     }
   }
 
-  // ✅ NEW: Health check method
+  // Health check method
   Future<bool> checkServiceHealth() async {
     try {
       _log('Performing health check...');
@@ -560,7 +589,7 @@ class CartService {
     }
   }
 
-  // ✅ NEW: Get cart ID from storage
+  // Get cart ID from storage
   String? getCartId() {
     try {
       return box.read('cartId');
@@ -570,7 +599,7 @@ class CartService {
     }
   }
 
-  // ✅ NEW: Store cart ID
+  // Store cart ID
   Future<bool> storeCartId(String cartId) async {
     try {
       await box.write('cartId', cartId);
@@ -582,7 +611,7 @@ class CartService {
     }
   }
 
-  // ✅ NEW: Clear stored cart ID
+  // Clear stored cart ID
   Future<bool> clearStoredCartId() async {
     try {
       await box.remove('cartId');

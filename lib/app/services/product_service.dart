@@ -1,29 +1,39 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'package:get/get.dart';
+import 'package:flutter/material.dart';
 import '../data/product_model.dart';
 
 class ProductService {
   static const String baseUrl = "https://mobiking-e-commerce-backend-prod.vercel.app/api/v1";
 
+  void _log(String message) {
+    print('[ProductService] $message');
+  }
+
   /// Fetch products with given limit (page is fixed to 1 for your new design)
   Future<List<ProductModel>> getProductsPaginated({required int limit}) async {
     final url = Uri.parse('$baseUrl/products?page=1&limit=$limit');
-    print('GET /products?page=1&limit=$limit'); // For debugging
+    _log('GET /products?page=1&limit=$limit');
 
     try {
       final response = await http.get(url);
-      print('Response body: ${response.body}');
+      _log('Response body: ${response.body}');
 
       if (response.statusCode == 200) {
         final jsonData = json.decode(response.body);
         final List data = jsonData['data'];
-        return data.map((e) => ProductModel.fromJson(e)).toList();
+        final products = data.map((e) => ProductModel.fromJson(e)).toList();
+
+        _log('Successfully fetched ${products.length} products');
+
+        return products;
       } else {
-        // ❌ Exception thrown when server doesn't return 200 (OK)
+        _log("Failed to fetch products: ${response.reasonPhrase} (Status: ${response.statusCode})");
         throw Exception("Failed to fetch products: ${response.reasonPhrase} (Status: ${response.statusCode})");
       }
     } catch (e) {
-      // ❌ Exception thrown for connection errors, parsing issues, or unexpected exceptions
+      _log("Error while fetching products: $e");
       throw Exception("Error while fetching products: $e");
     }
   }
@@ -32,41 +42,63 @@ class ProductService {
   Future<ProductModel> createProduct(ProductModel product) async {
     final url = Uri.parse('$baseUrl/products/create');
 
-    final response = await http.post(
-      url,
-      headers: {'Content-Type': 'application/json'},
-      body: jsonEncode(product.toJson()),
-    );
+    try {
+      final response = await http.post(
+        url,
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode(product.toJson()),
+      );
 
-    print('POST /products/create response body: ${response.body}');
+      _log('POST /products/create response body: ${response.body}');
 
-    if (response.statusCode == 201 || response.statusCode == 200) {
-      final jsonData = json.decode(response.body);
-      return ProductModel.fromJson(jsonData['data']);
-    } else {
-      // ❌ Exception thrown when product creation fails due to bad request, server error, etc.
-      throw Exception("Failed to create product: ${response.reasonPhrase}");
+      if (response.statusCode == 201 || response.statusCode == 200) {
+        final jsonData = json.decode(response.body);
+        final createdProduct = ProductModel.fromJson(jsonData['data']);
+
+        _log('Successfully created product: ${createdProduct.name}');
+
+        return createdProduct;
+      } else {
+        _log("Failed to create product: ${response.reasonPhrase}");
+        throw Exception("Failed to create product: ${response.reasonPhrase}");
+      }
+    } catch (e) {
+      _log("Error while creating product: $e");
+      throw Exception("Error while creating product: $e");
     }
   }
 
   /// Fetch single product by slug
   Future<ProductModel> fetchProductBySlug(String slug) async {
     final url = Uri.parse('$baseUrl/products/details/$slug');
-    final response = await http.get(url);
-    print('GET /products/details/$slug response body: ${response.body}');
 
-    if (response.statusCode == 200) {
-      final jsonData = json.decode(response.body);
-      return ProductModel.fromJson(jsonData['data']);
-    } else {
-      // ❌ Exception thrown when product with given slug is not found
-      throw Exception("Product not found");
+    try {
+      final response = await http.get(url);
+      _log('GET /products/details/$slug response body: ${response.body}');
+
+      if (response.statusCode == 200) {
+        final jsonData = json.decode(response.body);
+        final product = ProductModel.fromJson(jsonData['data']);
+
+        _log('Successfully fetched product by slug: $slug');
+
+        return product;
+      } else {
+        _log("Product not found for slug: $slug");
+        throw Exception("Product not found");
+      }
+    } catch (e) {
+      _log("Error while fetching product by slug $slug: $e");
+      throw Exception("Error while fetching product by slug: $e");
     }
   }
 
   /// Search for products by query
   Future<List<ProductModel>> searchProducts(String query) async {
-    if (query.trim().isEmpty) return [];
+    if (query.trim().isEmpty) {
+      _log('Empty search query provided');
+      return [];
+    }
 
     final Uri url = Uri.parse(
       '$baseUrl/products/all/search?q=${Uri.encodeComponent(query.trim())}',
@@ -74,18 +106,22 @@ class ProductService {
 
     try {
       final response = await http.get(url);
-      print('GET $url response: ${response.body}');
+      _log('GET $url response: ${response.body}');
 
       if (response.statusCode == 200) {
         final jsonData = json.decode(response.body);
         final List data = jsonData['data'];
-        return data.map((e) => ProductModel.fromJson(e)).toList();
+        final products = data.map((e) => ProductModel.fromJson(e)).toList();
+
+        _log('Successfully searched products: found ${products.length} results for query: ${query.trim()}');
+
+        return products;
       } else {
-        // ❌ Exception thrown when search request fails or server returns error
+        _log("Failed to search products: ${response.reasonPhrase}");
         throw Exception("Failed to search products: ${response.reasonPhrase}");
       }
     } catch (e) {
-      // ❌ Exception thrown for network issues, JSON parsing errors, or other unhandled problems
+      _log("Search error: $e");
       throw Exception("Search error: $e");
     }
   }
@@ -101,18 +137,22 @@ class ProductService {
 
     try {
       final response = await http.get(url);
-      print('GET $url response: ${response.body}');
+      _log('GET $url response: ${response.body}');
 
       if (response.statusCode == 200) {
         final jsonData = json.decode(response.body);
         final List data = jsonData['data']['products'];
-        return data.map((e) => ProductModel.fromJson(e)).toList();
+        final products = data.map((e) => ProductModel.fromJson(e)).toList();
+
+        _log('Successfully fetched all products: ${products.length} products (page $page, limit $limit)');
+
+        return products;
       } else {
-        // ❌ Exception thrown if the server returns an unexpected status code
+        _log("Failed to load products: ${response.reasonPhrase}");
         throw Exception("Failed to load products: ${response.reasonPhrase}");
       }
     } catch (e) {
-      // ❌ Exception thrown for network, parsing, or unknown errors
+      _log("Error fetching products: $e");
       throw Exception("Error fetching products: $e");
     }
   }

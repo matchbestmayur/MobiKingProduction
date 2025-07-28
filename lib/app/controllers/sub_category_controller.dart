@@ -49,7 +49,7 @@ class SubCategoryController extends GetxController {
     } catch (e, stackTrace) {
       print('❌ Error fetching subcategories: $e');
       print(stackTrace);
-      Get.snackbar('Error', 'Failed to fetch subcategories: ${e.toString()}');
+    /*  Get.snackbar('Error', 'Failed to fetch subcategories: ${e.toString()}');*/
     } finally {
       isLoading.value = false;
     }
@@ -71,7 +71,7 @@ class SubCategoryController extends GetxController {
 
       print("✅ Subcategory added: ${newItem.name} (${newItem.id})");
     } catch (e) {
-      Get.snackbar('Error', 'Failed to add subcategory: ${e.toString()}');
+/*      Get.snackbar('Error', 'Failed to add subcategory: ${e.toString()}');*/
       print('❌ Error adding subcategory: $e');
     } finally {
       isLoading.value = false;

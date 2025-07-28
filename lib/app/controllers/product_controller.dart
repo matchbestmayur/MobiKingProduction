@@ -84,7 +84,7 @@ class ProductController extends GetxController {
       isLoading.value = true;
       final newProduct = await _productService.createProduct(product);
       allProducts.insert(0, newProduct);
-      Get.snackbar('Success', 'Product added successfully!', snackPosition: SnackPosition.BOTTOM);
+      /*Get.snackbar('Success', 'Product added successfully!', snackPosition: SnackPosition.BOTTOM);*/
     } catch (e) {
       print('Error adding product: $e');
     } finally {

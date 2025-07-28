@@ -166,11 +166,11 @@ class AddressController extends GetxController {
     } on AddressServiceException catch (e) {
       print('AddressController: Error fetching addresses: $e');
       addressErrorMessage.value = e.message;
-      _showSnackbar('Fetch Failed', e.message, Colors.red, Icons.cloud_off_outlined);
+     /* _showSnackbar('Fetch Failed', e.message, Colors.red, Icons.cloud_off_outlined);*/
     } catch (e) {
       print('AddressController: Unexpected error fetching addresses: $e');
       addressErrorMessage.value = 'An unexpected error occurred while fetching addresses.';
-      _showSnackbar('Error', 'An unexpected error occurred while fetching addresses.', Colors.red, Icons.cloud_off_outlined);
+     /* _showSnackbar('Error', 'An unexpected error occurred while fetching addresses.', Colors.red, Icons.cloud_off_outlined);*/
     } finally {
       isLoading.value = false;
     }
@@ -272,12 +272,12 @@ class AddressController extends GetxController {
     } on AddressServiceException catch (e) {
       print('AddressController: Error saving address: $e');
       addressErrorMessage.value = e.message;
-      _showSnackbar(_isEditing.value ? 'Update Failed' : 'Add Failed', e.message, Colors.red, Icons.error_outline);
+     /* _showSnackbar(_isEditing.value ? 'Update Failed' : 'Add Failed', e.message, Colors.red, Icons.error_outline);*/
       return false;
     } catch (e) {
       print('AddressController: Unexpected error saving address: $e');
       addressErrorMessage.value = 'An unexpected error occurred. Please try again later.';
-      _showSnackbar('Error', 'An unexpected error occurred. Please try again later.', Colors.red, Icons.cloud_off_outlined);
+  /*    _showSnackbar('Error', 'An unexpected error occurred. Please try again later.', Colors.red, Icons.cloud_off_outlined);*/
       return false;
     } finally {
       isLoading.value = false;
@@ -302,12 +302,12 @@ class AddressController extends GetxController {
     } on AddressServiceException catch (e) {
       print('AddressController: Error deleting address: $e');
       addressErrorMessage.value = e.message;
-      _showSnackbar('Deletion Failed', e.message, Colors.red, Icons.error_outline);
+     /* _showSnackbar('Deletion Failed', e.message, Colors.red, Icons.error_outline);*/
       return false;
     } catch (e) {
       print('AddressController: Unexpected error deleting address: $e');
       addressErrorMessage.value = 'An unexpected error occurred while deleting address.';
-      _showSnackbar('Error', 'An unexpected error occurred while deleting address.', Colors.red, Icons.cloud_off_outlined);
+     /* _showSnackbar('Error', 'An unexpected error occurred while deleting address.', Colors.red, Icons.cloud_off_outlined);*/
       return false;
     } finally {
       isLoading.value = false;

@@ -28,6 +28,7 @@ class CategoryService {
             ?.map((e) => SubCategory.fromJson(e))
             .toList() ?? <SubCategory>[];
 
+        print('CategoryService: Successfully fetched category details for slug: $slug');
         return {
           'category': category,
           'subCategories': subCategories,

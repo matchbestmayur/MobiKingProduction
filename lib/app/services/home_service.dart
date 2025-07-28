@@ -1,5 +1,7 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'package:get/get.dart';
+import 'package:flutter/material.dart';
 import '../data/Home_model.dart';
 import '../data/group_model.dart';
 
@@ -10,7 +12,7 @@ class HomeService {
     print('[HomeService] $message');
   }
 
-  /// ✅ ENHANCED: Get home layout with comprehensive error handling
+  /// Get home layout with comprehensive error handling
   Future<HomeLayoutModel?> getHomeLayout() async {
     try {
       final url = Uri.parse('$_baseUrl/home/');
@@ -65,6 +67,13 @@ class HomeService {
               try {
                 final homeLayout = HomeLayoutModel.fromJson(dataField);
                 _log('✅ Successfully parsed HomeLayoutModel');
+
+                // Show success message for successful home layout load
+               /* Get.snackbar('Success', 'Home content loaded successfully!',
+                    snackPosition: SnackPosition.BOTTOM,
+                    backgroundColor: Colors.green.shade600,
+                    colorText: Colors.white);
+*/
                 return homeLayout;
               } catch (modelError) {
                 _log('❌ Error parsing HomeLayoutModel: $modelError');
@@ -103,7 +112,7 @@ class HomeService {
     }
   }
 
-  /// ✅ ENHANCED: Get groups by category with comprehensive error handling
+  /// Get groups by category with comprehensive error handling
   Future<List<GroupModel>> getGroupsByCategory(String categoryId) async {
     // Input validation
     if (categoryId.trim().isEmpty) {
@@ -169,6 +178,15 @@ class HomeService {
               }
 
               _log('✅ Successfully parsed ${groups.length} groups out of ${dataField.length} items');
+
+              // Show success message for successful groups fetch
+              if (groups.isNotEmpty) {
+              /*  Get.snackbar('Success', '${groups.length} products loaded successfully!',
+                    snackPosition: SnackPosition.BOTTOM,
+                    backgroundColor: Colors.green.shade600,
+                    colorText: Colors.white);*/
+              }
+
               return groups;
             } else {
               _log('❌ Expected a list in data field, got: ${dataField.runtimeType}');
@@ -203,7 +221,7 @@ class HomeService {
     }
   }
 
-  // ✅ NEW: Health check method
+  // Health check method
   Future<bool> checkServiceHealth() async {
     try {
       _log('Performing health check...');
@@ -223,7 +241,7 @@ class HomeService {
     }
   }
 
-  // ✅ NEW: Get groups by multiple categories
+  // Get groups by multiple categories
   Future<Map<String, List<GroupModel>>> getGroupsByMultipleCategories(List<String> categoryIds) async {
     if (categoryIds.isEmpty) {
       _log('Error: No category IDs provided');
@@ -247,10 +265,20 @@ class HomeService {
     }
 
     _log('✅ Completed fetching groups for ${result.length} categories');
+
+    // Show success message for multiple categories fetch
+    int totalGroups = result.values.fold(0, (sum, list) => sum + list.length);
+    if (totalGroups > 0) {
+     /* Get.snackbar('Success', 'Loaded $totalGroups products across ${result.length} categories!',
+          snackPosition: SnackPosition.BOTTOM,
+          backgroundColor: Colors.green.shade600,
+          colorText: Colors.white);*/
+    }
+
     return result;
   }
 
-  // ✅ NEW: Get group by ID with error handling
+  // Get group by ID with error handling
   Future<GroupModel?> getGroupById(String groupId) async {
     if (groupId.trim().isEmpty) {
       _log('Error: Group ID is required');
@@ -275,6 +303,13 @@ class HomeService {
             if (dataField is Map<String, dynamic>) {
               final group = GroupModel.fromJson(dataField);
               _log('✅ Successfully fetched group: ${group.id}');
+
+        /*      // Show success message for successful group fetch
+              Get.snackbar('Success', 'Product details loaded successfully!',
+                  snackPosition: SnackPosition.BOTTOM,
+                  backgroundColor: Colors.green.shade600,
+                  colorText: Colors.white);*/
+
               return group;
             }
           }
@@ -295,7 +330,7 @@ class HomeService {
     }
   }
 
-  // ✅ NEW: Search groups with error handling
+  // Search groups with error handling
   Future<List<GroupModel>> searchGroups(String query) async {
     if (query.trim().isEmpty) {
       _log('Empty search query provided');
@@ -332,6 +367,15 @@ class HomeService {
               }
 
               _log('✅ Found ${groups.length} groups matching query: ${query.trim()}');
+
+              // Show success message for successful search
+              if (groups.isNotEmpty) {
+              /*  Get.snackbar('Success', 'Found ${groups.length} products matching "${query.trim()}"!',
+                    snackPosition: SnackPosition.BOTTOM,
+                    backgroundColor: Colors.green.shade600,
+                    colorText: Colors.white);*/
+              }
+
               return groups;
             }
           }

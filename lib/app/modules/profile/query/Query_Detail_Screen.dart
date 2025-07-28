@@ -1017,12 +1017,12 @@ class _QueryDetailScreenState extends State<QueryDetailScreen> with TickerProvid
     } else {
       print('QueryDetailScreen: Cannot send message - text empty or no current query');
       if (currentQuery?.id == null) {
-        Get.snackbar(
+        /*Get.snackbar(
           'Error',
           'No active query found. Please refresh the page.',
           backgroundColor: AppColors.danger,
           colorText: AppColors.white,
-        );
+        );*/
       }
     }
   }

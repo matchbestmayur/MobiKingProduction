@@ -41,9 +41,9 @@ class RecentOrdersScreen extends StatelessWidget {
               const SizedBox(height: 32),
               ElevatedButton.icon(
                 onPressed: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
+                 /* ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(content: Text('Navigating to Shopping Screen... (Mock)')),
-                  );
+                  );*/
                 },
                 icon: const Icon(Icons.store),
                 label: const Text('Go Shopping'),

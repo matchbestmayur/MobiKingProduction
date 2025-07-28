@@ -27,20 +27,11 @@ class AddressService extends GetxService {
   final dio.Dio _dio;
 
   AddressService(this._dio, this._box);
-/*
-
-  final String _addUrl = 'https://mobiking-e-commerce-backend.vercel.app/api/v1/users/address/add';
-  final String _viewUrl = 'https://mobiking-e-commerce-backend.vercel.app/api/v1/users/address/view';
-  final String _deleteBaseUrl = 'https://mobiking-e-commerce-backend.vercel.app/api/v1/users/address/';
-  // New base URL for update operations (PUT request)
-  final String _updateBaseUrl = 'https://mobiking-e-commerce-backend.vercel.app/api/v1/users/address/';
-*/
 
   final String _addUrl = 'https://mobiking-e-commerce-backend-prod.vercel.app/api/v1/users/address/add';
   final String _viewUrl = 'https://mobiking-e-commerce-backend-prod.vercel.app/api/v1/users/address/view';
   final String _deleteBaseUrl = 'https://mobiking-e-commerce-backend-prod.vercel.app/api/v1/users/address/';
   final String _updateBaseUrl = 'https://mobiking-e-commerce-backend-prod.vercel.app/api/v1/users/address/';
-
 
   String? _getAccessToken() {
     final token = _box.read('accessToken');
@@ -53,7 +44,6 @@ class AddressService extends GetxService {
   Future<List<AddressModel>> fetchUserAddresses() async {
     final token = _getAccessToken();
     if (token == null) {
-      _showError('Authentication Error', 'Please log in to view addresses.');
       throw AddressServiceException('Authentication token missing.');
     }
 
@@ -80,49 +70,30 @@ class AddressService extends GetxService {
           return dataList.map((e) => AddressModel.fromJson(e)).toList();
         } else {
           print('AddressService: "data" field is not a List as expected: $body');
-          _showError('Error', 'Failed to parse address data: unexpected format.');
           throw AddressServiceException('Unexpected data format for addresses.');
         }
       } else {
         final errorMsg = body['message'] ?? 'Failed to fetch addresses.';
-        _showError('Error', errorMsg);
         throw AddressServiceException(errorMsg, statusCode: response.statusCode);
       }
     } on dio.DioException catch (e) {
       if (e.response != null) {
         final errorMessage = e.response?.data?['message'] ?? 'Server error during address fetch.';
         print('AddressService: DioError during fetch: ${e.response?.statusCode} - $errorMessage');
-        _showError('Server Error', errorMessage);
         throw AddressServiceException(errorMessage, statusCode: e.response?.statusCode);
       } else {
         print('AddressService: Network error during fetch: ${e.message}');
-        _showError('Network Error', 'Unable to connect to server. Please check your internet connection.');
         throw AddressServiceException('Network error: ${e.message}');
       }
     } catch (e) {
       print('AddressService: Unexpected exception during fetch: $e');
-      _showError('Error', 'An unexpected error occurred while fetching addresses.');
       throw AddressServiceException('An unexpected error occurred: $e');
     }
-  }
-
-  void _showError(String title, String message) {
-    // Get.snackbar(
-    //   title,
-    //   message,
-    //   snackPosition: SnackPosition.BOTTOM,
-    //   backgroundColor: Colors.red.shade600,
-    //   colorText: Colors.white,
-    // );
   }
 
   Future<AddressModel?> addAddress(AddressModel address) async {
     final token = _getAccessToken();
     if (token == null) {
-      Get.snackbar('Authentication Error', 'Please log in to add address.',
-          snackPosition: SnackPosition.BOTTOM,
-          backgroundColor: Colors.red.shade600,
-          colorText: Colors.white);
       throw AddressServiceException('Authentication token missing.');
     }
 
@@ -157,7 +128,6 @@ class AddressService extends GetxService {
           return AddressModel.fromJson(newAddressJson);
         } else {
           print('AddressService: Add response data missing address list or empty: $body');
-          _showError('Error', 'Address added but details not returned correctly.');
           throw AddressServiceException('Address added but response data format unexpected.');
         }
       } else {
@@ -166,23 +136,19 @@ class AddressService extends GetxService {
           errorMessage = body['message'];
         }
         print('AddressService: Failed to add address. Status ${response.statusCode}, Body: $body');
-        _showError('Error', errorMessage);
         throw AddressServiceException(errorMessage, statusCode: response.statusCode);
       }
     } on dio.DioException catch (e) {
       if (e.response != null) {
         final errorMessage = e.response?.data?['message'] ?? 'Server error during address add.';
         print('AddressService: DioError during add: ${e.response?.statusCode} - $errorMessage');
-        _showError('Server Error', errorMessage);
         throw AddressServiceException(errorMessage, statusCode: e.response?.statusCode);
       } else {
         print('AddressService: Network error during add: ${e.message}');
-        _showError('Network Error', 'Failed to connect to server. Please check your internet connection.');
         throw AddressServiceException('Network error: ${e.message}');
       }
     } catch (e) {
       print('AddressService: Unexpected exception in POST (addAddress): $e');
-      _showError('Error', 'An unexpected error occurred while adding address.');
       throw AddressServiceException('An unexpected error occurred: $e');
     }
   }
@@ -192,10 +158,6 @@ class AddressService extends GetxService {
   Future<AddressModel?> updateAddress(String addressId, AddressModel updatedAddress) async {
     final token = _getAccessToken();
     if (token == null) {
-      Get.snackbar('Authentication Error', 'Please log in to update address.',
-          snackPosition: SnackPosition.BOTTOM,
-          backgroundColor: Colors.red.shade600,
-          colorText: Colors.white);
       throw AddressServiceException('Authentication token missing.');
     }
 
@@ -232,7 +194,6 @@ class AddressService extends GetxService {
           return AddressModel.fromJson(updatedAddressJson);
         } else {
           print('AddressService: Updated address data is null or not a Map: $body');
-          _showError('Error', 'Address updated but details not returned correctly.');
           throw AddressServiceException('Updated address data missing or incorrect format from response.');
         }
       } else {
@@ -241,23 +202,19 @@ class AddressService extends GetxService {
           errorMessage = body['message'];
         }
         print('AddressService: Failed to update address. Status ${response.statusCode}, Body: $body');
-        _showError('Error', errorMessage);
         throw AddressServiceException(errorMessage, statusCode: response.statusCode);
       }
     } on dio.DioException catch (e) {
       if (e.response != null) {
         final errorMessage = e.response?.data?['message'] ?? 'Server error during address update.';
         print('AddressService: DioError during update: ${e.response?.statusCode} - $errorMessage');
-        _showError('Server Error', errorMessage);
         throw AddressServiceException(errorMessage, statusCode: e.response?.statusCode);
       } else {
         print('AddressService: Network error during update: ${e.message}');
-        _showError('Network Error', 'Unable to connect to server. Please check your internet connection.');
         throw AddressServiceException('Network error: ${e.message}');
       }
     } catch (e) {
       print('AddressService: Unexpected exception during update: $e');
-      _showError('Error', 'An unexpected error occurred while updating address.');
       throw AddressServiceException('An unexpected error occurred: $e');
     }
   }
@@ -267,7 +224,6 @@ class AddressService extends GetxService {
   Future<bool> deleteAddress(String addressId) async {
     final token = _getAccessToken();
     if (token == null) {
-      _showError('Authentication Error', 'Please log in to delete address.');
       throw AddressServiceException('Authentication token missing.');
     }
 
@@ -302,23 +258,19 @@ class AddressService extends GetxService {
           errorMessage = body['message'];
         }
         print('AddressService: Failed to delete address. Status ${response.statusCode}, Body: $body');
-        _showError('Error', errorMessage);
         throw AddressServiceException(errorMessage, statusCode: response.statusCode);
       }
     } on dio.DioException catch (e) {
       if (e.response != null) {
         final errorMessage = e.response?.data?['message'] ?? 'Server error during address deletion.';
         print('AddressService: DioError during delete: ${e.response?.statusCode} - $errorMessage');
-        _showError('Server Error', errorMessage);
         throw AddressServiceException(errorMessage, statusCode: e.response?.statusCode);
       } else {
         print('AddressService: Network error during delete: ${e.message}');
-        _showError('Network Error', 'Unable to connect to server. Please check your internet connection.');
         throw AddressServiceException('Network error: ${e.message}');
       }
     } catch (e) {
       print('AddressService: Unexpected exception during delete: $e');
-      _showError('Error', 'An unexpected error occurred while deleting address.');
       throw AddressServiceException('An unexpected error occurred: $e');
     }
   }

@@ -1,4 +1,3 @@
-/*
 // lib/screens/queries_screen.dart
 import 'dart:ui'; // Make sure this is imported
 
@@ -12,9 +11,8 @@ import '../../../themes/app_theme.dart'; // Import your AppColors and AppTheme
 import 'AboutUsDialog.dart'; // Assuming this exists
 import 'FaqDialog.dart';     // Assuming this exists
 
-
 import 'Raise_query.dart';
-import 'query_detail_screen.dart'; // <--- NEW: Import the QueryDetailScreen
+import 'query_detail_screen.dart'; // <--- Import the QueryDetailScreen
 
 class QueriesScreen extends StatefulWidget {
   const QueriesScreen({super.key});
@@ -28,6 +26,15 @@ class _QueriesScreenState extends State<QueriesScreen> {
   final TextEditingController _quickQueryInputController = TextEditingController();
 
   @override
+  void initState() {
+    super.initState();
+    // ✅ Initialize queries when screen loads
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      queryController.myQueries;
+    });
+  }
+
+  @override
   void dispose() {
     _quickQueryInputController.dispose();
     super.dispose();
@@ -39,35 +46,106 @@ class _QueriesScreenState extends State<QueriesScreen> {
     );
   }
 
+  // ✅ Enhanced quick query submission
+  void _handleQuickQuery() async {
+    final queryText = _quickQueryInputController.text.trim();
+
+    if (queryText.isEmpty) {
+      Get.snackbar(
+        'Empty Query',
+        'Please enter a question before sending',
+        backgroundColor: AppColors.danger,
+        colorText: AppColors.white,
+        snackPosition: SnackPosition.TOP,
+      );
+      return;
+    }
+
+    try {
+      // Create a quick query
+      await queryController.raiseQuery(
+        title: 'Quick Question',
+        message: queryText,
+        orderId: null, // Quick queries don't need order ID
+      );
+
+      _quickQueryInputController.clear();
+
+      Get.snackbar(
+        'Query Submitted',
+        'Your question has been sent to support',
+        backgroundColor: AppColors.success,
+        colorText: AppColors.white,
+        snackPosition: SnackPosition.TOP,
+      );
+
+      // Navigate to the newly created query detail
+      final latestQuery = queryController.myQueries.isNotEmpty
+          ? queryController.myQueries.first
+          : null;
+
+      if (latestQuery != null) {
+        Future.delayed(const Duration(milliseconds: 500), () {
+          _navigateToQueryDetail(latestQuery);
+        });
+      }
+    } catch (e) {
+      Get.snackbar(
+        'Error',
+        'Failed to submit query. Please try again.',
+        backgroundColor: AppColors.danger,
+        colorText: AppColors.white,
+        snackPosition: SnackPosition.TOP,
+      );
+    }
+  }
+
+  // ✅ Enhanced navigation method
+  void _navigateToQueryDetail(QueryModel query) {
+    queryController.selectQuery(query);
+    Get.to(
+          () => QueryDetailScreen(query: query),
+      transition: Transition.rightToLeft,
+      duration: const Duration(milliseconds: 300),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final TextTheme textTheme = Theme.of(context).textTheme;
 
     return Scaffold(
       backgroundColor: AppColors.neutralBackground,
+      // ✅ Add floating action button for raising new query
+    /*  floatingActionButton: FloatingActionButton.extended(
+        onPressed: _showRaiseQueryDialog,
+        backgroundColor: AppColors.primaryPurple,
+        foregroundColor: AppColors.white,
+        icon: Icon(Icons.add),
+        label: Text('Raise Query'),
+      ),*/
       body: CustomScrollView(
         slivers: [
           // Top Section: 'Talk with Support' and Quick Input - Enhanced for Blinkit feel
           SliverAppBar(
-            expandedHeight: 240.0, // Slightly more expanded for visual impact
+            expandedHeight: 240.0,
             floating: false,
             pinned: true,
             snap: false,
-            elevation: 0, // No shadow for a cleaner look
+            elevation: 0,
             backgroundColor: AppColors.neutralBackground,
             flexibleSpace: FlexibleSpaceBar(
               background: Container(
-                // Vibrant linear gradient background
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                     colors: [
-                      AppColors.primaryPurple.withOpacity(0.15), // Stronger start color
-                      AppColors.primaryPurple.withOpacity(0.05), // Lighter end color
-                      AppColors.white, // Blending smoothly into white
+                      AppColors.primaryPurple.withOpacity(0.15),
+                      AppColors.primaryPurple.withOpacity(0.05),
+                      AppColors.white,
                     ],
-                    stops: const [0.0, 0.5, 1.0], // Control gradient spread
+                    stops: const [0.0, 0.5, 1.0],
                   ),
                 ),
                 child: Padding(
@@ -78,22 +156,22 @@ class _QueriesScreenState extends State<QueriesScreen> {
                       Text(
                         'Talk with Support',
                         style: textTheme.headlineLarge?.copyWith(
-                          fontSize: 32, // Larger, bolder title
-                          fontWeight: FontWeight.w900, // Extra bold
+                          fontSize: 32,
+                          fontWeight: FontWeight.w900,
                           color: AppColors.textDark,
-                          letterSpacing: -0.5, // Tighter spacing for modern feel
+                          letterSpacing: -0.5,
                         ),
                       ),
-                      const SizedBox(height: 25), // More spacing
-                      // Prompt/Input Field - Modernized
+                      const SizedBox(height: 25),
+                      // ✅ Enhanced Quick Input Field
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12), // Increased vertical padding
+                        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
                         decoration: BoxDecoration(
                           color: AppColors.white,
-                          borderRadius: BorderRadius.circular(36), // More rounded corners
+                          borderRadius: BorderRadius.circular(36),
                           boxShadow: [
                             BoxShadow(
-                              color: AppColors.primaryPurple.withOpacity(0.15), // More prominent shadow
+                              color: AppColors.primaryPurple.withOpacity(0.15),
                               blurRadius: 25,
                               offset: const Offset(0, 12),
                             ),
@@ -106,42 +184,38 @@ class _QueriesScreenState extends State<QueriesScreen> {
                                 controller: _quickQueryInputController,
                                 decoration: InputDecoration(
                                   hintText: 'Ask a quick question...',
-                                  hintStyle: textTheme.bodyLarge?.copyWith( // Use bodyLarge for hints
+                                  hintStyle: textTheme.bodyLarge?.copyWith(
                                     color: AppColors.textLight.withOpacity(0.8),
                                   ),
                                   border: InputBorder.none,
                                   isDense: true,
                                   contentPadding: EdgeInsets.zero,
                                 ),
-                                style: textTheme.bodyLarge?.copyWith( // Use bodyLarge for input text
+                                style: textTheme.bodyLarge?.copyWith(
                                   fontSize: 16,
                                   color: AppColors.textDark,
                                 ),
                                 cursorColor: AppColors.primaryPurple,
+                                maxLines: 3,
+                                minLines: 1,
+                                textInputAction: TextInputAction.send,
+                                onSubmitted: (_) => _handleQuickQuery(),
                               ),
                             ),
                             const SizedBox(width: 15),
-                            Icon(Icons.mic, color: AppColors.textLight.withOpacity(0.7)), // Softer mic icon
+                            Icon(Icons.mic, color: AppColors.textLight.withOpacity(0.7)),
                             const SizedBox(width: 12),
-                            GestureDetector(
-                              onTap: () {
-                                if (_quickQueryInputController.text.isNotEmpty) {
-                                  Get.snackbar(
-                                    'Quick Question',
-                                    'Sent: "${_quickQueryInputController.text}"',
-                                    backgroundColor: AppColors.accentNeon, // Use accent for quick feedback
-                                    colorText: AppColors.white,
-                                    snackPosition: SnackPosition.TOP, // Consistent with other snackbars
-                                  );
-                                  _quickQueryInputController.clear();
-                                }
-                              },
+                            // ✅ Enhanced send button with loading state
+                            Obx(() => GestureDetector(
+                              onTap: queryController.isLoading ? null : _handleQuickQuery,
                               child: Container(
-                                padding: const EdgeInsets.all(14), // Larger tap target
+                                padding: const EdgeInsets.all(14),
                                 decoration: BoxDecoration(
-                                  color: AppColors.accentNeon, // Bright, distinct send button
-                                  borderRadius: BorderRadius.circular(30), // Perfectly circular
-                                  boxShadow: [ // Add subtle shadow to send button
+                                  color: queryController.isLoading
+                                      ? AppColors.textLight
+                                      : AppColors.accentNeon,
+                                  borderRadius: BorderRadius.circular(30),
+                                  boxShadow: [
                                     BoxShadow(
                                       color: AppColors.accentNeon.withOpacity(0.4),
                                       blurRadius: 8,
@@ -149,9 +223,18 @@ class _QueriesScreenState extends State<QueriesScreen> {
                                     ),
                                   ],
                                 ),
-                                child: const Icon(Icons.send_rounded, color: AppColors.white, size: 20),
+                                child: queryController.isLoading
+                                    ? SizedBox(
+                                  width: 20,
+                                  height: 20,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    valueColor: AlwaysStoppedAnimation<Color>(AppColors.white),
+                                  ),
+                                )
+                                    : const Icon(Icons.send_rounded, color: AppColors.white, size: 20),
                               ),
-                            ),
+                            )),
                           ],
                         ),
                       ),
@@ -168,25 +251,24 @@ class _QueriesScreenState extends State<QueriesScreen> {
             sliver: SliverList(
               delegate: SliverChildListDelegate(
                 [
-                  // Glassmorphic container for the entire section
                   ClipRRect(
-                    borderRadius: BorderRadius.circular(25), // More rounded
+                    borderRadius: BorderRadius.circular(25),
                     child: BackdropFilter(
                       filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
                       child: Container(
                         decoration: BoxDecoration(
-                          color: AppColors.white.withOpacity(0.7), // Lighter, more translucent white
+                          color: AppColors.white.withOpacity(0.7),
                           borderRadius: BorderRadius.circular(25),
-                          border: Border.all(color: AppColors.primaryPurple.withOpacity(0.2), width: 1.0), // Subtler border
+                          border: Border.all(color: AppColors.primaryPurple.withOpacity(0.2), width: 1.0),
                           boxShadow: [
-                            BoxShadow( // Gentle shadow for depth
+                            BoxShadow(
                               color: Colors.black.withOpacity(0.05),
                               blurRadius: 15,
                               offset: const Offset(0, 8),
                             ),
                           ],
                         ),
-                        padding: const EdgeInsets.all(20.0), // Increased padding
+                        padding: const EdgeInsets.all(20.0),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
@@ -194,7 +276,7 @@ class _QueriesScreenState extends State<QueriesScreen> {
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
                                 Text(
-                                  'My Recent Queries', // More engaging title
+                                  'My Recent Queries',
                                   style: textTheme.titleLarge?.copyWith(
                                     fontSize: 22,
                                     fontWeight: FontWeight.w700,
@@ -203,28 +285,47 @@ class _QueriesScreenState extends State<QueriesScreen> {
                                 ),
                                 Obx(
                                       () => IconButton(
-                                    icon: const Icon(Icons.refresh_rounded, color: AppColors.textMedium), // Rounded refresh icon
-                                    onPressed: queryController.isLoading ? null : queryController.refreshMyQueries,
+                                    icon: Icon(
+                                      queryController.isLoading
+                                          ? Icons.hourglass_empty_rounded
+                                          : Icons.refresh_rounded,
+                                      color: AppColors.textMedium,
+                                    ),
+                                    onPressed: queryController.isLoading
+                                        ? null
+                                        : queryController.refreshMyQueries,
                                     tooltip: 'Refresh Queries',
                                   ),
                                 )
                               ],
                             ),
                             const SizedBox(height: 18),
-                            // Container for the query list - Now has a slightly off-white background
                             Container(
-                              height: 320, // Increased height for more queries
+                              height: 320,
                               decoration: BoxDecoration(
-                                color: AppColors.neutralBackground, // Slightly off-white/light gray for list background
+                                color: AppColors.neutralBackground,
                                 borderRadius: BorderRadius.circular(15),
-                                border: Border.all(color: AppColors.textLight.withOpacity(0.1), width: 0.5), // Subtle border
+                                border: Border.all(color: AppColors.textLight.withOpacity(0.1), width: 0.5),
                               ),
                               child: Obx(() {
                                 if (queryController.isLoading && queryController.myQueries.isEmpty) {
                                   return Center(
-                                    child: CircularProgressIndicator(color: AppColors.accentNeon),
+                                    child: Column(
+                                      mainAxisAlignment: MainAxisAlignment.center,
+                                      children: [
+                                        CircularProgressIndicator(color: AppColors.accentNeon),
+                                        const SizedBox(height: 16),
+                                        Text(
+                                          'Loading your queries...',
+                                          style: textTheme.bodyMedium?.copyWith(
+                                            color: AppColors.textMedium,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
                                   );
                                 }
+
                                 if (queryController.myQueries.isEmpty) {
                                   return Padding(
                                     padding: const EdgeInsets.all(20.0),
@@ -243,151 +344,186 @@ class _QueriesScreenState extends State<QueriesScreen> {
                                             ),
                                             textAlign: TextAlign.center,
                                           ),
+                                          const SizedBox(height: 20),
+                                          ElevatedButton.icon(
+                                            onPressed: _showRaiseQueryDialog,
+                                            icon: Icon(Icons.add),
+                                            label: Text('Raise Your First Query'),
+                                            style: ElevatedButton.styleFrom(
+                                              backgroundColor: AppColors.primaryPurple,
+                                              foregroundColor: AppColors.white,
+                                              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                                              shape: RoundedRectangleBorder(
+                                                borderRadius: BorderRadius.circular(25),
+                                              ),
+                                            ),
+                                          ),
                                         ],
                                       ),
                                     ),
                                   );
                                 }
-                                return ListView.builder(
-                                  padding: const EdgeInsets.symmetric(vertical: 8.0),
-                                  physics: const AlwaysScrollableScrollPhysics(),
-                                  itemCount: queryController.myQueries.length,
-                                  itemBuilder: (context, index) {
-                                    final query = queryController.myQueries[index];
-                                    final bool hasUnreadAdminReply = query.replies != null && query.replies!.isNotEmpty &&
-                                        query.replies!.last.isAdmin &&
-                                        !(query.isRead ?? false);
 
-                                    return InkWell(
-                                      onTap: () {
-                                        queryController.selectQuery(query);
-                                        Get.to(() => QueryDetailScreen());
-                                      },
-                                      child: Container(
-                                        margin: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 6.0), // Adjusted margins
-                                        padding: const EdgeInsets.all(12.0), // Increased padding
-                                        decoration: BoxDecoration(
-                                          color: AppColors.white, // Individual card background
-                                          borderRadius: BorderRadius.circular(12), // Rounded corners for each item
-                                          boxShadow: [ // Subtle shadow for each item
-                                            BoxShadow(
-                                              color: AppColors.textDark.withOpacity(0.05),
-                                              blurRadius: 8,
-                                              offset: const Offset(0, 4),
-                                            ),
-                                          ],
-                                        ),
-                                        child: Row(
-                                          crossAxisAlignment: CrossAxisAlignment.center,
-                                          children: [
-                                            // Status/New Indicator
-                                            Container(
-                                              width: 6, // Vertical indicator bar
-                                              height: 40, // Height to match content
-                                              margin: const EdgeInsets.only(right: 12),
-                                              decoration: BoxDecoration(
-                                                color: hasUnreadAdminReply ? AppColors.accentNeon : queryController.getStatusColor(query.status.toString()),
-                                                borderRadius: BorderRadius.circular(3),
+                                return RefreshIndicator(
+                                  onRefresh: () async {
+                                    await queryController.refreshMyQueries();
+                                  },
+                                  color: AppColors.primaryPurple,
+                                  child: ListView.builder(
+                                    padding: const EdgeInsets.symmetric(vertical: 8.0),
+                                    physics: const AlwaysScrollableScrollPhysics(),
+                                    itemCount: queryController.myQueries.length,
+                                    itemBuilder: (context, index) {
+                                      final query = queryController.myQueries[index];
+                                      final bool hasUnreadAdminReply = query.replies != null &&
+                                          query.replies!.isNotEmpty &&
+                                          query.replies!.last.isAdmin &&
+                                          !(query.isRead ?? false);
+
+                                      return InkWell(
+                                        onTap: () => _navigateToQueryDetail(query),
+                                        borderRadius: BorderRadius.circular(12),
+                                        child: Container(
+                                          margin: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 6.0),
+                                          padding: const EdgeInsets.all(12.0),
+                                          decoration: BoxDecoration(
+                                            color: AppColors.white,
+                                            borderRadius: BorderRadius.circular(12),
+                                            border: hasUnreadAdminReply
+                                                ? Border.all(color: AppColors.accentNeon.withOpacity(0.3), width: 1)
+                                                : null,
+                                            boxShadow: [
+                                              BoxShadow(
+                                                color: AppColors.textDark.withOpacity(0.05),
+                                                blurRadius: 8,
+                                                offset: const Offset(0, 4),
                                               ),
-                                            ),
-                                            // Icon
-                                            CircleAvatar(
-                                              radius: 20,
-                                              backgroundColor: AppColors.primaryPurple.withOpacity(0.1),
-                                              child: Icon(
-                                                Icons.chat_bubble_outline,
-                                                color: AppColors.primaryPurple,
-                                                size: 20,
+                                            ],
+                                          ),
+                                          child: Row(
+                                            crossAxisAlignment: CrossAxisAlignment.center,
+                                            children: [
+                                              // Status/New Indicator
+                                              Container(
+                                                width: 6,
+                                                height: 40,
+                                                margin: const EdgeInsets.only(right: 12),
+                                                decoration: BoxDecoration(
+                                                  color: hasUnreadAdminReply
+                                                      ? AppColors.accentNeon
+                                                      : queryController.getStatusColor(query.status.toString()),
+                                                  borderRadius: BorderRadius.circular(3),
+                                                ),
                                               ),
-                                            ),
-                                            const SizedBox(width: 15.0),
-                                            Expanded(
-                                              child: Column(
-                                                crossAxisAlignment: CrossAxisAlignment.start,
+                                              // Icon
+                                              CircleAvatar(
+                                                radius: 20,
+                                                backgroundColor: AppColors.primaryPurple.withOpacity(0.1),
+                                                child: Icon(
+                                                  hasUnreadAdminReply
+                                                      ? Icons.mark_unread_chat_alt
+                                                      : Icons.chat_bubble_outline,
+                                                  color: AppColors.primaryPurple,
+                                                  size: 20,
+                                                ),
+                                              ),
+                                              const SizedBox(width: 15.0),
+                                              Expanded(
+                                                child: Column(
+                                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                                  children: [
+                                                    Text(
+                                                      query.title,
+                                                      style: textTheme.titleMedium?.copyWith(
+                                                        fontSize: 16,
+                                                        fontWeight: hasUnreadAdminReply
+                                                            ? FontWeight.w700
+                                                            : FontWeight.w600,
+                                                        color: AppColors.textDark,
+                                                      ),
+                                                      maxLines: 1,
+                                                      overflow: TextOverflow.ellipsis,
+                                                    ),
+                                                    const SizedBox(height: 4.0),
+                                                    Text(
+                                                      query.message.length > 50
+                                                          ? '${query.message.substring(0, 50)}...'
+                                                          : query.message,
+                                                      maxLines: 1,
+                                                      overflow: TextOverflow.ellipsis,
+                                                      style: textTheme.bodySmall?.copyWith(
+                                                        fontSize: 12,
+                                                        color: AppColors.textMedium,
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
+                                              ),
+                                              const SizedBox(width: 10.0),
+                                              Column(
+                                                mainAxisAlignment: MainAxisAlignment.center,
+                                                crossAxisAlignment: CrossAxisAlignment.end,
                                                 children: [
                                                   Text(
-                                                    query.title,
-                                                    style: textTheme.titleMedium?.copyWith( // Larger title for query item
-                                                      fontSize: 16,
-                                                      fontWeight: FontWeight.w600,
-                                                      color: AppColors.textDark,
+                                                    DateFormat('MMM d').format(query.createdAt),
+                                                    style: textTheme.labelSmall?.copyWith(
+                                                      fontSize: 10,
+                                                      color: AppColors.textLight,
                                                     ),
-                                                    maxLines: 1,
-                                                    overflow: TextOverflow.ellipsis,
                                                   ),
-                                                  const SizedBox(height: 4.0),
-                                                  Text(
-                                                    query.message.length > 50
-                                                        ? '${query.message.substring(0, 50)}...'
-                                                        : query.message,
-                                                    maxLines: 1,
-                                                    overflow: TextOverflow.ellipsis,
-                                                    style: textTheme.bodySmall?.copyWith(
-                                                      fontSize: 12,
-                                                      color: AppColors.textMedium,
+                                                  if (hasUnreadAdminReply)
+                                                    Padding(
+                                                      padding: const EdgeInsets.only(top: 5),
+                                                      child: Container(
+                                                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                                        decoration: BoxDecoration(
+                                                          color: AppColors.accentNeon,
+                                                          borderRadius: BorderRadius.circular(18),
+                                                        ),
+                                                        child: Text(
+                                                          'NEW',
+                                                          style: textTheme.labelSmall?.copyWith(
+                                                            fontSize: 9,
+                                                            color: AppColors.white,
+                                                            fontWeight: FontWeight.bold,
+                                                          ),
+                                                        ),
+                                                      ),
                                                     ),
+                                                  if (!hasUnreadAdminReply && (query.status == 'resolved' || query.status == 'closed'))
+                                                    Padding(
+                                                      padding: const EdgeInsets.only(top: 5),
+                                                      child: Container(
+                                                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                                        decoration: BoxDecoration(
+                                                          color: queryController.getStatusColor(query.status.toString()).withOpacity(0.15),
+                                                          borderRadius: BorderRadius.circular(18),
+                                                        ),
+                                                        child: Text(
+                                                          query.status!.capitalizeFirst!,
+                                                          style: textTheme.labelSmall?.copyWith(
+                                                            fontSize: 9,
+                                                            color: queryController.getStatusColor(query.status.toString()),
+                                                            fontWeight: FontWeight.bold,
+                                                          ),
+                                                        ),
+                                                      ),
+                                                    ),
+                                                  // ✅ Add arrow indicator
+                                                  const SizedBox(height: 4),
+                                                  Icon(
+                                                    Icons.arrow_forward_ios,
+                                                    size: 12,
+                                                    color: AppColors.textLight,
                                                   ),
                                                 ],
                                               ),
-                                            ),
-                                            const SizedBox(width: 10.0),
-                                            Column(
-                                              mainAxisAlignment: MainAxisAlignment.center,
-                                              crossAxisAlignment: CrossAxisAlignment.end,
-                                              children: [
-                                                Text(
-                                                  DateFormat('MMM d').format(query.createdAt),
-                                                  style: textTheme.labelSmall?.copyWith(
-                                                    fontSize: 10,
-                                                    color: AppColors.textLight,
-                                                  ),
-                                                ),
-                                                if (hasUnreadAdminReply)
-                                                  Padding(
-                                                    padding: const EdgeInsets.only(top: 5),
-                                                    child: Container(
-                                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4), // Larger padding
-                                                      decoration: BoxDecoration(
-                                                        color: AppColors.accentNeon,
-                                                        borderRadius: BorderRadius.circular(18), // More rounded
-                                                      ),
-                                                      child: Text(
-                                                        'NEW',
-                                                        style: textTheme.labelSmall?.copyWith(
-                                                          fontSize: 9, // Slightly larger font
-                                                          color: AppColors.white,
-                                                          fontWeight: FontWeight.bold,
-                                                        ),
-                                                      ),
-                                                    ),
-                                                  ),
-                                                // Display status badge for resolved/closed queries
-                                                if (!hasUnreadAdminReply && (query.status == 'resolved' || query.status == 'closed'))
-                                                  Padding(
-                                                    padding: const EdgeInsets.only(top: 5),
-                                                    child: Container(
-                                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                                      decoration: BoxDecoration(
-                                                        color: queryController.getStatusColor(query.status.toString()).withOpacity(0.15),
-                                                        borderRadius: BorderRadius.circular(18),
-                                                      ),
-                                                      child: Text(
-                                                        query.status!.capitalizeFirst!,
-                                                        style: textTheme.labelSmall?.copyWith(
-                                                          fontSize: 9,
-                                                          color: queryController.getStatusColor(query.status.toString()),
-                                                          fontWeight: FontWeight.bold,
-                                                        ),
-                                                      ),
-                                                    ),
-                                                  ),
-                                              ],
-                                            ),
-                                          ],
+                                            ],
+                                          ),
                                         ),
-                                      ),
-                                    );
-                                  },
+                                      );
+                                    },
+                                  ),
                                 );
                               }),
                             ),
@@ -400,16 +536,12 @@ class _QueriesScreenState extends State<QueriesScreen> {
               ),
             ),
           ),
-          const SliverToBoxAdapter(child: SizedBox(height: 30)),
+          const SliverToBoxAdapter(child: SizedBox(height: 100)), // Space for FAB
         ],
       ),
     );
   }
 
-// NOTE: _buildActionCard is no longer directly used in the new "Quick Actions" section.
-// I've kept it here commented out in case you wish to revert or reuse it elsewhere.
-*/
-/*
   Widget _buildActionCard(BuildContext context, {
     required IconData icon,
     required String label,
@@ -453,6 +585,4 @@ class _QueriesScreenState extends State<QueriesScreen> {
       ),
     );
   }
-  *//*
-
-}*/
+}

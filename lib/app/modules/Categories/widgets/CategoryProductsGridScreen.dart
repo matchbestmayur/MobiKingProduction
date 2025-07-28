@@ -67,7 +67,7 @@ class _CategoryProductsGridScreenState extends State<CategoryProductsGridScreen>
         children: [
           // Left Side - Subcategories List
           Container(
-            width: screenWidth * 0.35, // 35% of screen width
+            width: screenWidth * 0.30, // 35% of screen width
             decoration: BoxDecoration(
               color: AppColors.neutralBackground,
               border: Border(

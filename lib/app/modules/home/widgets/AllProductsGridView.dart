@@ -30,13 +30,11 @@ class AllProductsGridView extends StatefulWidget {
 }
 
 class _AllProductsGridViewState extends State<AllProductsGridView> {
-  // ✅ Remove internal ScrollController - use parent scroll instead
   bool _isLoadingTriggered = false;
 
   @override
   void initState() {
     super.initState();
-    // ✅ Listen to parent scroll controller instead
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _attachToParentScroll();
     });
@@ -51,7 +49,6 @@ class _AllProductsGridViewState extends State<AllProductsGridView> {
 
   @override
   void dispose() {
-    // ✅ Remove listener from parent scroll controller
     final ScrollController? parentController = PrimaryScrollController.of(context);
     if (parentController != null) {
       parentController.removeListener(_onParentScroll);
@@ -68,12 +65,10 @@ class _AllProductsGridViewState extends State<AllProductsGridView> {
 
     print("📍 Parent Scroll: ${currentScroll.toStringAsFixed(1)} / ${maxScroll.toStringAsFixed(1)}");
 
-    // Reset loading trigger when scroll position changes significantly
     if (currentScroll < maxScroll * 0.7) {
       _isLoadingTriggered = false;
     }
 
-    // Trigger load more at 85% scroll
     if (currentScroll >= maxScroll * 0.85) {
       _triggerLoadMore();
     }
@@ -90,26 +85,44 @@ class _AllProductsGridViewState extends State<AllProductsGridView> {
     widget.onLoadMore!();
   }
 
-  @override
-  Widget build(BuildContext context) {
-    final textTheme = Theme.of(context).textTheme;
+  List<ProductModel> _getProductsToShow() {
+    if (widget.products.isEmpty) return [];
 
-    // Filter in-stock products
+    // First, try to show in-stock products
     final inStockProducts = widget.products.where((product) {
       return product.variants.entries.any((variant) => variant.value > 0);
     }).toList();
 
-    print("📦 Products: ${widget.products.length}, In-stock: ${inStockProducts.length}");
+    // If no in-stock products, show all products (including out of stock)
+    if (inStockProducts.isEmpty) {
+      return widget.products;
+    }
 
-    if (inStockProducts.isEmpty && !widget.isLoadingMore) {
+    return inStockProducts;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+    final productsToShow = _getProductsToShow();
+
+    print("📦 Total Products: ${widget.products.length}, Showing: ${productsToShow.length}");
+
+    // Only show empty state if there are absolutely no products at all
+    if (widget.products.isEmpty && !widget.isLoadingMore) {
       return _buildEmptyState(context);
+    }
+
+    // Show loading state if we're loading and have no products yet
+    if (widget.products.isEmpty && widget.isLoadingMore) {
+      return _buildLoadingState();
     }
 
     return Container(
       width: double.infinity,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min, // ✅ Important: Use min size
+        mainAxisSize: MainAxisSize.min,
         children: [
           // Title Section
           if (widget.showTitle)
@@ -133,7 +146,7 @@ class _AllProductsGridViewState extends State<AllProductsGridView> {
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Text(
-                      '${inStockProducts.length}',
+                      '${productsToShow.length}',
                       style: textTheme.labelSmall?.copyWith(
                         color: AppColors.primaryPurple,
                         fontWeight: FontWeight.w600,
@@ -144,15 +157,14 @@ class _AllProductsGridViewState extends State<AllProductsGridView> {
               ),
             ),
 
-          // ✅ Products Grid without Expanded - use shrinkWrap instead
+          // Products Grid
           Padding(
             padding: EdgeInsets.symmetric(horizontal: widget.horizontalPadding),
             child: GridView.builder(
-              // ✅ Remove controller - let parent handle scrolling
-              shrinkWrap: true, // ✅ Important: Grid wraps to content size
-              physics: const NeverScrollableScrollPhysics(), // ✅ Disable internal scrolling
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
               padding: const EdgeInsets.all(8.0),
-              itemCount: inStockProducts.length + (widget.isLoadingMore ? 3 : 0),
+              itemCount: productsToShow.length + (widget.isLoadingMore ? 3 : 0),
               gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                 crossAxisCount: 3,
                 mainAxisSpacing: 8,
@@ -161,19 +173,52 @@ class _AllProductsGridViewState extends State<AllProductsGridView> {
               ),
               itemBuilder: (context, index) {
                 // Show loading shimmer
-                if (index >= inStockProducts.length) {
+                if (index >= productsToShow.length) {
                   return _buildShimmerCard();
                 }
 
-                final product = inStockProducts[index];
+                final product = productsToShow[index];
+                final isOutOfStock = !product.variants.entries.any((variant) => variant.value > 0);
+
                 return GestureDetector(
                   onTap: () => Get.to(ProductPage(
                     product: product,
                     heroTag: 'product_${product.id}_$index',
                   )),
-                  child: AllProductGridCard(
-                    product: product,
-                    heroTag: 'product_${product.id}_$index',
+                  child: Stack(
+                    children: [
+                      AllProductGridCard(
+                        product: product,
+                        heroTag: 'product_${product.id}_$index',
+                      ),
+                      // Out of stock overlay
+                      if (isOutOfStock)
+                        Positioned.fill(
+                          child: Container(
+                            decoration: BoxDecoration(
+                              color: Colors.black.withOpacity(0.6),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Center(
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                decoration: BoxDecoration(
+                                  color: Colors.red,
+                                  borderRadius: BorderRadius.circular(4),
+                                ),
+                                child: Text(
+                                  'Out of Stock',
+                                  style: textTheme.labelSmall?.copyWith(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 10,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                    ],
                   ),
                 );
               },
@@ -192,7 +237,7 @@ class _AllProductsGridViewState extends State<AllProductsGridView> {
             ),
 
           // End Message
-          if (!widget.hasMoreProducts && inStockProducts.isNotEmpty)
+          if (!widget.hasMoreProducts && productsToShow.isNotEmpty)
             Container(
               padding: const EdgeInsets.all(16.0),
               alignment: Alignment.center,
@@ -205,6 +250,30 @@ class _AllProductsGridViewState extends State<AllProductsGridView> {
               ),
             ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildLoadingState() {
+    return Container(
+      height: 200,
+      child: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const CircularProgressIndicator(
+              color: AppColors.primaryPurple,
+              strokeWidth: 2,
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'Loading products...',
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: AppColors.textLight,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -262,40 +331,32 @@ class _AllProductsGridViewState extends State<AllProductsGridView> {
   Widget _buildEmptyState(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
     return Container(
-      height: 400, // ✅ Fixed height for empty state
+      height: 300, // Reduced height
       child: Center(
         child: Padding(
-          padding: const EdgeInsets.all(32.0),
+          padding: const EdgeInsets.all(24.0),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Container(
-                padding: const EdgeInsets.all(24),
-                decoration: BoxDecoration(
-                  color: AppColors.primaryPurple.withOpacity(0.1),
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(
-                  Icons.inventory_2_outlined,
-                  size: 48,
-                  color: AppColors.primaryPurple,
-                ),
+              Icon(
+                Icons.shopping_bag_outlined,
+                size: 64,
+                color: AppColors.textLight.withOpacity(0.5),
               ),
-              const SizedBox(height: 24),
+              const SizedBox(height: 16),
               Text(
-                'No Products Available',
-                style: textTheme.headlineSmall?.copyWith(
+                'No Products Found',
+                style: textTheme.titleMedium?.copyWith(
                   color: AppColors.textDark,
                   fontWeight: FontWeight.w600,
                 ),
               ),
               const SizedBox(height: 8),
               Text(
-                'All products are currently out of stock.\nCheck back later for new arrivals!',
+                'Check back later for new products!',
                 textAlign: TextAlign.center,
-                style: textTheme.bodyMedium?.copyWith(
+                style: textTheme.bodySmall?.copyWith(
                   color: AppColors.textLight,
-                  height: 1.4,
                 ),
               ),
             ],

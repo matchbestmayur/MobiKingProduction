@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:get_storage/get_storage.dart';
+import 'package:geolocator/geolocator.dart';
+import 'package:geocoding/geocoding.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:mobiking/app/themes/app_theme.dart';
 import '../../controllers/address_controller.dart';
 import '../../data/AddressModel.dart';
@@ -41,6 +44,10 @@ class _AddressPageState extends State<AddressPage> {
   final RxBool _hasUserChanges = false.obs;
   final RxBool _showUserSection = true.obs;
 
+  // ✅ Location State Management
+  final RxBool _isLoadingLocation = false.obs;
+  final RxBool _showLocationOptions = false.obs;
+
   @override
   void initState() {
     super.initState();
@@ -57,6 +64,179 @@ class _AddressPageState extends State<AddressPage> {
     _emailFocus.dispose();
     _phoneFocus.dispose();
     super.dispose();
+  }
+
+  // ✅ Location Methods
+  Future<bool> _checkLocationPermission() async {
+    LocationPermission permission = await Geolocator.checkPermission();
+
+    if (permission == LocationPermission.denied) {
+      permission = await Geolocator.requestPermission();
+      if (permission == LocationPermission.denied) {
+        Get.snackbar(
+          'Permission Denied',
+          'Location permission is required to fetch your current location',
+          backgroundColor: AppColors.danger,
+          colorText: AppColors.white,
+          icon: Icon(Icons.location_off, color: AppColors.white),
+        );
+        return false;
+      }
+    }
+
+    if (permission == LocationPermission.deniedForever) {
+      Get.dialog(
+        AlertDialog(
+          title: Text('Location Permission Required'),
+          content: Text('Please enable location permission in settings to use this feature.'),
+          actions: [
+            TextButton(
+              onPressed: () => Get.back(),
+              child: Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                Get.back();
+                openAppSettings();
+              },
+              child: Text('Settings'),
+            ),
+          ],
+        ),
+      );
+      return false;
+    }
+
+    return true;
+  }
+
+  Future<void> _getCurrentLocation() async {
+    try {
+      _isLoadingLocation.value = true;
+
+      // Check if location services are enabled
+      bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (!serviceEnabled) {
+        Get.snackbar(
+          'Location Services Disabled',
+          'Please enable location services and try again',
+          backgroundColor: AppColors.danger,
+          colorText: AppColors.white,
+          icon: Icon(Icons.location_off, color: AppColors.white),
+        );
+        return;
+      }
+
+      // Check permissions
+      if (!await _checkLocationPermission()) return;
+
+      // Get current position with high accuracy
+      Position position = await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.high,
+        timeLimit: Duration(seconds: 15),
+      );
+
+      // Get address from coordinates
+      List<Placemark> placemarks = await placemarkFromCoordinates(
+        position.latitude,
+        position.longitude,
+      );
+
+      if (placemarks.isNotEmpty) {
+        Placemark place = placemarks.first;
+
+        // Fill the form fields with the fetched location
+        controller.streetController.text = _buildStreetAddress(place);
+        controller.cityController.text = place.locality ?? place.subAdministrativeArea ?? '';
+        controller.stateController.text = place.administrativeArea ?? '';
+        controller.pinCodeController.text = place.postalCode ?? '';
+
+        Get.snackbar(
+          'Location Found',
+          'Current location has been filled in the form. You can edit if needed.',
+          backgroundColor: AppColors.success,
+          colorText: AppColors.white,
+          icon: Icon(Icons.location_on, color: AppColors.white),
+          duration: Duration(seconds: 3),
+        );
+
+        _showLocationOptions.value = false;
+      }
+    }  catch (e) {
+      Get.snackbar(
+        'Location Error',
+        'Failed to get current location: ${e.toString()}',
+        backgroundColor: AppColors.danger,
+        colorText: AppColors.white,
+      );
+    } finally {
+      _isLoadingLocation.value = false;
+    }
+  }
+
+  String _buildStreetAddress(Placemark place) {
+    List<String> addressParts = [];
+
+    if (place.subThoroughfare != null && place.subThoroughfare!.isNotEmpty) {
+      addressParts.add(place.subThoroughfare!);
+    }
+    if (place.thoroughfare != null && place.thoroughfare!.isNotEmpty) {
+      addressParts.add(place.thoroughfare!);
+    }
+    if (place.subLocality != null && place.subLocality!.isNotEmpty) {
+      addressParts.add(place.subLocality!);
+    }
+
+    return addressParts.join(', ');
+  }
+
+  void _showLocationDialog() {
+    Get.dialog(
+      AlertDialog(
+        title: Row(
+          children: [
+            Icon(Icons.location_on, color: AppColors.primaryGreen),
+            SizedBox(width: 8),
+            Text('Get Location'),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text('Choose how you want to add your location:'),
+            SizedBox(height: 20),
+            ListTile(
+              leading: Icon(Icons.my_location, color: AppColors.primaryGreen),
+              title: Text('Use Current Location'),
+              subtitle: Text('Automatically fill address using GPS'),
+              onTap: () {
+                Get.back();
+                _getCurrentLocation();
+              },
+            ),
+            Divider(),
+            ListTile(
+              leading: Icon(Icons.edit_location, color: AppColors.textMedium),
+              title: Text('Enter Manually'),
+              subtitle: Text('Type your address manually'),
+              onTap: () {
+                Get.back();
+                // Focus on the first field
+                FocusScope.of(context).requestFocus(
+                  FocusNode()..requestFocus(),
+                );
+              },
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Get.back(),
+            child: Text('Cancel'),
+          ),
+        ],
+      ),
+    );
   }
 
   // ✅ User Info Helper Methods
@@ -98,7 +278,7 @@ class _AddressPageState extends State<AddressPage> {
       backgroundColor: AppColors.neutralBackground,
       appBar: AppBar(
         leading: IconButton(
-          onPressed: () => Get.back(result: false), // ✅ Return false when user cancels
+          onPressed: () => Get.back(result: false),
           icon: const Icon(Icons.arrow_back),
           color: AppColors.textDark,
         ),
@@ -115,7 +295,6 @@ class _AddressPageState extends State<AddressPage> {
         backgroundColor: AppColors.white,
         elevation: 0.5,
         actions: [
-          // ✅ Quick Save User Info Button (header)
           Obx(() => _hasUserChanges.value && _showUserSection.value
               ? TextButton(
             onPressed: _isUserLoading.value ? null : _saveUserInfoQuick,
@@ -188,7 +367,6 @@ class _AddressPageState extends State<AddressPage> {
 
     return Column(
       children: [
-        // ✅ Toggle Button
         Container(
           margin: const EdgeInsets.all(16),
           child: Row(
@@ -245,8 +423,6 @@ class _AddressPageState extends State<AddressPage> {
             ],
           ),
         ),
-
-        // ✅ Content based on selection
         Expanded(
           child: Obx(() {
             if (_showUserSection.value) {
@@ -260,7 +436,6 @@ class _AddressPageState extends State<AddressPage> {
     );
   }
 
-  // ✅ User Information Section - SINGLE BUTTON VERSION
   Widget _buildUserInfoSection(BuildContext context) {
     final TextTheme textTheme = Theme.of(context).textTheme;
 
@@ -271,7 +446,6 @@ class _AddressPageState extends State<AddressPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Personal Information Section
             _buildSectionHeader('Personal Information', Icons.person_outline, textTheme),
             const SizedBox(height: 16),
             _buildInfoCard([
@@ -286,16 +460,8 @@ class _AddressPageState extends State<AddressPage> {
                 textCapitalization: TextCapitalization.words,
               ),
               const SizedBox(height: 16),
-              _buildUserTextField(
-                controller: _emailController,
-                focusNode: _emailFocus,
-                nextFocus: _phoneFocus,
-                label: 'Email Address (Optional)',
-                hint: 'Enter your email address (optional)',
-                icon: Icons.email_outlined,
-                keyboardType: TextInputType.emailAddress,
-                validator: _validateEmail,
-              ),
+              // ✅ IMPROVED EMAIL FIELD WITH OPTIONAL HANDLING
+              /*_buildEmailFieldWithHelper(),*/
               const SizedBox(height: 16),
               _buildUserTextField(
                 controller: _phoneController,
@@ -312,8 +478,6 @@ class _AddressPageState extends State<AddressPage> {
               ),
             ]),
             const SizedBox(height: 32),
-
-            // ✅ SINGLE SAVE BUTTON - Saves and navigates back to checkout
             Obx(() => SizedBox(
               width: double.infinity,
               child: ElevatedButton.icon(
@@ -347,15 +511,53 @@ class _AddressPageState extends State<AddressPage> {
                 ),
               ),
             )),
-
-            const SizedBox(height: 100), // Space for floating action button area
+            const SizedBox(height: 100),
           ],
         ),
       ),
     );
   }
 
-  // ✅ Address List Section (unchanged)
+  // ✅ NEW: Email field with clear optional indication
+  Widget _buildEmailFieldWithHelper() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildUserTextField(
+          controller: _emailController,
+          focusNode: _emailFocus,
+          nextFocus: _phoneFocus,
+          label: 'Email Address',
+          hint: 'Enter your email (optional - leave empty to skip)',
+          icon: Icons.email_outlined,
+          keyboardType: TextInputType.emailAddress,
+          validator: _validateEmail,
+        ),
+        const SizedBox(height: 6),
+        Row(
+          children: [
+            Icon(
+              Icons.info_outline,
+              size: 14,
+              color: AppColors.textLight,
+            ),
+            const SizedBox(width: 6),
+            Expanded(
+              child: Text(
+                'Optional field - You can leave this empty if you prefer not to provide an email',
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: AppColors.textLight,
+                  fontStyle: FontStyle.italic,
+                  fontSize: 12,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
   Widget _buildAddressListSection(BuildContext context) {
     if (controller.isLoading.value && controller.addresses.isEmpty) {
       return Center(
@@ -427,7 +629,7 @@ class _AddressPageState extends State<AddressPage> {
           return InkWell(
             onTap: () {
               controller.selectAddress(addr);
-              Get.back(result: true); // ✅ Return true when address is selected
+              Get.back(result: true);
             },
             borderRadius: BorderRadius.circular(16),
             child: ClipRRect(
@@ -578,6 +780,66 @@ class _AddressPageState extends State<AddressPage> {
         key: _formKey,
         child: Column(
           children: [
+            // ✅ Location Button - NEW FEATURE
+            Container(
+              width: double.infinity,
+              margin: EdgeInsets.only(bottom: 20),
+              child: Obx(() => ElevatedButton.icon(
+                onPressed: _isLoadingLocation.value ? null : _showLocationDialog,
+                icon: _isLoadingLocation.value
+                    ? SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: AppColors.white,
+                  ),
+                )
+                    : Icon(Icons.my_location, color: AppColors.white),
+                label: Text(
+                  _isLoadingLocation.value ? 'Getting Location...' : 'Use Current Location',
+                  style: textTheme.labelLarge?.copyWith(
+                    color: AppColors.white,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primaryGreen,
+                  padding: EdgeInsets.symmetric(vertical: 16),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  elevation: 2,
+                ),
+              )),
+            ),
+
+            // ✅ Manual Entry Hint
+            Container(
+              padding: EdgeInsets.all(12),
+              margin: EdgeInsets.only(bottom: 20),
+              decoration: BoxDecoration(
+                color: AppColors.primaryGreen.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: AppColors.primaryGreen.withOpacity(0.3)),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.info_outline, color: AppColors.primaryGreen, size: 20),
+                  SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Use the location button above or fill the form manually. You can edit GPS-filled data if needed.',
+                      style: textTheme.bodySmall?.copyWith(
+                        color: AppColors.primaryGreen,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
             _buildTextField(
               context: context,
               label: "Street Address, House No.",
@@ -697,7 +959,6 @@ class _AddressPageState extends State<AddressPage> {
                   if (_formKey.currentState!.validate()) {
                     final success = await controller.saveAddress();
                     if (success) {
-                      // ✅ Navigate back with success when address is saved
                       Get.back(result: true);
                     }
                   }
@@ -741,7 +1002,6 @@ class _AddressPageState extends State<AddressPage> {
     );
   }
 
-  // ✅ User Info UI Helper Methods (unchanged)
   Widget _buildSectionHeader(String title, IconData icon, TextTheme textTheme) {
     return Row(
       children: [
@@ -901,20 +1161,25 @@ class _AddressPageState extends State<AddressPage> {
     );
   }
 
-  // ✅ User Info Validation Methods
+  // ✅ IMPROVED EMAIL VALIDATION - Better handling for optional field
+  String? _validateEmail(String? value) {
+    // If email field is empty or null, it's valid (since it's optional)
+    if (value == null || value.trim().isEmpty) {
+      return null; // No validation error for empty optional field
+    }
+
+    // Only validate if user has entered something
+    final trimmedValue = value.trim();
+    if (!GetUtils.isEmail(trimmedValue)) {
+      return 'Please enter a valid email address or leave empty';
+    }
+
+    return null; // Valid email
+  }
+
   String? _validateRequired(String? value, String fieldName) {
     if (value == null || value.trim().isEmpty) {
       return '$fieldName is required';
-    }
-    return null;
-  }
-
-  String? _validateEmail(String? value) {
-    if (value == null || value.trim().isEmpty) {
-      return null; // Email is optional
-    }
-    if (!GetUtils.isEmail(value.trim())) {
-      return 'Please enter a valid email address';
     }
     return null;
   }
@@ -926,7 +1191,6 @@ class _AddressPageState extends State<AddressPage> {
     return null;
   }
 
-  // ✅ FIXED: Quick save method (for header button)
   Future<void> _saveUserInfoQuick() async {
     if (!_userFormKey.currentState!.validate()) return;
     _isUserLoading.value = true;
@@ -957,7 +1221,6 @@ class _AddressPageState extends State<AddressPage> {
     }
   }
 
-  // ✅ FIXED: Main save method (for main button - saves and navigates back)
   Future<void> _saveUserInfoAndNavigateBack() async {
     if (!_userFormKey.currentState!.validate()) return;
     _isUserLoading.value = true;
@@ -974,7 +1237,6 @@ class _AddressPageState extends State<AddressPage> {
         duration: const Duration(seconds: 1),
       );
 
-      // ✅ CRITICAL: Navigate back with result after successful save
       await Future.delayed(const Duration(milliseconds: 300));
       if (mounted) {
         Get.back(result: true);
@@ -994,7 +1256,6 @@ class _AddressPageState extends State<AddressPage> {
     }
   }
 
-  // ✅ Common save method
   Future<void> _saveUserDataToStorage() async {
     final existingUser = widget.initialUser ?? _storage.read('user') ?? {};
 
@@ -1003,7 +1264,6 @@ class _AddressPageState extends State<AddressPage> {
       'name': _nameController.text.trim(),
       'email': _emailController.text.trim(),
       'phoneNo': _phoneController.text.trim(),
-      // Preserve existing address data if it exists
       'address': _safeStringExtract(existingUser['address']),
       'city': _safeStringExtract(existingUser['city']),
       'state': _safeStringExtract(existingUser['state']),

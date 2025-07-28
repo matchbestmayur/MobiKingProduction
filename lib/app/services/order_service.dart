@@ -2,12 +2,12 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:get_storage/get_storage.dart';
 import 'package:get/get.dart';
+import 'package:flutter/material.dart';
 
 // Import your data models
-import '../data/Order_get_data.dart'; // Assuming this contains CreateOrderRequestModel etc.
+import '../data/Order_get_data.dart';
 import '../data/order_model.dart';
-import '../data/razor_pay.dart'; // The full OrderModel (Response Model)
-
+import '../data/razor_pay.dart';
 
 // Custom exception for API errors
 class OrderServiceException implements Exception {
@@ -21,15 +21,18 @@ class OrderServiceException implements Exception {
 }
 
 class OrderService extends GetxService {
-  static const String _baseUrl = 'https://mobiking-e-commerce-backend-prod.vercel.app/api/v1/orders'; // Your actual base URL
-  static const String _userRequestBaseUrl = 'https://mobiking-e-commerce-backend-prod.vercel.app/api/v1/users/request'; // Base URL for user requests
+  static const String _baseUrl = 'https://mobiking-e-commerce-backend-prod.vercel.app/api/v1/orders';
+  static const String _userRequestBaseUrl = 'https://mobiking-e-commerce-backend-prod.vercel.app/api/v1/users/request';
   final GetStorage _box = GetStorage();
 
   // Define a key for storing the last order ID
-  // This key will now store the MongoDB _id, not the human-readable orderId
   static const String _lastOrderIdKey = 'lastOrderId';
 
   String? get _accessToken => _box.read('accessToken');
+
+  void _log(String message) {
+    print('[OrderService] $message');
+  }
 
   Map<String, String> _getHeaders({bool requireAuth = true}) {
     final Map<String, String> headers = {
@@ -48,15 +51,14 @@ class OrderService extends GetxService {
   }
 
   /// Fetches detailed information for a specific order by ID.
-  /// If no orderId is provided, it attempts to use the last stored order ID (which should now be the MongoDB _id).
   Future<OrderModel> getOrderDetails({String? orderId}) async {
     String? idToFetch = orderId;
-    print("OrderService - getOrderDetails called. Attempting to fetch ID: $orderId"); // Debug print
+    _log("getOrderDetails called. Attempting to fetch ID: $orderId");
 
     // If no ID is passed, try to retrieve the MongoDB _id from GetStorage
     if (idToFetch == null || idToFetch.isEmpty) {
       idToFetch = _box.read(_lastOrderIdKey);
-      print("OrderService - No ID passed. Trying from _lastOrderIdKey (MongoDB _id): $idToFetch"); // Debug print
+      _log("No ID passed. Trying from _lastOrderIdKey (MongoDB _id): $idToFetch");
       if (idToFetch == null || idToFetch.isEmpty) {
         throw OrderServiceException('No order ID provided and no last order ID found in storage.');
       }
@@ -77,10 +79,11 @@ class OrderService extends GetxService {
       final response = await http.get(url, headers: headers);
       final responseBody = jsonDecode(response.body);
 
-      print("OrderService - getOrderDetails Status: ${response.statusCode}, Body: ${response.body}");
+      _log("getOrderDetails Status: ${response.statusCode}, Body: ${response.body}");
 
       if (response.statusCode >= 200 && response.statusCode < 300) {
         if (responseBody['success'] == true && responseBody.containsKey('data')) {
+          _log("Successfully fetched order details");
           return OrderModel.fromJson(responseBody['data'] as Map<String, dynamic>);
         } else {
           throw OrderServiceException(
@@ -95,14 +98,16 @@ class OrderService extends GetxService {
         );
       }
     } on http.ClientException catch (e) {
+      _log('Network error while fetching order details: ${e.message}');
       throw OrderServiceException('Network error while fetching order details: ${e.message}', statusCode: 0);
     } on FormatException catch (e) {
+      _log('Server response format error for order details: $e');
       throw OrderServiceException('Server response format error for order details: $e', statusCode: 0);
     } catch (e) {
+      _log('Unexpected error while fetching order details: $e');
       throw OrderServiceException('Unexpected error while fetching order details: $e');
     }
   }
-
 
   /// Places a COD order.
   Future<OrderModel> placeCodOrder(CreateOrderRequestModel orderRequest) async {
@@ -124,14 +129,20 @@ class OrderService extends GetxService {
       );
 
       final responseBody = jsonDecode(response.body);
-      print("OrderService - placeCodOrder Status: ${response.statusCode}, Body: ${response.body}");
+      _log("placeCodOrder Status: ${response.statusCode}, Body: ${response.body}");
 
       if (response.statusCode >= 200 && response.statusCode < 300) {
         if (responseBody['success'] == true && responseBody.containsKey('data')) {
           final OrderModel order = OrderModel.fromJson(responseBody['data']['order'] as Map<String, dynamic>);
-          // --- FIX HERE: Store MongoDB _id (order.id) ---
           await _box.write(_lastOrderIdKey, order.id);
-          print('COD Order MongoDB _id stored: ${order.id}');
+          _log('COD Order MongoDB _id stored: ${order.id}');
+
+          // Show success message to user
+          Get.snackbar('Success', 'COD order placed successfully!',
+              snackPosition: SnackPosition.BOTTOM,
+              backgroundColor: Colors.green.shade600,
+              colorText: Colors.white);
+
           return order;
         } else {
           throw OrderServiceException(
@@ -146,10 +157,13 @@ class OrderService extends GetxService {
         );
       }
     } on http.ClientException catch (e) {
+      _log('Network error during COD order placement: ${e.message}');
       throw OrderServiceException('Network error during COD order placement: ${e.message}', statusCode: 0);
     } on FormatException catch (e) {
+      _log('Server response format error during COD order placement: $e');
       throw OrderServiceException('Server response format error during COD order placement: $e', statusCode: 0);
     } catch (e) {
+      _log('Unexpected error occurred during COD order placement: $e');
       throw OrderServiceException('An unexpected error occurred during COD order placement: $e');
     }
   }
@@ -173,29 +187,28 @@ class OrderService extends GetxService {
       );
 
       final responseBody = jsonDecode(response.body);
-      print("OrderService - initiateOnlineOrder Status: ${response.statusCode}, Body: ${response.body}");
+      _log("initiateOnlineOrder Status: ${response.statusCode}, Body: ${response.body}");
 
       if (response.statusCode >= 200 && response.statusCode < 300) {
         if (responseBody['success'] == true && responseBody.containsKey('data') && responseBody['data'] is Map<String, dynamic>) {
           final Map<String, dynamic> responseData = responseBody['data'] as Map<String, dynamic>;
 
           await _box.write('razorpay_init_response', responseData);
-          print('Razorpay init response stored: $responseData');
+          _log('Razorpay init response stored: $responseData');
 
-          // --- FIX HERE: Store MongoDB _id if available from initiate response ---
-          // It's crucial your backend sends the MongoDB _id in this response for this to work.
-          // Assuming responseData['order']['_id'] exists:
+          // Store MongoDB _id if available from initiate response
           if (responseData.containsKey('order') && responseData['order'] is Map<String, dynamic> && responseData['order'].containsKey('_id')) {
             await _box.write(_lastOrderIdKey, responseData['order']['_id']);
-            print('Online Order MongoDB _id stored: ${responseData['order']['_id']}');
+            _log('Online Order MongoDB _id stored: ${responseData['order']['_id']}');
           } else {
-            // This warning is important. If '_id' is NOT present here, you will still
-            // get the 'Cast to ObjectId failed' error for online orders.
-            print('Warning: Online order initiation response did not contain expected MongoDB _id. Details fetching for this order might fail.');
-            // As a last resort fallback, if _id is truly not available at this stage,
-            // you might need to reconsider your backend's API design for this flow.
-            // Forcing it to store orderId here would perpetuate the error for getOrderDetails.
+            _log('Warning: Online order initiation response did not contain expected MongoDB _id. Details fetching for this order might fail.');
           }
+
+          // Show success message to user
+          Get.snackbar('Success', 'Payment initiated successfully!',
+              snackPosition: SnackPosition.BOTTOM,
+              backgroundColor: Colors.green.shade600,
+              colorText: Colors.white);
 
           return responseData;
         } else {
@@ -211,14 +224,16 @@ class OrderService extends GetxService {
         );
       }
     } on http.ClientException catch (e) {
+      _log('Network error during online order initiation: ${e.message}');
       throw OrderServiceException('Network error during online order initiation: ${e.message}', statusCode: 0);
     } on FormatException catch (e) {
+      _log('Server response format error during online order initiation: $e');
       throw OrderServiceException('Server response format error during online order initiation: $e', statusCode: 0);
     } catch (e) {
+      _log('Unexpected error occurred during online order initiation: $e');
       throw OrderServiceException('An unexpected error occurred during online order initiation: $e');
     }
   }
-
 
   Future<OrderModel> verifyRazorpayPayment(RazorpayVerifyRequest verifyRequest) async {
     final url = Uri.parse('$_baseUrl/online/verify');
@@ -239,17 +254,22 @@ class OrderService extends GetxService {
       );
 
       final responseBody = jsonDecode(response.body);
-      print("OrderService - verifyRazorpayPayment Status: ${response.statusCode}, Body: ${response.body}");
+      _log("verifyRazorpayPayment Status: ${response.statusCode}, Body: ${response.body}");
 
       if (response.statusCode >= 200 && response.statusCode < 300) {
         if (responseBody['success'] == true && responseBody.containsKey('data')) {
           await _box.remove('razorpay_init_response');
-          print('Razorpay init response cleared from storage.');
+          _log('Razorpay init response cleared from storage.');
 
           final OrderModel order = OrderModel.fromJson(responseBody['data'] as Map<String, dynamic>);
-          // --- FIX HERE: Store MongoDB _id (order.id) ---
           await _box.write(_lastOrderIdKey, order.id);
-          print('Verified Online Order MongoDB _id stored: ${order.id}');
+          _log('Verified Online Order MongoDB _id stored: ${order.id}');
+
+          // Show success message to user
+          Get.snackbar('Success', 'Payment verified and order placed successfully!',
+              snackPosition: SnackPosition.BOTTOM,
+              backgroundColor: Colors.green.shade600,
+              colorText: Colors.white);
 
           return order;
         } else {
@@ -265,17 +285,20 @@ class OrderService extends GetxService {
         );
       }
     } on http.ClientException catch (e) {
+      _log('Network error during Razorpay verification: ${e.message}');
       throw OrderServiceException('Network error during Razorpay verification: ${e.message}', statusCode: 0);
     } on FormatException catch (e) {
+      _log('Server response format error during Razorpay verification: $e');
       throw OrderServiceException('Server response format error during Razorpay verification: $e', statusCode: 0);
     } catch (e) {
+      _log('Unexpected error occurred during Razorpay verification: $e');
       throw OrderServiceException('An unexpected error occurred during Razorpay verification: $e');
     }
   }
 
   /// Fetches a list of orders specific to the authenticated user.
   Future<List<OrderModel>> getUserOrders() async {
-    final url = Uri.parse('$_baseUrl/user'); // Endpoint for user-specific orders
+    final url = Uri.parse('$_baseUrl/user');
     Map<String, String> headers;
     try {
       headers = _getHeaders();
@@ -289,17 +312,20 @@ class OrderService extends GetxService {
       final response = await http.get(url, headers: headers);
       final responseBody = jsonDecode(response.body);
 
-      print('OrderService - getUserOrders Status: ${response.statusCode}, Body: ${response.body}');
+      _log('getUserOrders Status: ${response.statusCode}, Body: ${response.body}');
 
       if (response.statusCode >= 200 && response.statusCode < 300) {
         if (responseBody['success'] == true && responseBody.containsKey('data') && responseBody['data'] is List) {
-          return (responseBody['data'] as List)
+          final orders = (responseBody['data'] as List)
               .map((itemJson) => OrderModel.fromJson(itemJson as Map<String, dynamic>))
               .toList();
+
+          _log('Successfully fetched ${orders.length} orders');
+          return orders;
         } else if (responseBody['success'] == true && responseBody['data'] is List && (responseBody['data'] as List).isEmpty) {
+          _log('No orders found for user');
           return [];
-        }
-        else {
+        } else {
           throw OrderServiceException(
             responseBody['message'] ?? 'Failed to load orders: Invalid success status or data format.',
             statusCode: response.statusCode,
@@ -312,10 +338,13 @@ class OrderService extends GetxService {
         );
       }
     } on http.ClientException catch (e) {
+      _log('Network error: ${e.message}');
       throw OrderServiceException('Network error: ${e.message}', statusCode: 0);
     } on FormatException catch (e) {
+      _log('Server response format error: $e');
       throw OrderServiceException('Server response format error: $e', statusCode: 0);
     } catch (e) {
+      _log('Unexpected error occurred: $e');
       throw OrderServiceException('An unexpected error occurred: $e');
     }
   }
@@ -323,9 +352,6 @@ class OrderService extends GetxService {
   // --- NEW METHODS FOR ORDER REQUESTS ---
 
   /// Sends a request to the backend to cancel an order.
-  // Note: For these request methods, you might still want to use the human-readable orderId
-  // if your backend's /request/cancel, /request/warranty, /request/return endpoints expect it.
-  // This is a design choice specific to your backend for these particular endpoints.
   Future<Map<String, dynamic>> requestCancel(String orderId, String reason) async {
     final url = Uri.parse('$_userRequestBaseUrl/cancel');
     Map<String, String> headers;
@@ -343,16 +369,22 @@ class OrderService extends GetxService {
         headers: headers,
         body: jsonEncode({
           "reason": reason,
-          "orderId": orderId, // Assuming this endpoint expects the human-readable orderId
+          "orderId": orderId,
         }),
       );
 
       final responseBody = jsonDecode(response.body);
-      print("OrderService - requestCancel Status: ${response.statusCode}, Body: ${response.body}");
+      _log("requestCancel Status: ${response.statusCode}, Body: ${response.body}");
 
       if (response.statusCode >= 200 && response.statusCode < 300) {
         if (responseBody['success'] == true) {
-          return responseBody as Map<String, dynamic>; // Return the full response body
+          // Show success message to user
+          Get.snackbar('Success', 'Cancel request submitted successfully!',
+              snackPosition: SnackPosition.BOTTOM,
+              backgroundColor: Colors.green.shade600,
+              colorText: Colors.white);
+
+          return responseBody as Map<String, dynamic>;
         } else {
           throw OrderServiceException(
             responseBody['message'] ?? 'Failed to send cancel request.',
@@ -366,10 +398,13 @@ class OrderService extends GetxService {
         );
       }
     } on http.ClientException catch (e) {
+      _log('Network error during cancel request: ${e.message}');
       throw OrderServiceException('Network error during cancel request: ${e.message}', statusCode: 0);
     } on FormatException catch (e) {
+      _log('Server response format error during cancel request: $e');
       throw OrderServiceException('Server response format error during cancel request: $e', statusCode: 0);
     } catch (e) {
+      _log('Unexpected error occurred during cancel request: $e');
       throw OrderServiceException('An unexpected error occurred during cancel request: $e');
     }
   }
@@ -392,16 +427,22 @@ class OrderService extends GetxService {
         headers: headers,
         body: jsonEncode({
           "reason": reason,
-          "orderId": orderId, // Assuming this endpoint expects the human-readable orderId
+          "orderId": orderId,
         }),
       );
 
       final responseBody = jsonDecode(response.body);
-      print("OrderService - requestWarranty Status: ${response.statusCode}, Body: ${response.body}");
+      _log("requestWarranty Status: ${response.statusCode}, Body: ${response.body}");
 
       if (response.statusCode >= 200 && response.statusCode < 300) {
         if (responseBody['success'] == true) {
-          return responseBody as Map<String, dynamic>; // Return the full response body
+          // Show success message to user
+          Get.snackbar('Success', 'Warranty request submitted successfully!',
+              snackPosition: SnackPosition.BOTTOM,
+              backgroundColor: Colors.green.shade600,
+              colorText: Colors.white);
+
+          return responseBody as Map<String, dynamic>;
         } else {
           throw OrderServiceException(
             responseBody['message'] ?? 'Failed to send warranty request.',
@@ -415,10 +456,13 @@ class OrderService extends GetxService {
         );
       }
     } on http.ClientException catch (e) {
+      _log('Network error during warranty request: ${e.message}');
       throw OrderServiceException('Network error during warranty request: ${e.message}', statusCode: 0);
     } on FormatException catch (e) {
+      _log('Server response format error during warranty request: $e');
       throw OrderServiceException('Server response format error during warranty request: $e', statusCode: 0);
     } catch (e) {
+      _log('Unexpected error occurred during warranty request: $e');
       throw OrderServiceException('An unexpected error occurred during warranty request: $e');
     }
   }
@@ -441,16 +485,22 @@ class OrderService extends GetxService {
         headers: headers,
         body: jsonEncode({
           "reason": reason,
-          "orderId": orderId, // Assuming this endpoint expects the human-readable orderId
+          "orderId": orderId,
         }),
       );
 
       final responseBody = jsonDecode(response.body);
-      print("OrderService - requestReturn Status: ${response.statusCode}, Body: ${response.body}");
+      _log("requestReturn Status: ${response.statusCode}, Body: ${response.body}");
 
       if (response.statusCode >= 200 && response.statusCode < 300) {
         if (responseBody['success'] == true) {
-          return responseBody as Map<String, dynamic>; // Return the full response body
+          // Show success message to user
+          Get.snackbar('Success', 'Return request submitted successfully!',
+              snackPosition: SnackPosition.BOTTOM,
+              backgroundColor: Colors.green.shade600,
+              colorText: Colors.white);
+
+          return responseBody as Map<String, dynamic>;
         } else {
           throw OrderServiceException(
             responseBody['message'] ?? 'Failed to send return request.',
@@ -464,10 +514,13 @@ class OrderService extends GetxService {
         );
       }
     } on http.ClientException catch (e) {
+      _log('Network error during return request: ${e.message}');
       throw OrderServiceException('Network error during return request: ${e.message}', statusCode: 0);
     } on FormatException catch (e) {
+      _log('Server response format error during return request: $e');
       throw OrderServiceException('Server response format error during return request: $e', statusCode: 0);
     } catch (e) {
+      _log('Unexpected error occurred during return request: $e');
       throw OrderServiceException('An unexpected error occurred during return request: $e');
     }
   }

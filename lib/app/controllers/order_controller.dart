@@ -493,8 +493,22 @@ class OrderController extends GetxController {
   Future<void> _processCODOrder(CreateOrderRequestModel orderRequest) async {
     if (orderRequest.orderAmount > 5000) {
       debugPrint('🛑 COD not allowed for orders above ₹5000. Total: ${orderRequest.orderAmount}');
+
+      Get.snackbar(
+        'COD Not Allowed',
+        'Orders above ₹5000 cannot use Cash on Delivery.',
+        backgroundColor: Colors.red.shade100,
+        colorText: Colors.black,
+        snackPosition: SnackPosition.TOP,
+        margin: EdgeInsets.all(16),
+        borderRadius: 8,
+        duration: Duration(seconds: 3),
+        icon: Icon(Icons.warning, color: Colors.red),
+      );
+
       return;
     }
+
 
     final createdOrder = await _orderService.placeCodOrder(orderRequest);
     debugPrint('✅ COD order created: ${createdOrder.orderId}');
@@ -725,14 +739,14 @@ class OrderController extends GetxController {
         orderHistory.clear();
         orderHistoryErrorMessage.value = 'No order history found.';
         if (!isPoll) {
-          _showModernSnackbar(
+         /* _showModernSnackbar(
             'No Orders Yet',
             orderHistoryErrorMessage.value,
             isError: false,
             icon: Icons.shopping_bag_outlined,
             backgroundColor: Colors.blue.shade400,
             snackPosition: SnackPosition.TOP,
-          );
+          );*/
         }
       }
     } on OrderServiceException catch (e) {
