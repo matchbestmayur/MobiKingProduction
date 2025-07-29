@@ -4,11 +4,13 @@ import '../../../themes/app_theme.dart';
 class BillSection extends StatefulWidget {
   final int itemTotal;
   final int deliveryCharge;
+  final int couponDiscount; // ✅ NEW: Add coupon discount parameter
 
   const BillSection({
     Key? key,
     required this.itemTotal,
     required this.deliveryCharge,
+    this.couponDiscount = 0, // ✅ Default to 0
   }) : super(key: key);
 
   @override
@@ -35,7 +37,8 @@ class _BillSectionState extends State<BillSection> {
   }
 
   double get _total {
-    return widget.itemTotal + widget.deliveryCharge + _gstAmount;
+    // ✅ Apply coupon discount to the final total
+    return widget.itemTotal + widget.deliveryCharge + _gstAmount - widget.couponDiscount;
   }
 
   void _showGstDialog() {
@@ -279,6 +282,15 @@ class _BillSectionState extends State<BillSection> {
           _buildBillRow("Items total", widget.itemTotal.toDouble(), textTheme),
           _buildBillRow("Delivery charge", widget.deliveryCharge.toDouble(), textTheme),
 
+          // ✅ Show coupon discount if applied
+          if (widget.couponDiscount > 0)
+            _buildBillRow(
+              "Coupon discount",
+              widget.couponDiscount.toDouble(),
+              textTheme,
+              isDiscount: true,
+            ),
+
           // GST Section (only show if has GST)
           if (_hasGstNumber && _showGstInput)
             _buildGstSection(textTheme),
@@ -288,6 +300,79 @@ class _BillSectionState extends State<BillSection> {
           const SizedBox(height: 4),
 
           _buildBillRow("Grand total", _total, textTheme, isBold: true),
+
+          // ✅ Show savings summary if coupon is applied
+          if (widget.couponDiscount > 0) ...[
+            const SizedBox(height: 8),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    AppColors.success.withOpacity(0.1),
+                    AppColors.success.withOpacity(0.05),
+                  ],
+                ),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(
+                  color: AppColors.success.withOpacity(0.2),
+                ),
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(6),
+                    decoration: BoxDecoration(
+                      color: AppColors.success.withOpacity(0.2),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Icon(
+                      Icons.savings_outlined,
+                      color: AppColors.success,
+                      size: 16,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          "You're saving ₹${widget.couponDiscount}",
+                          style: textTheme.labelMedium?.copyWith(
+                            color: AppColors.success,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        Text(
+                          "Coupon discount applied successfully",
+                          style: textTheme.bodySmall?.copyWith(
+                            color: AppColors.success.withOpacity(0.8),
+                            fontSize: 12,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: AppColors.success,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Text(
+                      "SAVED",
+                      style: TextStyle(
+                        color: AppColors.white,
+                        fontSize: 10,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ],
       ),
     );
@@ -342,7 +427,13 @@ class _BillSectionState extends State<BillSection> {
     );
   }
 
-  Widget _buildBillRow(String label, double value, TextTheme textTheme, {bool isBold = false}) {
+  Widget _buildBillRow(
+      String label,
+      double value,
+      TextTheme textTheme, {
+        bool isBold = false,
+        bool isDiscount = false, // ✅ NEW: Add discount parameter
+      }) {
     final TextStyle labelStyle = textTheme.bodyLarge?.copyWith(
       fontWeight: isBold ? FontWeight.w700 : FontWeight.w500,
       color: isBold ? AppColors.textDark : AppColors.textMedium,
@@ -351,7 +442,9 @@ class _BillSectionState extends State<BillSection> {
 
     final TextStyle valueStyle = textTheme.bodyLarge?.copyWith(
       fontWeight: isBold ? FontWeight.w700 : FontWeight.w500,
-      color: isBold ? AppColors.textDark : AppColors.textMedium,
+      color: isDiscount
+          ? AppColors.success // ✅ Green color for discount
+          : (isBold ? AppColors.textDark : AppColors.textMedium),
       fontSize: isBold ? 16 : 14,
     ) ?? const TextStyle();
 
@@ -360,8 +453,26 @@ class _BillSectionState extends State<BillSection> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(label, style: labelStyle),
-          Text("₹${value.toStringAsFixed(2)}", style: valueStyle),
+          Row(
+            children: [
+              Text(label, style: labelStyle),
+              // ✅ Add discount icon for coupon discount
+              if (isDiscount) ...[
+                const SizedBox(width: 6),
+                Icon(
+                  Icons.local_offer,
+                  color: AppColors.success,
+                  size: 14,
+                ),
+              ],
+            ],
+          ),
+          Text(
+            isDiscount
+                ? "-₹${value.toStringAsFixed(0)}" // ✅ Show minus for discount
+                : "₹${value.toStringAsFixed(2)}",
+            style: valueStyle,
+          ),
         ],
       ),
     );

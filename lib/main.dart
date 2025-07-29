@@ -3,12 +3,20 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart'; // Import for SystemChrome and DeviceOrientation
 import 'package:get/get.dart';
 import 'package:get_storage/get_storage.dart';
+import 'package:hive_flutter/hive_flutter.dart'; // Add Hive import
 
 // Firebase imports
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:mobiking/app/controllers/product_controller.dart';
 import 'package:mobiking/app/services/firebase_messaging_service.dart'; // Your FCM Service
+
+// Hive adapters imports - Add these imports for your models
+import 'package:mobiking/app/data/sub_category_model.dart';
+
+import 'package:mobiking/app/data/product_model.dart';
+
+import 'package:mobiking/app/data/category_model.dart';
 
 // Correct import paths for new screens/controllers/services
 // Ensure these paths are correct in your project structure
@@ -36,6 +44,9 @@ import 'package:mobiking/app/controllers/connectivity_controller.dart';
 import 'package:mobiking/app/modules/no_network/no_network_screen.dart';
 
 import 'app/controllers/fcm_controller.dart';
+import 'app/data/ParentCategory.dart';
+import 'app/data/key_information.dart';
+import 'app/data/selling_price.dart';
 import 'app/modules/bottombar/Bottom_bar.dart';
 import 'firebase_options.dart';
 
@@ -47,7 +58,7 @@ Future<void> _firebaseBackgroundMessagehandler(RemoteMessage message) async {
   // If you used FlutterFire CLI to generate 'firebase_options.dart',
   // uncomment the options line below and ensure it's imported.
   await Firebase.initializeApp(
-    // options: DefaultFirebaseOptions.currentPlatform, // Uncomment if you have this file
+    options: DefaultFirebaseOptions.currentPlatform,
   );
   print("Handling a background message: ${message.messageId}");
   print("Background message data: ${message.data}");
@@ -66,14 +77,18 @@ Future<void> main() async {
     DeviceOrientation.portraitDown,
   ]);
 
+  // --- Initialize Storage Systems ---
   await GetStorage.init(); // Initialize GetStorage for local storage
+
+  // Initialize Hive for complex data caching
+  await _initializeHive();
 
   // --- Firebase Initialization ---
   // This must happen before you use any Firebase services like FCM.
   // If you generated firebase_options.dart using FlutterFire CLI,
   // uncomment the options line below and ensure you import 'firebase_options.dart'.
   await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform, // UNCOMMENT THIS LINE
+    options: DefaultFirebaseOptions.currentPlatform,
   );
 
   // --- Core Services and Dependencies ---
@@ -112,13 +127,76 @@ Future<void> main() async {
   Get.put(OrderController());
   Get.put(BottomNavController());
 
-  // You will also need to put FcmController if you want to use it
-  // and its view (FcmView) in your app.
-  // Get.put(FcmController()); // Uncomment this if you want to initialize FcmController globally
-
   runApp(const MyApp());
 }
 
+/// Initialize Hive and register all model adapters
+Future<void> _initializeHive() async {
+  try {
+    // Initialize Hive
+    await Hive.initFlutter();
+
+    print('[Hive] Initializing Hive...');
+
+    // Register all adapters with their unique typeIds
+    if (!Hive.isAdapterRegistered(0)) {
+      Hive.registerAdapter(SubCategoryAdapter()); // typeId: 0
+      print('[Hive] Registered SubCategoryAdapter');
+    }
+
+    if (!Hive.isAdapterRegistered(1)) {
+      Hive.registerAdapter(ParentCategoryAdapter()); // typeId: 1
+      print('[Hive] Registered ParentCategoryAdapter');
+    }
+
+    if (!Hive.isAdapterRegistered(2)) {
+      Hive.registerAdapter(ProductModelAdapter()); // typeId: 2
+      print('[Hive] Registered ProductModelAdapter');
+    }
+
+    if (!Hive.isAdapterRegistered(3)) {
+      Hive.registerAdapter(KeyInformationAdapter()); // typeId: 3
+      print('[Hive] Registered KeyInformationAdapter');
+    }
+
+    if (!Hive.isAdapterRegistered(4)) {
+      Hive.registerAdapter(SellingPriceAdapter()); // typeId: 4
+      print('[Hive] Registered SellingPriceAdapter');
+    }
+
+    if (!Hive.isAdapterRegistered(5)) {
+      Hive.registerAdapter(CategoryModelAdapter()); // typeId: 5
+      print('[Hive] Registered CategoryModelAdapter');
+    }
+
+    print('[Hive] All adapters registered successfully');
+
+    // Pre-open frequently used boxes for better performance (optional)
+    await _preOpenBoxes();
+
+  } catch (e) {
+    print('[Hive] Error initializing Hive: $e');
+    // You might want to handle this error appropriately
+    // For now, we'll continue without Hive functionality
+  }
+}
+
+/// Pre-open frequently used Hive boxes for better performance
+Future<void> _preOpenBoxes() async {
+  try {
+    // Open metadata box for cache timestamps
+    await Hive.openBox<String>('metadata');
+    print('[Hive] Opened metadata box');
+
+    // You can pre-open other boxes here if needed
+    // await Hive.openBox<SubCategory>('subcategories');
+    // await Hive.openBox<CategoryModel>('categories');
+    // await Hive.openBox<ProductModel>('products');
+
+  } catch (e) {
+    print('[Hive] Error pre-opening boxes: $e');
+  }
+}
 
 class MyApp extends StatelessWidget {
   const MyApp({Key? key}) : super(key: key);

@@ -1,23 +1,60 @@
+import 'package:hive/hive.dart';
 import 'package:mobiking/app/data/product_model.dart';
 import 'ParentCategory.dart';
 
-class SubCategory {
+part 'sub_category_model.g.dart'; // This will be generated
+
+@HiveType(typeId: 0)
+class SubCategory extends HiveObject {
+  @HiveField(0)
   final String id;
+
+  @HiveField(1)
   final String name;
+
+  @HiveField(2)
   final String slug;
+
+  @HiveField(3)
   final int sequenceNo;
+
+  @HiveField(4)
   final String? upperBanner;
+
+  @HiveField(5)
   final String? lowerBanner;
+
+  @HiveField(6)
   final bool active;
+
+  @HiveField(7)
   final bool featured;
+
+  @HiveField(8)
   final List<String> photos;
+
+  @HiveField(9)
   final ParentCategory? parentCategory;
+
+  @HiveField(10)
   final List<ProductModel> products;
+
+  @HiveField(11)
   final DateTime createdAt;
+
+  @HiveField(12)
   final DateTime updatedAt;
+
+  @HiveField(13)
   final int v;
-  final double? deliveryCharge; // Correctly double?
+
+  @HiveField(14)
+  final double? deliveryCharge;
+
+  @HiveField(15)
   final int? minFreeDeliveryOrderAmount;
+
+  @HiveField(16)
   final int? minOrderAmount;
 
   SubCategory({
@@ -62,7 +99,6 @@ class SubCategory {
     return null;
   }
 
-
   factory SubCategory.fromJson(Map<String, dynamic> json) {
     return SubCategory(
       id: json['_id'] ?? '',
@@ -87,7 +123,6 @@ class SubCategory {
           ? DateTime.tryParse(json['updatedAt']) ?? DateTime(2000)
           : DateTime(2000),
       v: _safeParseInt(json['__v']) ?? 0,
-      // APPLY THE NEW _safeParseDouble HELPER HERE:
       deliveryCharge: _safeParseDouble(json['deliveryCharge']),
       minFreeDeliveryOrderAmount: _safeParseInt(json['minFreeDeliveryOrderAmount']),
       minOrderAmount: _safeParseInt(json['minOrderAmount']),

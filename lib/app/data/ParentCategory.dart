@@ -1,9 +1,25 @@
-class ParentCategory {
+import 'package:hive/hive.dart';
+
+part 'ParentCategory.g.dart'; // ← Change to match your file name (capital P,
+
+@HiveType(typeId: 1) // Using typeId 1 as mentioned in the previous conversation
+class ParentCategory extends HiveObject {
+  @HiveField(0)
   final String id;
+
+  @HiveField(1)
   final String name;
+
+  @HiveField(2)
   final String image;
+
+  @HiveField(3)
   final String slug;
+
+  @HiveField(4)
   final bool active;
+
+  @HiveField(5)
   final List<String> subCategories;
 
   ParentCategory({

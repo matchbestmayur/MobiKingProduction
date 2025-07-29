@@ -37,13 +37,20 @@ dependencies:
   geolocator: ^10.1.0
   geocoding: ^2.1.1
   permission_handler: ^11.0.2
+  hive: ^2.2.3
+  hive_flutter: ^1.1.0
+
 
   flutter_launcher_icons: ^0.13.1
 
 dev_dependencies:
+  hive_generator: ^2.0.1
+  build_runner: ^2.4.9
   flutter_test:
     sdk: flutter
   flutter_lints: ^5.0.0
+
+
 
 flutter:
   uses-material-design: true

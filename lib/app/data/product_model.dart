@@ -1,77 +1,75 @@
-class KeyInformation {
-  final String title;
-  final String content;
+import 'package:hive/hive.dart';
+import 'key_information.dart';
+import 'order_model.dart' hide SellingPrice;
+import 'selling_price.dart';
 
-  KeyInformation({
-    required this.title,
-    required this.content,
-  });
 
-  factory KeyInformation.fromJson(Map<String, dynamic> json) {
-    return KeyInformation(
-      title: json['title'] ?? '',
-      content: json['content'] ?? '',
-    );
-  }
+part 'product_model.g.dart';
 
-  Map<String, dynamic> toJson() => {
-    'title': title,
-    'content': content,
-  };
-}
-
-class SellingPrice {
-  final String? id;
-  final int price;
-  final DateTime? createdAt;
-  final DateTime? updatedAt;
-
-  SellingPrice({
-    this.id,
-    required this.price,
-    this.createdAt,
-    this.updatedAt,
-  });
-
-  factory SellingPrice.fromJson(Map<String, dynamic> json) {
-    return SellingPrice(
-      id: json['_id'] as String?,
-      price: (json['price'] as num?)?.toInt() ?? 0,
-      createdAt: json['createdAt'] != null ? DateTime.parse(json['createdAt']) : null,
-      updatedAt: json['updatedAt'] != null ? DateTime.parse(json['updatedAt']) : null,
-    );
-  }
-
-  Map<String, dynamic> toJson() => {
-    if (id != null) '_id': id,
-    'price': price,
-    if (createdAt != null) 'createdAt': createdAt!.toIso8601String(),
-    if (updatedAt != null) 'updatedAt': updatedAt!.toIso8601String(),
-  };
-}
-
-class ProductModel {
+@HiveType(typeId: 2)
+class ProductModel extends HiveObject {
+  @HiveField(0)
   final String id;
+
+  @HiveField(1)
   final String name;
+
+  @HiveField(2)
   final String fullName;
+
+  @HiveField(3)
   final String slug;
+
+  @HiveField(4)
   final String description;
+
+  @HiveField(5)
   final bool active;
+
+  @HiveField(6)
   final bool newArrival;
+
+  @HiveField(7)
   final bool liked;
+
+  @HiveField(8)
   final bool bestSeller;
+
+  @HiveField(9)
   final bool recommended;
+
+  @HiveField(10)
   final List<SellingPrice> sellingPrice;
+
+  @HiveField(11)
   final String categoryId;
+
+  @HiveField(12)
   final List<String> stockIds;
+
+  @HiveField(13)
   final List<String> orderIds;
+
+  @HiveField(14)
   final List<String> groupIds;
+
+  @HiveField(15)
   final int totalStock;
+
+  @HiveField(16)
   final Map<String, int> variants;
+
+  @HiveField(17)
   final List<String> images;
+
+  @HiveField(18)
   final List<String> descriptionPoints;
+
+  @HiveField(19)
   final List<KeyInformation> keyInformation;
-  final int? regularPrice; // <--- NEW FIELD: Added as nullable int
+
+  @HiveField(20)
+  final int? regularPrice;
 
   ProductModel({
     required this.id,
@@ -94,9 +92,10 @@ class ProductModel {
     required this.images,
     required this.descriptionPoints,
     required this.keyInformation,
-    this.regularPrice, // <--- ADDED to constructor
+    this.regularPrice,
   });
 
+  // ... rest of your fromJson and toJson methods stay the same
   factory ProductModel.fromJson(Map<String, dynamic> json) {
     return ProductModel(
       id: json['_id'] ?? '',
@@ -160,7 +159,7 @@ class ProductModel {
       'images': images,
       'descriptionPoints': descriptionPoints,
       'keyInformation': keyInformation.map((e) => e.toJson()).toList(),
-      if (regularPrice != null) 'regularPrice': regularPrice, // <--- ADDED to toJson, conditionally
+      if (regularPrice != null) 'regularPrice': regularPrice,
     };
   }
 }

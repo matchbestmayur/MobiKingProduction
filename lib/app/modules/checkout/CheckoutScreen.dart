@@ -31,6 +31,545 @@ class CheckoutScreen extends StatelessWidget {
   // Add an RxString to hold the selected payment method
   final RxString _selectedPaymentMethod = ''.obs;
 
+  // ✅ COUPON SYSTEM: Complete Coupon Data Structure
+  final RxString _couponCode = ''.obs;
+  final RxBool _isCouponApplied = false.obs;
+  final RxDouble _couponDiscount = 0.0.obs;
+  final RxString _appliedCouponCode = ''.obs;
+  final RxBool _isCouponLoading = false.obs;
+  final RxString _couponType = ''.obs; // 'percentage' or 'fixed'
+  final RxString _couponDescription = ''.obs;
+  final TextEditingController _couponController = TextEditingController();
+
+  // ✅ DEMO: Complete Coupon Database
+  final Map<String, Map<String, dynamic>> _demoValidCoupons = {
+    'WELCOME10': {
+      'discount': 10.0,
+      'type': 'fixed',
+      'description': 'Welcome bonus for new users',
+      'minOrder': 99.0,
+      'maxDiscount': 10.0,
+      'validUntil': '31 Dec 2025',
+      'category': 'Welcome Offer',
+      'icon': Icons.celebration_outlined,
+      'color': Colors.orange,
+    },
+    'SAVE20': {
+      'discount': 20.0,
+      'type': 'fixed',
+      'description': 'Flat ₹20 off on all orders',
+      'minOrder': 199.0,
+      'maxDiscount': 20.0,
+      'validUntil': '31 Dec 2025',
+      'category': 'General Discount',
+      'icon': Icons.local_offer_outlined,
+      'color': Colors.green,
+    },
+    'FIRSTORDER': {
+      'discount': 15.0,
+      'type': 'percentage',
+      'description': '15% off on first order',
+      'minOrder': 149.0,
+      'maxDiscount': 100.0,
+      'validUntil': '31 Dec 2025',
+      'category': 'First Time User',
+      'icon': Icons.star_outline,
+      'color': Colors.purple,
+    },
+    'PREMIUM25': {
+      'discount': 25.0,
+      'type': 'fixed',
+      'description': 'Premium member exclusive',
+      'minOrder': 299.0,
+      'maxDiscount': 25.0,
+      'validUntil': '31 Dec 2025',
+      'category': 'Premium',
+      'icon': Icons.diamond_outlined,
+      'color': Colors.blue,
+    },
+    'MEGA50': {
+      'discount': 10.0,
+      'type': 'percentage',
+      'description': '10% off, up to ₹50',
+      'minOrder': 499.0,
+      'maxDiscount': 50.0,
+      'validUntil': '31 Dec 2025',
+      'category': 'Mega Deal',
+      'icon': Icons.flash_on_outlined,
+      'color': Colors.red,
+    },
+    'SUMMER30': {
+      'discount': 30.0,
+      'type': 'fixed',
+      'description': 'Summer special discount',
+      'minOrder': 399.0,
+      'maxDiscount': 30.0,
+      'validUntil': '31 Aug 2025',
+      'category': 'Seasonal',
+      'icon': Icons.wb_sunny_outlined,
+      'color': Colors.amber,
+    },
+  };
+
+  // ✅ Calculate current cart total
+  double _calculateCartTotal() {
+    return cartController.cartItems.fold(0.0, (sum, item) {
+      final productData = item['productId'];
+      final product = productData is Map<String, dynamic>
+          ? ProductModel.fromJson(productData)
+          : ProductModel(
+          id: '', name: '', fullName: '', slug: '', description: '',
+          images: [], sellingPrice: [], variants: {}, active: false,
+          newArrival: false, liked: false, bestSeller: false,
+          recommended: false, categoryId: '', stockIds: [],
+          orderIds: [], groupIds: [], totalStock: 0,
+          descriptionPoints: [], keyInformation: []
+      );
+      final quantity = item['quantity'] ?? 1;
+      double itemPrice = 0.0;
+      if (product.sellingPrice.isNotEmpty && product.sellingPrice[0].price != null) {
+        itemPrice = product.sellingPrice[0].price!.toDouble();
+      }
+      return sum + itemPrice * quantity;
+    });
+  }
+
+  // ✅ ENHANCED: Smart Coupon Validation with Complete Logic
+  void _applyCoupon() async {
+    final couponCode = _couponController.text.trim().toUpperCase();
+
+    if (couponCode.isEmpty) {
+      _showErrorSnackbar('Please enter a coupon code');
+      return;
+    }
+
+    _isCouponLoading.value = true;
+
+    // Simulate API call delay
+    await Future.delayed(const Duration(milliseconds: 800));
+
+    // Check if coupon exists
+    if (!_demoValidCoupons.containsKey(couponCode)) {
+      _showErrorSnackbar('Invalid coupon code. Please check and try again.');
+      _isCouponLoading.value = false;
+      return;
+    }
+
+    final couponData = _demoValidCoupons[couponCode]!;
+    final double minOrderAmount = couponData['minOrder'];
+
+    // Calculate current cart total
+    final double currentCartTotal = _calculateCartTotal();
+
+    // Check minimum order requirement
+    if (currentCartTotal < minOrderAmount) {
+      _showErrorSnackbar(
+          'Minimum order of ₹${minOrderAmount.toStringAsFixed(0)} required for this coupon'
+      );
+      _isCouponLoading.value = false;
+      return;
+    }
+
+    // Calculate discount amount
+    double discountAmount = 0.0;
+    if (couponData['type'] == 'percentage') {
+      discountAmount = (currentCartTotal * couponData['discount']) / 100;
+      discountAmount = discountAmount > couponData['maxDiscount']
+          ? couponData['maxDiscount']
+          : discountAmount;
+    } else {
+      discountAmount = couponData['discount'];
+    }
+
+    // Apply coupon
+    _couponDiscount.value = discountAmount;
+    _isCouponApplied.value = true;
+    _appliedCouponCode.value = couponCode;
+    _couponCode.value = couponCode;
+    _couponType.value = couponData['type'];
+    _couponDescription.value = couponData['description'];
+
+    _showSuccessSnackbar(
+        'Coupon Applied! 🎉',
+        'You saved ₹${discountAmount.toStringAsFixed(0)} with $couponCode'
+    );
+
+    _isCouponLoading.value = false;
+  }
+
+  // ✅ Remove coupon with confirmation
+  void _removeCoupon() {
+    _isCouponApplied.value = false;
+    _couponDiscount.value = 0.0;
+    _appliedCouponCode.value = '';
+    _couponCode.value = '';
+    _couponType.value = '';
+    _couponDescription.value = '';
+    _couponController.clear();
+
+    Get.snackbar(
+      'Coupon Removed',
+      'Your coupon discount has been removed from the order',
+      snackPosition: SnackPosition.TOP,
+      backgroundColor: AppColors.textMedium.withOpacity(0.9),
+      colorText: AppColors.white,
+      icon: const Icon(Icons.info_outline, color: AppColors.white),
+      margin: const EdgeInsets.all(16),
+      borderRadius: 12,
+      duration: const Duration(seconds: 2),
+    );
+  }
+
+  // ✅ Enhanced Error Snackbar
+  void _showErrorSnackbar(String message) {
+    Get.snackbar(
+      'Invalid Coupon',
+      message,
+      snackPosition: SnackPosition.TOP,
+      backgroundColor: AppColors.danger.withOpacity(0.9),
+      colorText: AppColors.white,
+      icon: const Icon(Icons.error_outline, color: AppColors.white),
+      margin: const EdgeInsets.all(16),
+      borderRadius: 12,
+      duration: const Duration(seconds: 3),
+    );
+  }
+
+  // ✅ Enhanced Success Snackbar
+  void _showSuccessSnackbar(String title, String message) {
+    Get.snackbar(
+      title,
+      message,
+      snackPosition: SnackPosition.TOP,
+      backgroundColor: AppColors.success.withOpacity(0.9),
+      colorText: AppColors.white,
+      icon: const Icon(Icons.check_circle_outline, color: AppColors.white),
+      margin: const EdgeInsets.all(16),
+      borderRadius: 12,
+      duration: const Duration(seconds: 3),
+    );
+  }
+
+  // ✅ PREMIUM: Complete Coupon Section Widget
+// ✅ MINIMALISTIC: Compact Coupon Section Widget
+  Widget _buildCouponSection(BuildContext context) {
+    final TextTheme textTheme = Theme.of(context).textTheme;
+
+    return Obx(() {
+      return Container(
+        margin: const EdgeInsets.symmetric(horizontal: 2),
+        decoration: BoxDecoration(
+          color: AppColors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: _isCouponApplied.value
+                ? AppColors.success.withOpacity(0.2)
+                : AppColors.neutralBackground,
+            width: 1,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: AppColors.textDark.withOpacity(0.03),
+              blurRadius: 6,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: _isCouponApplied.value
+            ? _buildAppliedCouponMinimal(textTheme)
+            : _buildCouponInputMinimal(textTheme),
+      );
+    });
+  }
+
+// ✅ Minimalistic Applied Coupon
+  Widget _buildAppliedCouponMinimal(TextTheme textTheme) {
+    return Padding(
+      padding: const EdgeInsets.all(16),
+      child: Row(
+        children: [
+          // Icon
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: AppColors.success.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Icon(
+              Icons.local_offer,
+              color: AppColors.success,
+              size: 18,
+            ),
+          ),
+          const SizedBox(width: 12),
+
+          // Content
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Text(
+                      _appliedCouponCode.value,
+                      style: textTheme.labelLarge?.copyWith(
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.success,
+                        letterSpacing: 1,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: AppColors.success.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Text(
+                        "-₹${_couponDiscount.value.toStringAsFixed(0)}",
+                        style: textTheme.labelSmall?.copyWith(
+                          color: AppColors.success,
+                          fontWeight: FontWeight.w700,
+                          fontSize: 10,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  "Coupon applied successfully",
+                  style: textTheme.bodySmall?.copyWith(
+                    color: AppColors.textMedium,
+                    fontSize: 12,
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          // Remove Button
+          GestureDetector(
+            onTap: _removeCoupon,
+            child: Container(
+              padding: const EdgeInsets.all(6),
+              decoration: BoxDecoration(
+                color: AppColors.neutralBackground,
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: Icon(
+                Icons.close,
+                color: AppColors.textMedium,
+                size: 16,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+// ✅ Minimalistic Coupon Input
+  Widget _buildCouponInputMinimal(TextTheme textTheme) {
+    return Column(
+      children: [
+        // Header
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
+          child: Row(
+            children: [
+              Icon(
+                Icons.local_offer_outlined,
+                color: AppColors.primaryPurple,
+                size: 20,
+              ),
+              const SizedBox(width: 8),
+              Text(
+                "Have a coupon?",
+                style: textTheme.titleSmall?.copyWith(
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.textDark,
+                ),
+              ),
+            ],
+          ),
+        ),
+
+        // Input Row
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+          child: Row(
+            children: [
+              // Input Field
+              Expanded(
+                child: Container(
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: AppColors.neutralBackground.withOpacity(0.5),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
+                      color: AppColors.neutralBackground,
+                      width: 1,
+                    ),
+                  ),
+                  child: TextField(
+                    controller: _couponController,
+                    textCapitalization: TextCapitalization.characters,
+                    style: textTheme.bodyMedium?.copyWith(
+                      fontWeight: FontWeight.w600,
+                      fontSize: 14,
+                    ),
+                    decoration: InputDecoration(
+                      hintText: "Enter code",
+                      hintStyle: textTheme.bodyMedium?.copyWith(
+                        color: AppColors.textLight,
+                        fontSize: 14,
+                      ),
+                      border: InputBorder.none,
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 10,
+                      ),
+                    ),
+                    onSubmitted: (_) => _applyCoupon(),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+
+              // Apply Button
+              GestureDetector(
+                onTap: _isCouponLoading.value ? null : _applyCoupon,
+                child: Container(
+                  height: 40,
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  decoration: BoxDecoration(
+                    color: AppColors.primaryPurple,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Center(
+                    child: _isCouponLoading.value
+                        ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(
+                        color: AppColors.white,
+                        strokeWidth: 2,
+                      ),
+                    )
+                        : Text(
+                      "Apply",
+                      style: textTheme.labelMedium?.copyWith(
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.white,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+
+        // Available Coupons (Compact)
+        if (_demoValidCoupons.isNotEmpty)
+          Container(
+            decoration: BoxDecoration(
+              color: AppColors.neutralBackground.withOpacity(0.3),
+              borderRadius: const BorderRadius.only(
+                bottomLeft: Radius.circular(12),
+                bottomRight: Radius.circular(12),
+              ),
+            ),
+            padding: const EdgeInsets.all(12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  "Available offers",
+                  style: textTheme.labelMedium?.copyWith(
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.textMedium,
+                    fontSize: 12,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 6,
+                  children: _demoValidCoupons.entries.take(4).map((entry) {
+                    return _buildCompactCouponChip(entry.key, entry.value, textTheme);
+                  }).toList(),
+                ),
+              ],
+            ),
+          ),
+      ],
+    );
+  }
+
+// ✅ Compact Coupon Chip
+  Widget _buildCompactCouponChip(
+      String code,
+      Map<String, dynamic> couponData,
+      TextTheme textTheme
+      ) {
+    final currentTotal = _calculateCartTotal();
+    final isUsable = currentTotal >= couponData['minOrder'];
+
+    return GestureDetector(
+      onTap: () {
+        if (isUsable) {
+          _couponController.text = code;
+          _applyCoupon();
+        }
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        decoration: BoxDecoration(
+          color: isUsable
+              ? AppColors.primaryPurple.withOpacity(0.1)
+              : AppColors.textLight.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(6),
+          border: Border.all(
+            color: isUsable
+                ? AppColors.primaryPurple.withOpacity(0.2)
+                : AppColors.textLight.withOpacity(0.2),
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              code,
+              style: textTheme.labelSmall?.copyWith(
+                color: isUsable
+                    ? AppColors.primaryPurple
+                    : AppColors.textLight,
+                fontWeight: FontWeight.w600,
+                fontSize: 10,
+              ),
+            ),
+            const SizedBox(width: 4),
+            Text(
+              couponData['type'] == 'percentage'
+                  ? "${couponData['discount'].toInt()}%"
+                  : "₹${couponData['discount'].toInt()}",
+              style: textTheme.labelSmall?.copyWith(
+                color: isUsable
+                    ? AppColors.primaryPurple
+                    : AppColors.textLight,
+                fontWeight: FontWeight.w700,
+                fontSize: 10,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+
   // ✅ Method to get related products based on cart items' categories
   List<ProductModel> _getRelatedProducts(List<Map<String, dynamic>> cartProductsWithDetails) {
     // Get all products from ProductController
@@ -262,7 +801,11 @@ class CheckoutScreen extends StatelessWidget {
               ),
               const SizedBox(height: 20),
 
-              // Bill Details Section
+              // ✅ NEW: Premium Coupon Section
+              _buildCouponSection(context),
+              const SizedBox(height: 20),
+
+              // Bill Details Section (Updated to include coupon discount)
               Container(
                 decoration: BoxDecoration(
                   color: AppColors.white,
@@ -275,10 +818,11 @@ class CheckoutScreen extends StatelessWidget {
                     ),
                   ],
                 ),
-                child: BillSection(
+                child: Obx(() => BillSection(
                   itemTotal: itemTotal.toInt(),
                   deliveryCharge: deliveryCharge.toInt(),
-                ),
+                  couponDiscount: _couponDiscount.value.toInt(),
+                )),
               ),
 
               const SizedBox(height: 32),
@@ -594,7 +1138,8 @@ class CheckoutScreen extends StatelessWidget {
 
                     final deliveryCharge = subTotal > 0 ? 40.0 : 0.0;
                     final gstCharge = 0.0;
-                    final displayTotal = subTotal + deliveryCharge + gstCharge;
+                    // ✅ Apply coupon discount to final total
+                    final displayTotal = (subTotal + deliveryCharge + gstCharge) - _couponDiscount.value;
 
                     final isAddressSelected = addressController.selectedAddress.value != null;
                     final isCartEmpty = cartController.cartItems.isEmpty;
@@ -632,15 +1177,30 @@ class CheckoutScreen extends StatelessWidget {
                                 mainAxisAlignment: MainAxisAlignment.center,
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Text(
-                                    "₹${displayTotal.toStringAsFixed(0)}",
-                                    style: textTheme.bodyMedium?.copyWith(
-                                      color: AppColors.white,
-                                      fontWeight: FontWeight.bold,
-                                    ),
+                                  Row(
+                                    children: [
+                                      Text(
+                                        "₹${displayTotal.toStringAsFixed(0)}",
+                                        style: textTheme.bodyMedium?.copyWith(
+                                          color: AppColors.white,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                      // ✅ Show savings indicator when coupon is applied
+                                      if (_isCouponApplied.value) ...[
+                                        const SizedBox(width: 4),
+                                        Icon(
+                                          Icons.local_offer,
+                                          color: AppColors.white.withOpacity(0.8),
+                                          size: 12,
+                                        ),
+                                      ],
+                                    ],
                                   ),
                                   Text(
-                                    "Total",
+                                    _isCouponApplied.value
+                                        ? "Saved ₹${_couponDiscount.value.toStringAsFixed(0)}"
+                                        : "Total",
                                     style: textTheme.labelSmall?.copyWith(
                                       color: AppColors.white.withOpacity(0.8),
                                     ),
@@ -684,5 +1244,4 @@ class CheckoutScreen extends StatelessWidget {
       ),
     );
   }
-
 }
