@@ -1,5 +1,3 @@
-// Path: lib/app/data/create_order_request_model.dart
-
 import 'package:mobiking/app/data/product_model.dart'; // To reference ProductModel's ID if needed
 
 // --- Request-specific Nested Models ---
@@ -72,6 +70,11 @@ class CreateOrderRequestModel {
   final String? addressId; // <--- NEW FIELD: The ID of the selected address
   final bool isAppOrder; // <--- NEW FIELD: Added for app identification
 
+  // === NEW COUPON FIELDS ===
+  final String? couponId;       // Coupon ID if applied
+  final String? couponCode;     // Coupon code string if applied
+  final double? discountAmount; // Discount amount if applied
+
   CreateOrderRequestModel({
     required this.userId,
     required this.cartId,
@@ -86,8 +89,11 @@ class CreateOrderRequestModel {
     required this.address,
     required this.method,
     required this.items,
-    this.addressId, // <--- ADDED TO CONSTRUCTOR
-    this.isAppOrder = true, // <--- ADDED TO CONSTRUCTOR with default true
+    this.addressId, // <--- existing optional field
+    this.isAppOrder = true, // <--- existing optional field with default
+    this.couponId,       // <--- newly added
+    this.couponCode,     // <--- newly added
+    this.discountAmount, // <--- newly added
   });
 
   Map<String, dynamic> toJson() {
@@ -106,7 +112,12 @@ class CreateOrderRequestModel {
       'method': method,
       'items': items.map((item) => item.toJson()).toList(),
       if (addressId != null) 'addressId': addressId,
-      'isAppOrder': isAppOrder, // <--- ADDED TO JSON METHOD
+      'isAppOrder': isAppOrder, // <--- existing field
+
+      // New coupon fields only added if not null:
+      if (couponId != null) 'couponId': couponId,
+      if (couponCode != null) 'couponCode': couponCode,
+      if (discountAmount != null && discountAmount! > 0) 'discountAmount': discountAmount,
     };
   }
 }

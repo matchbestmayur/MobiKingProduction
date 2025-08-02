@@ -15,9 +15,18 @@ import '../../themes/app_theme.dart'; // Contains AppColors & AppTheme
 import '../../data/order_model.dart';
 import '../bottombar/Bottom_bar.dart';
 import '../../services/order_service.dart';
+import '../../controllers/cart_controller.dart'; // ✅ Added cart controller import
 
 class OrderConfirmationScreen extends StatefulWidget {
-  const OrderConfirmationScreen({Key? key}) : super(key: key);
+  // ADDED: Optional parameter to pass order ID directly
+  final String? orderId;
+  final Map<String, dynamic>? orderData; // ✅ Changed from OrderModel? to Map<String, dynamic>?
+
+  const OrderConfirmationScreen({
+    Key? key,
+    this.orderId,
+    this.orderData,
+  }) : super(key: key);
 
   @override
   State<OrderConfirmationScreen> createState() => _OrderConfirmationScreenState();
@@ -25,6 +34,7 @@ class OrderConfirmationScreen extends StatefulWidget {
 
 class _OrderConfirmationScreenState extends State<OrderConfirmationScreen> with SingleTickerProviderStateMixin {
   late final OrderService _orderService = Get.find<OrderService>();
+  late final CartController _cartController = Get.find<CartController>(); // ✅ Added cart controller
   late AnimationController _lottieController;
 
   final RxBool _showLottie = true.obs;
@@ -35,12 +45,13 @@ class _OrderConfirmationScreenState extends State<OrderConfirmationScreen> with 
   final RxString _errorMessage = ''.obs;
 
   final GetStorage _box = GetStorage();
-  static const String _lastOrderIdKey = 'lastOrderId';
 
   @override
   void initState() {
     super.initState();
     debugPrint('OrderConfirmationScreen initState called');
+    debugPrint('Widget orderId parameter: ${widget.orderId}');
+    debugPrint('Widget orderData parameter: ${widget.orderData != null ? 'PROVIDED' : 'NULL'}');
     _lottieController = AnimationController(vsync: this);
     _fetchOrderDetailsAndAnimate();
   }
@@ -57,6 +68,108 @@ class _OrderConfirmationScreenState extends State<OrderConfirmationScreen> with 
     super.dispose();
   }
 
+  // ✅ Added navigation helper method with cart clearing
+  void _navigateToMainScreen() {
+    debugPrint('Navigating to main screen and clearing cart');
+
+    // Clear the cart to ensure it's empty
+    _cartController.clearCartData();
+
+    // Navigate to main screen
+    Get.offAll(() => MainContainerScreen());
+  }
+
+  // ENHANCED: Method to get order ID from multiple sources including widget parameter
+  String? _getOrderId() {
+    debugPrint('=== TRYING TO RETRIEVE ORDER ID ===');
+
+    // PRIORITY 1: Check if order ID was passed as parameter
+    if (widget.orderId != null && widget.orderId!.isNotEmpty) {
+      debugPrint('✅ Found order ID from widget parameter: ${widget.orderId}');
+      return widget.orderId;
+    }
+
+    // PRIORITY 2: Try all possible storage keys
+    final List<String> possibleKeys = [
+      'recent_order_id',
+      'last_order_id',
+      'latest_order_id',
+      'lastOrderId', // Original key
+    ];
+
+    String? orderId;
+    for (String key in possibleKeys) {
+      orderId = _box.read(key);
+      debugPrint('Checking storage key "$key": $orderId');
+      if (orderId != null && orderId.isNotEmpty) {
+        debugPrint('✅ Found order ID in storage key "$key": $orderId');
+        return orderId;
+      }
+    }
+
+    // PRIORITY 3: Try extracting from order data objects
+    debugPrint('🔍 No direct order ID found, checking order data objects...');
+
+    final List<String> orderDataKeys = [
+      'current_order_for_confirmation',
+      'last_placed_order',
+      'order_confirmation_data',
+      'order_success_data',
+    ];
+
+    for (String key in orderDataKeys) {
+      final orderData = _box.read(key);
+      debugPrint('Checking order data key "$key": ${orderData != null ? 'EXISTS' : 'NULL'}');
+
+      if (orderData != null && orderData is Map<String, dynamic>) {
+        // Try different possible order ID field names
+        orderId = orderData['orderId'] ??
+            orderData['_id'] ??
+            orderData['id'];
+
+        if (orderId != null && orderId.isNotEmpty) {
+          debugPrint('✅ Found order ID in "$key" data: $orderId');
+          return orderId;
+        }
+      }
+    }
+
+    debugPrint('❌ No order ID found in any source');
+    return null;
+  }
+
+  // ENHANCED: Method to get order data from multiple sources including widget parameter
+  Map<String, dynamic>? _getOrderData() {
+    debugPrint('=== TRYING TO RETRIEVE ORDER DATA ===');
+
+    // PRIORITY 1: Check if order data was passed as parameter
+    if (widget.orderData != null) {
+      debugPrint('✅ Found order data from widget parameter');
+      return widget.orderData!; // ✅ Now returns Map<String, dynamic> directly
+    }
+
+    // PRIORITY 2: Try storage keys
+    final List<String> orderDataKeys = [
+      'current_order_for_confirmation',
+      'last_placed_order',
+      'order_confirmation_data',
+      'order_success_data',
+    ];
+
+    for (String key in orderDataKeys) {
+      final orderData = _box.read(key);
+      debugPrint('Checking order data key "$key": ${orderData != null ? 'EXISTS' : 'NULL'}');
+
+      if (orderData != null && orderData is Map<String, dynamic>) {
+        debugPrint('✅ Found order data in storage key "$key"');
+        return orderData;
+      }
+    }
+
+    debugPrint('❌ No order data found in any source');
+    return null;
+  }
+
   Future<void> _fetchOrderDetailsAndAnimate() async {
     _showLottie.value = true;
     _isLottiePlayedOnce.value = false;
@@ -71,29 +184,25 @@ class _OrderConfirmationScreenState extends State<OrderConfirmationScreen> with 
     }
 
     final Completer<void> dataFetchCompleter = Completer<void>();
-    final String? lastStoredOrderId = _box.read(_lastOrderIdKey);
 
-    debugPrint('[_fetchOrderDetailsAndAnimate] Fetched lastOrderId from GetStorage: $lastStoredOrderId');
-
-    if (lastStoredOrderId == null || lastStoredOrderId.isEmpty) {
-      _errorMessage.value = 'No recent order ID found. Please place an order first.';
-      dataFetchCompleter.complete();
-      debugPrint('[_fetchOrderDetailsAndAnimate] No order ID found, setting error and completing dataFetchCompleter.');
+    // ENHANCED: Try to get order data first (includes widget parameter)
+    final orderData = _getOrderData();
+    if (orderData != null) {
+      try {
+        debugPrint('[_fetchOrderDetailsAndAnimate] Found order data, trying to parse...');
+        final OrderModel parsedOrder = OrderModel.fromJson(orderData);
+        _confirmedOrder.value = parsedOrder;
+        _errorMessage.value = '';
+        debugPrint('[_fetchOrderDetailsAndAnimate] Successfully parsed order from available data.');
+        dataFetchCompleter.complete();
+      } catch (e) {
+        debugPrint('[_fetchOrderDetailsAndAnimate] Failed to parse order data: $e');
+        // Continue to try order ID approach
+        _tryFetchWithOrderId(dataFetchCompleter);
+      }
     } else {
-      (() async {
-        try {
-          final fetchedOrder = await _orderService.getOrderDetails(orderId: lastStoredOrderId);
-          _confirmedOrder.value = fetchedOrder;
-          _errorMessage.value = '';
-          debugPrint('[_fetchOrderDetailsAndAnimate] _orderService.getOrderDetails() completed successfully.');
-        } catch (e) {
-          _errorMessage.value = 'Unexpected error during order fetch: ${e.toString()}';
-          debugPrint('[_fetchOrderDetailsAndAnimate] Unexpected error: $e');
-        } finally {
-          dataFetchCompleter.complete();
-          debugPrint('[_fetchOrderDetailsAndAnimate] dataFetchCompleter completed.');
-        }
-      })();
+      // No order data available, try with order ID
+      _tryFetchWithOrderId(dataFetchCompleter);
     }
 
     try {
@@ -132,6 +241,51 @@ class _OrderConfirmationScreenState extends State<OrderConfirmationScreen> with 
     }
   }
 
+  // ADDED: Helper method to fetch order using order ID
+  void _tryFetchWithOrderId(Completer<void> completer) {
+    final String? orderId = _getOrderId();
+    debugPrint('[_tryFetchWithOrderId] Retrieved order ID: $orderId');
+
+    if (orderId == null || orderId.isEmpty) {
+      _errorMessage.value = 'No recent order ID found. Please place an order first.';
+      completer.complete();
+      debugPrint('[_tryFetchWithOrderId] No order ID found, setting error and completing.');
+      return;
+    }
+
+    (() async {
+      try {
+        debugPrint('[_tryFetchWithOrderId] Fetching order from API with ID: $orderId');
+        final fetchedOrder = await _orderService.getOrderDetails(orderId: orderId);
+        _confirmedOrder.value = fetchedOrder;
+        _errorMessage.value = '';
+        debugPrint('[_tryFetchWithOrderId] Successfully fetched order from API.');
+      } catch (e) {
+        debugPrint('[_tryFetchWithOrderId] API fetch failed: $e');
+
+        // Final fallback: Try to get order data from storage one more time
+        final fallbackOrderData = _getOrderData();
+        if (fallbackOrderData != null) {
+          try {
+            final OrderModel parsedOrder = OrderModel.fromJson(fallbackOrderData);
+            _confirmedOrder.value = parsedOrder;
+            _errorMessage.value = '';
+            debugPrint('[_tryFetchWithOrderId] Fallback: Successfully used stored order data.');
+          } catch (parseError) {
+            _errorMessage.value = 'Unable to load order details. Please try again.';
+            debugPrint('[_tryFetchWithOrderId] Both API and stored data failed: $parseError');
+          }
+        } else {
+          _errorMessage.value = 'Unable to load order details. Please try again.';
+          debugPrint('[_tryFetchWithOrderId] No fallback data available.');
+        }
+      } finally {
+        completer.complete();
+        debugPrint('[_tryFetchWithOrderId] completer completed.');
+      }
+    })();
+  }
+
   @override
   Widget build(BuildContext context) {
     // Use the global text theme from your AppTheme
@@ -168,9 +322,7 @@ class _OrderConfirmationScreenState extends State<OrderConfirmationScreen> with 
         return Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16),
           child: ElevatedButton.icon(
-            onPressed: () {
-              Get.offAll(() => MainContainerScreen());
-            },
+            onPressed: _navigateToMainScreen, // ✅ Changed to use helper method
             icon: const Icon(Icons.shopping_bag_outlined, color: AppColors.white, size: 24),
             label: Text(
               "Continue Shopping",
@@ -301,9 +453,7 @@ class _OrderConfirmationScreenState extends State<OrderConfirmationScreen> with 
             ),
             const SizedBox(height: 24),
             ElevatedButton.icon(
-              onPressed: () {
-                Get.offAll(() => MainContainerScreen());
-              },
+              onPressed: _navigateToMainScreen, // ✅ Changed to use helper method
               icon: const Icon(Icons.shopping_cart_outlined, color: AppColors.white),
               label: Text('Start Shopping', style: textTheme.labelLarge?.copyWith(color: AppColors.white, fontWeight: FontWeight.w600)),
               style: ElevatedButton.styleFrom(backgroundColor: AppColors.primaryPurple),
@@ -517,7 +667,6 @@ class _OrderConfirmationScreenState extends State<OrderConfirmationScreen> with 
     );
   }
 
-
   Widget _buildShippingDetailsCard(BuildContext context, TextTheme textTheme, OrderModel order) {
     return Card(
       color: AppColors.white,
@@ -707,7 +856,7 @@ class _OrderConfirmationScreenState extends State<OrderConfirmationScreen> with 
 
   Widget _buildOrderSummary(BuildContext context, TextTheme textTheme, OrderModel order) {
     return Card(
-      color: AppColors.neutralBackground, // Soft neutral background
+      color: AppColors.neutralBackground,
       elevation: 2,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: Padding(
@@ -743,7 +892,6 @@ class _OrderConfirmationScreenState extends State<OrderConfirmationScreen> with 
       ),
     );
   }
-
 
   Widget _buildSummaryRow(BuildContext context, TextTheme textTheme, String title, double value,
       {bool isTotal = false, bool isDiscount = false}) {
@@ -793,5 +941,4 @@ class _OrderConfirmationScreenState extends State<OrderConfirmationScreen> with 
       ),
     );
   }
-
 }

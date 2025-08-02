@@ -1,4 +1,6 @@
+import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 import 'package:http/http.dart' as http;
 import 'package:get_storage/get_storage.dart';
 import 'package:get/get.dart';
@@ -25,6 +27,11 @@ class OrderService extends GetxService {
   static const String _userRequestBaseUrl = 'https://mobiking-e-commerce-backend-prod.vercel.app/api/v1/users/request';
   final GetStorage _box = GetStorage();
 
+  // ENHANCED: Timeout configurations
+  static const Duration _connectTimeout = Duration(seconds: 30);
+  static const Duration _receiveTimeout = Duration(seconds: 30);
+  static const int _maxRetries = 3;
+
   // Define a key for storing the last order ID
   static const String _lastOrderIdKey = 'lastOrderId';
 
@@ -48,6 +55,90 @@ class OrderService extends GetxService {
       }
     }
     return headers;
+  }
+
+  // ENHANCED: Retry mechanism with exponential backoff
+  Future<http.Response> _makeRequest(
+      Future<http.Response> Function() requestFunction,
+      String operationName, {
+        int maxRetries = _maxRetries,
+      }) async {
+    int attempt = 0;
+    Duration delay = const Duration(seconds: 1);
+
+    while (attempt < maxRetries) {
+      attempt++;
+      _log('$operationName - Attempt $attempt/$maxRetries');
+
+      try {
+        final response = await requestFunction().timeout(
+          Duration(seconds: 20 + (attempt * 10)), // Progressive timeout: 30s, 40s, 50s
+          onTimeout: () {
+            throw TimeoutException('Request timeout after ${20 + (attempt * 10)} seconds', null);
+          },
+        );
+
+        // If successful, return immediately
+        if (response.statusCode < 500) {
+          return response;
+        }
+
+        // Server error, retry if we have attempts left
+        if (attempt < maxRetries) {
+          _log('$operationName - Server error (${response.statusCode}), retrying in ${delay.inSeconds}s...');
+          await Future.delayed(delay);
+          delay = Duration(seconds: delay.inSeconds * 2); // Exponential backoff
+          continue;
+        }
+
+        return response;
+
+      } on TimeoutException catch (e) {
+        _log('$operationName - Timeout on attempt $attempt: ${e.message}');
+        if (attempt < maxRetries) {
+          _log('$operationName - Retrying in ${delay.inSeconds}s...');
+          await Future.delayed(delay);
+          delay = Duration(seconds: delay.inSeconds * 2);
+          continue;
+        }
+        throw OrderServiceException(
+          'Connection timeout after $maxRetries attempts. Please check your internet connection and try again.',
+          statusCode: 408,
+        );
+      } on SocketException catch (e) {
+        _log('$operationName - Network error on attempt $attempt: ${e.message}');
+        if (attempt < maxRetries) {
+          _log('$operationName - Retrying in ${delay.inSeconds}s...');
+          await Future.delayed(delay);
+          delay = Duration(seconds: delay.inSeconds * 2);
+          continue;
+        }
+        throw OrderServiceException(
+          'Network error: Please check your internet connection and try again.',
+          statusCode: 0,
+        );
+      } on http.ClientException catch (e) {
+        _log('$operationName - Client error on attempt $attempt: ${e.message}');
+        if (attempt < maxRetries && e.message.contains('timeout')) {
+          _log('$operationName - Retrying in ${delay.inSeconds}s...');
+          await Future.delayed(delay);
+          delay = Duration(seconds: delay.inSeconds * 2);
+          continue;
+        }
+        throw OrderServiceException('Network error: ${e.message}', statusCode: 0);
+      } catch (e) {
+        _log('$operationName - Unexpected error on attempt $attempt: $e');
+        if (attempt < maxRetries) {
+          _log('$operationName - Retrying in ${delay.inSeconds}s...');
+          await Future.delayed(delay);
+          delay = Duration(seconds: delay.inSeconds * 2);
+          continue;
+        }
+        throw OrderServiceException('Unexpected error: $e');
+      }
+    }
+
+    throw OrderServiceException('Max retries exceeded for $operationName');
   }
 
   /// Fetches detailed information for a specific order by ID.
@@ -76,9 +167,12 @@ class OrderService extends GetxService {
     }
 
     try {
-      final response = await http.get(url, headers: headers);
-      final responseBody = jsonDecode(response.body);
+      final response = await _makeRequest(
+            () => http.get(url, headers: headers),
+        'getOrderDetails',
+      );
 
+      final responseBody = jsonDecode(response.body);
       _log("getOrderDetails Status: ${response.statusCode}, Body: ${response.body}");
 
       if (response.statusCode >= 200 && response.statusCode < 300) {
@@ -97,13 +191,11 @@ class OrderService extends GetxService {
           statusCode: response.statusCode,
         );
       }
-    } on http.ClientException catch (e) {
-      _log('Network error while fetching order details: ${e.message}');
-      throw OrderServiceException('Network error while fetching order details: ${e.message}', statusCode: 0);
     } on FormatException catch (e) {
       _log('Server response format error for order details: $e');
       throw OrderServiceException('Server response format error for order details: $e', statusCode: 0);
     } catch (e) {
+      if (e is OrderServiceException) rethrow;
       _log('Unexpected error while fetching order details: $e');
       throw OrderServiceException('Unexpected error while fetching order details: $e');
     }
@@ -122,10 +214,13 @@ class OrderService extends GetxService {
     }
 
     try {
-      final response = await http.post(
-        url,
-        headers: headers,
-        body: jsonEncode(orderRequest.toJson()),
+      final response = await _makeRequest(
+            () => http.post(
+          url,
+          headers: headers,
+          body: jsonEncode(orderRequest.toJson()),
+        ),
+        'placeCodOrder',
       );
 
       final responseBody = jsonDecode(response.body);
@@ -156,18 +251,17 @@ class OrderService extends GetxService {
           statusCode: response.statusCode,
         );
       }
-    } on http.ClientException catch (e) {
-      _log('Network error during COD order placement: ${e.message}');
-      throw OrderServiceException('Network error during COD order placement: ${e.message}', statusCode: 0);
     } on FormatException catch (e) {
       _log('Server response format error during COD order placement: $e');
       throw OrderServiceException('Server response format error during COD order placement: $e', statusCode: 0);
     } catch (e) {
+      if (e is OrderServiceException) rethrow;
       _log('Unexpected error occurred during COD order placement: $e');
       throw OrderServiceException('An unexpected error occurred during COD order placement: $e');
     }
   }
 
+  // ENHANCED: Initiate online order with better timeout handling
   Future<Map<String, dynamic>> initiateOnlineOrder(CreateOrderRequestModel orderRequest) async {
     final url = Uri.parse('$_baseUrl/online/new');
     Map<String, String> headers;
@@ -180,10 +274,14 @@ class OrderService extends GetxService {
     }
 
     try {
-      final response = await http.post(
-        url,
-        headers: headers,
-        body: jsonEncode(orderRequest.toJson()),
+      final response = await _makeRequest(
+            () => http.post(
+          url,
+          headers: headers,
+          body: jsonEncode(orderRequest.toJson()),
+        ),
+        'initiateOnlineOrder',
+        maxRetries: 2, // Reduce retries for payment initiation to avoid duplicate orders
       );
 
       final responseBody = jsonDecode(response.body);
@@ -223,13 +321,11 @@ class OrderService extends GetxService {
           statusCode: response.statusCode,
         );
       }
-    } on http.ClientException catch (e) {
-      _log('Network error during online order initiation: ${e.message}');
-      throw OrderServiceException('Network error during online order initiation: ${e.message}', statusCode: 0);
     } on FormatException catch (e) {
       _log('Server response format error during online order initiation: $e');
       throw OrderServiceException('Server response format error during online order initiation: $e', statusCode: 0);
     } catch (e) {
+      if (e is OrderServiceException) rethrow;
       _log('Unexpected error occurred during online order initiation: $e');
       throw OrderServiceException('An unexpected error occurred during online order initiation: $e');
     }
@@ -247,10 +343,13 @@ class OrderService extends GetxService {
     }
 
     try {
-      final response = await http.post(
-        url,
-        headers: headers,
-        body: jsonEncode(verifyRequest.toJson()),
+      final response = await _makeRequest(
+            () => http.post(
+          url,
+          headers: headers,
+          body: jsonEncode(verifyRequest.toJson()),
+        ),
+        'verifyRazorpayPayment',
       );
 
       final responseBody = jsonDecode(response.body);
@@ -284,13 +383,11 @@ class OrderService extends GetxService {
           statusCode: response.statusCode,
         );
       }
-    } on http.ClientException catch (e) {
-      _log('Network error during Razorpay verification: ${e.message}');
-      throw OrderServiceException('Network error during Razorpay verification: ${e.message}', statusCode: 0);
     } on FormatException catch (e) {
       _log('Server response format error during Razorpay verification: $e');
       throw OrderServiceException('Server response format error during Razorpay verification: $e', statusCode: 0);
     } catch (e) {
+      if (e is OrderServiceException) rethrow;
       _log('Unexpected error occurred during Razorpay verification: $e');
       throw OrderServiceException('An unexpected error occurred during Razorpay verification: $e');
     }
@@ -309,9 +406,12 @@ class OrderService extends GetxService {
     }
 
     try {
-      final response = await http.get(url, headers: headers);
-      final responseBody = jsonDecode(response.body);
+      final response = await _makeRequest(
+            () => http.get(url, headers: headers),
+        'getUserOrders',
+      );
 
+      final responseBody = jsonDecode(response.body);
       _log('getUserOrders Status: ${response.statusCode}, Body: ${response.body}');
 
       if (response.statusCode >= 200 && response.statusCode < 300) {
@@ -337,19 +437,17 @@ class OrderService extends GetxService {
           statusCode: response.statusCode,
         );
       }
-    } on http.ClientException catch (e) {
-      _log('Network error: ${e.message}');
-      throw OrderServiceException('Network error: ${e.message}', statusCode: 0);
     } on FormatException catch (e) {
       _log('Server response format error: $e');
       throw OrderServiceException('Server response format error: $e', statusCode: 0);
     } catch (e) {
+      if (e is OrderServiceException) rethrow;
       _log('Unexpected error occurred: $e');
       throw OrderServiceException('An unexpected error occurred: $e');
     }
   }
 
-  // --- NEW METHODS FOR ORDER REQUESTS ---
+  // ENHANCED: Request methods with better error handling
 
   /// Sends a request to the backend to cancel an order.
   Future<Map<String, dynamic>> requestCancel(String orderId, String reason) async {
@@ -364,13 +462,16 @@ class OrderService extends GetxService {
     }
 
     try {
-      final response = await http.post(
-        url,
-        headers: headers,
-        body: jsonEncode({
-          "reason": reason,
-          "orderId": orderId,
-        }),
+      final response = await _makeRequest(
+            () => http.post(
+          url,
+          headers: headers,
+          body: jsonEncode({
+            "reason": reason,
+            "orderId": orderId,
+          }),
+        ),
+        'requestCancel',
       );
 
       final responseBody = jsonDecode(response.body);
@@ -397,13 +498,11 @@ class OrderService extends GetxService {
           statusCode: response.statusCode,
         );
       }
-    } on http.ClientException catch (e) {
-      _log('Network error during cancel request: ${e.message}');
-      throw OrderServiceException('Network error during cancel request: ${e.message}', statusCode: 0);
     } on FormatException catch (e) {
       _log('Server response format error during cancel request: $e');
       throw OrderServiceException('Server response format error during cancel request: $e', statusCode: 0);
     } catch (e) {
+      if (e is OrderServiceException) rethrow;
       _log('Unexpected error occurred during cancel request: $e');
       throw OrderServiceException('An unexpected error occurred during cancel request: $e');
     }
@@ -422,13 +521,16 @@ class OrderService extends GetxService {
     }
 
     try {
-      final response = await http.post(
-        url,
-        headers: headers,
-        body: jsonEncode({
-          "reason": reason,
-          "orderId": orderId,
-        }),
+      final response = await _makeRequest(
+            () => http.post(
+          url,
+          headers: headers,
+          body: jsonEncode({
+            "reason": reason,
+            "orderId": orderId,
+          }),
+        ),
+        'requestWarranty',
       );
 
       final responseBody = jsonDecode(response.body);
@@ -455,13 +557,11 @@ class OrderService extends GetxService {
           statusCode: response.statusCode,
         );
       }
-    } on http.ClientException catch (e) {
-      _log('Network error during warranty request: ${e.message}');
-      throw OrderServiceException('Network error during warranty request: ${e.message}', statusCode: 0);
     } on FormatException catch (e) {
       _log('Server response format error during warranty request: $e');
       throw OrderServiceException('Server response format error during warranty request: $e', statusCode: 0);
     } catch (e) {
+      if (e is OrderServiceException) rethrow;
       _log('Unexpected error occurred during warranty request: $e');
       throw OrderServiceException('An unexpected error occurred during warranty request: $e');
     }
@@ -480,13 +580,16 @@ class OrderService extends GetxService {
     }
 
     try {
-      final response = await http.post(
-        url,
-        headers: headers,
-        body: jsonEncode({
-          "reason": reason,
-          "orderId": orderId,
-        }),
+      final response = await _makeRequest(
+            () => http.post(
+          url,
+          headers: headers,
+          body: jsonEncode({
+            "reason": reason,
+            "orderId": orderId,
+          }),
+        ),
+        'requestReturn',
       );
 
       final responseBody = jsonDecode(response.body);
@@ -513,15 +616,36 @@ class OrderService extends GetxService {
           statusCode: response.statusCode,
         );
       }
-    } on http.ClientException catch (e) {
-      _log('Network error during return request: ${e.message}');
-      throw OrderServiceException('Network error during return request: ${e.message}', statusCode: 0);
     } on FormatException catch (e) {
       _log('Server response format error during return request: $e');
       throw OrderServiceException('Server response format error during return request: $e', statusCode: 0);
     } catch (e) {
+      if (e is OrderServiceException) rethrow;
       _log('Unexpected error occurred during return request: $e');
       throw OrderServiceException('An unexpected error occurred during return request: $e');
     }
+  }
+
+  // ADDED: Network health check method
+  Future<bool> checkNetworkHealth() async {
+    try {
+      final response = await http.get(
+        Uri.parse('$_baseUrl/health'),
+        headers: _getHeaders(requireAuth: false),
+      ).timeout(const Duration(seconds: 10));
+
+      _log('Network health check: ${response.statusCode}');
+      return response.statusCode == 200;
+    } catch (e) {
+      _log('Network health check failed: $e');
+      return false;
+    }
+  }
+
+  // ADDED: Clear stored data method
+  Future<void> clearStoredData() async {
+    await _box.remove(_lastOrderIdKey);
+    await _box.remove('razorpay_init_response');
+    _log('Cleared stored order data');
   }
 }

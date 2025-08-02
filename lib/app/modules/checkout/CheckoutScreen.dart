@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:get/get.dart';
 import 'package:mobiking/app/modules/Product_page/product_page.dart';
-
 import 'package:mobiking/app/modules/address/AddressPage.dart';
 import 'package:mobiking/app/modules/checkout/widget/bill_section.dart';
 import 'package:mobiking/app/modules/checkout/widget/cart_item_tile.dart';
@@ -14,244 +13,313 @@ import '../../controllers/address_controller.dart';
 import '../../controllers/cart_controller.dart';
 import '../../controllers/order_controller.dart';
 import '../../controllers/product_controller.dart';
+import '../../controllers/coupon_controller.dart';
 import '../../data/AddressModel.dart';
+import '../../data/coupon_model.dart';
 import '../../data/product_model.dart';
 import '../../themes/app_theme.dart';
 import '../home/widgets/AllProductGridCard.dart';
 import '../home/widgets/ProductCard.dart';
 
-class CheckoutScreen extends StatelessWidget {
-  CheckoutScreen({Key? key}) : super(key: key);
+class CheckoutScreen extends StatefulWidget {
+  const CheckoutScreen({Key? key}) : super(key: key);
 
+  @override
+  State<CheckoutScreen> createState() => _CheckoutScreenState();
+}
+
+class _CheckoutScreenState extends State<CheckoutScreen> {
   final cartController = Get.find<CartController>();
   final addressController = Get.find<AddressController>();
   final orderController = Get.find<OrderController>();
   final productController = Get.find<ProductController>();
+  final couponController = Get.find<CouponController>();
 
   // Add an RxString to hold the selected payment method
   final RxString _selectedPaymentMethod = ''.obs;
 
-  // ✅ COUPON SYSTEM: Complete Coupon Data Structure
-  final RxString _couponCode = ''.obs;
-  final RxBool _isCouponApplied = false.obs;
-  final RxDouble _couponDiscount = 0.0.obs;
-  final RxString _appliedCouponCode = ''.obs;
-  final RxBool _isCouponLoading = false.obs;
-  final RxString _couponType = ''.obs; // 'percentage' or 'fixed'
-  final RxString _couponDescription = ''.obs;
-  final TextEditingController _couponController = TextEditingController();
-
-  // ✅ DEMO: Complete Coupon Database
-  final Map<String, Map<String, dynamic>> _demoValidCoupons = {
-    'WELCOME10': {
-      'discount': 10.0,
-      'type': 'fixed',
-      'description': 'Welcome bonus for new users',
-      'minOrder': 99.0,
-      'maxDiscount': 10.0,
-      'validUntil': '31 Dec 2025',
-      'category': 'Welcome Offer',
-      'icon': Icons.celebration_outlined,
-      'color': Colors.orange,
-    },
-    'SAVE20': {
-      'discount': 20.0,
-      'type': 'fixed',
-      'description': 'Flat ₹20 off on all orders',
-      'minOrder': 199.0,
-      'maxDiscount': 20.0,
-      'validUntil': '31 Dec 2025',
-      'category': 'General Discount',
-      'icon': Icons.local_offer_outlined,
-      'color': Colors.green,
-    },
-    'FIRSTORDER': {
-      'discount': 15.0,
-      'type': 'percentage',
-      'description': '15% off on first order',
-      'minOrder': 149.0,
-      'maxDiscount': 100.0,
-      'validUntil': '31 Dec 2025',
-      'category': 'First Time User',
-      'icon': Icons.star_outline,
-      'color': Colors.purple,
-    },
-    'PREMIUM25': {
-      'discount': 25.0,
-      'type': 'fixed',
-      'description': 'Premium member exclusive',
-      'minOrder': 299.0,
-      'maxDiscount': 25.0,
-      'validUntil': '31 Dec 2025',
-      'category': 'Premium',
-      'icon': Icons.diamond_outlined,
-      'color': Colors.blue,
-    },
-    'MEGA50': {
-      'discount': 10.0,
-      'type': 'percentage',
-      'description': '10% off, up to ₹50',
-      'minOrder': 499.0,
-      'maxDiscount': 50.0,
-      'validUntil': '31 Dec 2025',
-      'category': 'Mega Deal',
-      'icon': Icons.flash_on_outlined,
-      'color': Colors.red,
-    },
-    'SUMMER30': {
-      'discount': 30.0,
-      'type': 'fixed',
-      'description': 'Summer special discount',
-      'minOrder': 399.0,
-      'maxDiscount': 30.0,
-      'validUntil': '31 Aug 2025',
-      'category': 'Seasonal',
-      'icon': Icons.wb_sunny_outlined,
-      'color': Colors.amber,
-    },
-  };
-
-  // ✅ Calculate current cart total
-  double _calculateCartTotal() {
-    return cartController.cartItems.fold(0.0, (sum, item) {
-      final productData = item['productId'];
-      final product = productData is Map<String, dynamic>
-          ? ProductModel.fromJson(productData)
-          : ProductModel(
-          id: '', name: '', fullName: '', slug: '', description: '',
-          images: [], sellingPrice: [], variants: {}, active: false,
-          newArrival: false, liked: false, bestSeller: false,
-          recommended: false, categoryId: '', stockIds: [],
-          orderIds: [], groupIds: [], totalStock: 0,
-          descriptionPoints: [], keyInformation: []
-      );
-      final quantity = item['quantity'] ?? 1;
-      double itemPrice = 0.0;
-      if (product.sellingPrice.isNotEmpty && product.sellingPrice[0].price != null) {
-        itemPrice = product.sellingPrice[0].price!.toDouble();
-      }
-      return sum + itemPrice * quantity;
+  @override
+  void initState() {
+    super.initState();
+    // ✅ UPDATED: Initialize coupon controller with current cart total
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final cartTotal = _calculateCartTotal();
+      couponController.setSubtotal(cartTotal); // ✅ UPDATED: setSubtotal instead of setOrderAmount
+      couponController.fetchAvailableCoupons();
     });
   }
 
-  // ✅ ENHANCED: Smart Coupon Validation with Complete Logic
-  void _applyCoupon() async {
-    final couponCode = _couponController.text.trim().toUpperCase();
+  // ✅ BILLING PRECISION: Accurate cart total calculation
+  double _calculateCartTotal() {
+    try {
+      double total = 0.0;
 
-    if (couponCode.isEmpty) {
-      _showErrorSnackbar('Please enter a coupon code');
-      return;
+      for (var item in cartController.cartItems) {
+        final productData = item['productId'];
+        final quantity = (item['quantity'] as int?) ?? 1;
+
+        if (productData is Map<String, dynamic>) {
+          final product = ProductModel.fromJson(productData);
+
+          // Get price from product's selling price array
+          if (product.sellingPrice.isNotEmpty && product.sellingPrice[0].price != null) {
+            final itemPrice = product.sellingPrice[0].price!.toDouble();
+            total += itemPrice * quantity;
+          }
+        }
+      }
+
+      return double.parse(total.toStringAsFixed(2)); // Ensure precision
+    } catch (e) {
+      print('Error calculating cart total: $e');
+      return 0.0;
     }
+  }
 
-    _isCouponLoading.value = true;
+  // ✅ BILLING PRECISION: Calculate delivery charge with business logic
+  double _calculateDeliveryCharge(double cartTotal) {
+    if (cartTotal <= 0) return 0.0;
 
-    // Simulate API call delay
-    await Future.delayed(const Duration(milliseconds: 800));
+    // Business logic: Free delivery above ₹500
+    if (cartTotal >= 500) return 0.0;
 
-    // Check if coupon exists
-    if (!_demoValidCoupons.containsKey(couponCode)) {
-      _showErrorSnackbar('Invalid coupon code. Please check and try again.');
-      _isCouponLoading.value = false;
-      return;
+    return 40.0; // Standard delivery charge
+  }
+
+  // ✅ BILLING PRECISION: Calculate GST (if applicable)
+  double _calculateGST(double cartTotal) {
+    // Assuming 0% GST for now, but can be configured
+    return 0.0;
+  }
+
+  // ✅ BILLING PRECISION: Calculate final total with all charges and discounts
+  Map<String, double> _calculateBillingBreakdown() {
+    final cartTotal = _calculateCartTotal();
+    final deliveryCharge = _calculateDeliveryCharge(cartTotal);
+    final gstCharge = _calculateGST(cartTotal);
+
+    // Subtotal before discount
+    final subtotal = cartTotal + deliveryCharge + gstCharge;
+
+    // Apply coupon discount
+    final couponDiscount = couponController.isCouponApplied.value
+        ? couponController.discountAmount.value
+        : 0.0;
+
+    // Ensure discount doesn't exceed subtotal
+    final actualDiscount = couponDiscount > subtotal ? subtotal : couponDiscount;
+
+    // Final total
+    final finalTotal = subtotal - actualDiscount;
+
+    return {
+      'cartTotal': double.parse(cartTotal.toStringAsFixed(2)),
+      'deliveryCharge': double.parse(deliveryCharge.toStringAsFixed(2)),
+      'gstCharge': double.parse(gstCharge.toStringAsFixed(2)),
+      'subtotal': double.parse(subtotal.toStringAsFixed(2)),
+      'couponDiscount': double.parse(actualDiscount.toStringAsFixed(2)),
+      'finalTotal': double.parse(finalTotal.toStringAsFixed(2)),
+    };
+  }
+
+  // ✅ UPDATED: Update coupon controller when cart changes
+  void _updateCouponOrderAmount() {
+    final cartTotal = _calculateCartTotal();
+    couponController.setSubtotal(cartTotal); // ✅ UPDATED: setSubtotal instead of setOrderAmount
+  }
+
+  // ✅ COMPLETELY FIXED: Helper method to safely get coupon code
+  String _getCouponCode(dynamic coupon) {
+    try {
+      if (coupon == null) return 'CODE';
+
+      // Handle different possible field names
+      if (coupon is Map) {
+        return coupon['code']?.toString() ??
+            coupon['couponCode']?.toString() ??
+            coupon['Code']?.toString() ??
+            'CODE';
+      }
+
+      // If it's a CouponModel object
+      if (coupon.code != null) {
+        return coupon.code.toString();
+      }
+
+      return 'CODE';
+    } catch (e) {
+      print('Error getting coupon code: $e');
+      return 'CODE';
     }
+  }
 
-    final couponData = _demoValidCoupons[couponCode]!;
-    final double minOrderAmount = couponData['minOrder'];
+  // ✅ COMPLETELY FIXED: Helper method to safely get discount text
+  String _getCouponDiscountText(dynamic coupon) {
+    try {
+      if (coupon == null) return 'OFFER';
 
-    // Calculate current cart total
-    final double currentCartTotal = _calculateCartTotal();
+      double percentValue = 0.0;
+      double valueAmount = 0.0;
 
-    // Check minimum order requirement
-    if (currentCartTotal < minOrderAmount) {
-      _showErrorSnackbar(
-          'Minimum order of ₹${minOrderAmount.toStringAsFixed(0)} required for this coupon'
+      // Handle different data structures
+      if (coupon is Map) {
+        // Try different possible field names for percentage
+        final percentStr = coupon['percent']?.toString() ??
+            coupon['percentage']?.toString() ??
+            coupon['discountPercent']?.toString() ??
+            coupon['Percent']?.toString() ?? '0';
+
+        // Try different possible field names for value
+        final valueStr = coupon['value']?.toString() ??
+            coupon['discountValue']?.toString() ??
+            coupon['amount']?.toString() ??
+            coupon['Value']?.toString() ?? '0';
+
+        percentValue = double.tryParse(percentStr.replaceAll(RegExp(r'[^\d.]'), '')) ?? 0.0;
+        valueAmount = double.tryParse(valueStr.replaceAll(RegExp(r'[^\d.]'), '')) ?? 0.0;
+      } else {
+        // Handle CouponModel object
+        if (coupon.percent != null) {
+          percentValue = double.tryParse(coupon.percent.toString().replaceAll(RegExp(r'[^\d.]'), '')) ?? 0.0;
+        }
+        if (coupon.value != null) {
+          valueAmount = double.tryParse(coupon.value.toString().replaceAll(RegExp(r'[^\d.]'), '')) ?? 0.0;
+        }
+      }
+
+      // Return percentage first, then value
+      if (percentValue > 0) {
+        return "${percentValue.toInt()}%";
+      } else if (valueAmount > 0) {
+        return "₹${valueAmount.toInt()}";
+      }
+
+      return "OFFER";
+    } catch (e) {
+      print('Error parsing coupon discount: $e');
+      return "OFFER";
+    }
+  }
+
+  // ✅ COMPLETELY FIXED: Helper method to safely check if coupon is usable
+  bool _isCouponUsable(dynamic coupon) {
+    try {
+      if (coupon == null) return false;
+
+      bool hasDiscount = false;
+
+      // Check if coupon has any discount
+      if (coupon is Map) {
+        final percentStr = coupon['percent']?.toString() ??
+            coupon['percentage']?.toString() ??
+            coupon['discountPercent']?.toString() ?? '0';
+
+        final valueStr = coupon['value']?.toString() ??
+            coupon['discountValue']?.toString() ??
+            coupon['amount']?.toString() ?? '0';
+
+        final percentValue = double.tryParse(percentStr.replaceAll(RegExp(r'[^\d.]'), '')) ?? 0.0;
+        final valueAmount = double.tryParse(valueStr.replaceAll(RegExp(r'[^\d.]'), '')) ?? 0.0;
+
+        hasDiscount = percentValue > 0 || valueAmount > 0;
+
+        // ✅ FIXED: Check dates if available with proper type handling
+        if (hasDiscount && coupon['startDate'] != null && coupon['endDate'] != null) {
+          try {
+            final now = DateTime.now();
+            DateTime? startDate;
+            DateTime? endDate;
+
+            // ✅ Handle different date formats safely
+            final startDateValue = coupon['startDate'];
+            final endDateValue = coupon['endDate'];
+
+            // Parse startDate
+            if (startDateValue is DateTime) {
+              startDate = startDateValue;
+            } else if (startDateValue is String) {
+              startDate = DateTime.parse(startDateValue);
+            } else if (startDateValue is int) {
+              startDate = DateTime.fromMillisecondsSinceEpoch(startDateValue);
+            }
+
+            // Parse endDate
+            if (endDateValue is DateTime) {
+              endDate = endDateValue;
+            } else if (endDateValue is String) {
+              endDate = DateTime.parse(endDateValue);
+            } else if (endDateValue is int) {
+              endDate = DateTime.fromMillisecondsSinceEpoch(endDateValue);
+            }
+
+            // Check if both dates are valid
+            if (startDate != null && endDate != null) {
+              return now.isAfter(startDate) && now.isBefore(endDate);
+            } else {
+              print('Could not parse coupon dates - assuming valid');
+              return hasDiscount; // Return discount check if date parsing fails
+            }
+          } catch (e) {
+            print('Error parsing coupon dates: $e');
+            return hasDiscount; // Return discount check if date parsing fails
+          }
+        }
+      } else {
+        // Handle CouponModel object
+        try {
+          final percentValue = double.tryParse(coupon.percent?.toString()?.replaceAll(RegExp(r'[^\d.]'), '') ?? '0') ?? 0.0;
+          final valueAmount = double.tryParse(coupon.value?.toString()?.replaceAll(RegExp(r'[^\d.]'), '') ?? '0') ?? 0.0;
+
+          hasDiscount = percentValue > 0 || valueAmount > 0;
+
+          if (hasDiscount) {
+            // ✅ Use the CouponModel's built-in validation
+            return coupon.isValid ?? true;
+          }
+        } catch (e) {
+          print('Error checking CouponModel: $e');
+          return false;
+        }
+      }
+
+      return hasDiscount;
+    } catch (e) {
+      print('Error checking coupon usability: $e');
+      return false;
+    }
+  }
+
+  // ✅ COMPLETELY FIXED: Safe coupon selection
+  // ✅ FIXED: Safe coupon selection with proper type casting
+  void _selectCouponSafely(dynamic coupon) {
+    try {
+      if (coupon == null) return;
+
+      // Convert raw coupon data to CouponModel if needed
+      if (coupon is Map) {
+        // ✅ ADD TYPE CASTING HERE
+        final couponMap = Map<String, dynamic>.from(coupon);
+        final couponModel = CouponModel.fromJson(couponMap);
+        couponController.selectCoupon(couponModel);
+      } else if (coupon is CouponModel) {
+        couponController.selectCoupon(coupon);
+      } else {
+        print('Unknown coupon type: ${coupon.runtimeType}');
+      }
+    } catch (e) {
+      print('Error selecting coupon: $e');
+      Get.snackbar(
+        'Error',
+        'Failed to select coupon. Please try again.',
+        snackPosition: SnackPosition.BOTTOM,
+        backgroundColor: AppColors.danger.withOpacity(0.9),
+        colorText: AppColors.white,
       );
-      _isCouponLoading.value = false;
-      return;
     }
-
-    // Calculate discount amount
-    double discountAmount = 0.0;
-    if (couponData['type'] == 'percentage') {
-      discountAmount = (currentCartTotal * couponData['discount']) / 100;
-      discountAmount = discountAmount > couponData['maxDiscount']
-          ? couponData['maxDiscount']
-          : discountAmount;
-    } else {
-      discountAmount = couponData['discount'];
-    }
-
-    // Apply coupon
-    _couponDiscount.value = discountAmount;
-    _isCouponApplied.value = true;
-    _appliedCouponCode.value = couponCode;
-    _couponCode.value = couponCode;
-    _couponType.value = couponData['type'];
-    _couponDescription.value = couponData['description'];
-
-    _showSuccessSnackbar(
-        'Coupon Applied! 🎉',
-        'You saved ₹${discountAmount.toStringAsFixed(0)} with $couponCode'
-    );
-
-    _isCouponLoading.value = false;
   }
 
-  // ✅ Remove coupon with confirmation
-  void _removeCoupon() {
-    _isCouponApplied.value = false;
-    _couponDiscount.value = 0.0;
-    _appliedCouponCode.value = '';
-    _couponCode.value = '';
-    _couponType.value = '';
-    _couponDescription.value = '';
-    _couponController.clear();
 
-    Get.snackbar(
-      'Coupon Removed',
-      'Your coupon discount has been removed from the order',
-      snackPosition: SnackPosition.TOP,
-      backgroundColor: AppColors.textMedium.withOpacity(0.9),
-      colorText: AppColors.white,
-      icon: const Icon(Icons.info_outline, color: AppColors.white),
-      margin: const EdgeInsets.all(16),
-      borderRadius: 12,
-      duration: const Duration(seconds: 2),
-    );
-  }
-
-  // ✅ Enhanced Error Snackbar
-  void _showErrorSnackbar(String message) {
-    Get.snackbar(
-      'Invalid Coupon',
-      message,
-      snackPosition: SnackPosition.TOP,
-      backgroundColor: AppColors.danger.withOpacity(0.9),
-      colorText: AppColors.white,
-      icon: const Icon(Icons.error_outline, color: AppColors.white),
-      margin: const EdgeInsets.all(16),
-      borderRadius: 12,
-      duration: const Duration(seconds: 3),
-    );
-  }
-
-  // ✅ Enhanced Success Snackbar
-  void _showSuccessSnackbar(String title, String message) {
-    Get.snackbar(
-      title,
-      message,
-      snackPosition: SnackPosition.TOP,
-      backgroundColor: AppColors.success.withOpacity(0.9),
-      colorText: AppColors.white,
-      icon: const Icon(Icons.check_circle_outline, color: AppColors.white),
-      margin: const EdgeInsets.all(16),
-      borderRadius: 12,
-      duration: const Duration(seconds: 3),
-    );
-  }
-
-  // ✅ PREMIUM: Complete Coupon Section Widget
-// ✅ MINIMALISTIC: Compact Coupon Section Widget
+  // ✅ DYNAMIC COUPON SECTION: Replace dummy code with real controller
   Widget _buildCouponSection(BuildContext context) {
     final TextTheme textTheme = Theme.of(context).textTheme;
 
@@ -262,7 +330,7 @@ class CheckoutScreen extends StatelessWidget {
           color: AppColors.white,
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
-            color: _isCouponApplied.value
+            color: couponController.isCouponApplied.value
                 ? AppColors.success.withOpacity(0.2)
                 : AppColors.neutralBackground,
             width: 1,
@@ -275,20 +343,20 @@ class CheckoutScreen extends StatelessWidget {
             ),
           ],
         ),
-        child: _isCouponApplied.value
-            ? _buildAppliedCouponMinimal(textTheme)
-            : _buildCouponInputMinimal(textTheme),
+        child: couponController.isCouponApplied.value
+            ? _buildAppliedCouponWidget(textTheme)
+            : _buildCouponInputWidget(textTheme),
       );
     });
   }
 
-// ✅ Minimalistic Applied Coupon
-  Widget _buildAppliedCouponMinimal(TextTheme textTheme) {
+  // ✅ Applied Coupon Display
+  Widget _buildAppliedCouponWidget(TextTheme textTheme) {
     return Padding(
       padding: const EdgeInsets.all(16),
       child: Row(
         children: [
-          // Icon
+          // Success Icon
           Container(
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
@@ -303,54 +371,59 @@ class CheckoutScreen extends StatelessWidget {
           ),
           const SizedBox(width: 12),
 
-          // Content
+          // Coupon Details
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Row(
                   children: [
-                    Text(
-                      _appliedCouponCode.value,
+                    Obx(() => Text(
+                      couponController.selectedCoupon.value?.code ?? 'COUPON',
                       style: textTheme.labelLarge?.copyWith(
                         fontWeight: FontWeight.w700,
                         color: AppColors.success,
                         letterSpacing: 1,
                       ),
-                    ),
+                    )),
                     const SizedBox(width: 8),
-                    Container(
+                    Obx(() => Container(
                       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                       decoration: BoxDecoration(
                         color: AppColors.success.withOpacity(0.1),
                         borderRadius: BorderRadius.circular(4),
                       ),
                       child: Text(
-                        "-₹${_couponDiscount.value.toStringAsFixed(0)}",
+                        "-₹${couponController.discountAmount.value.toStringAsFixed(0)}",
                         style: textTheme.labelSmall?.copyWith(
                           color: AppColors.success,
                           fontWeight: FontWeight.w700,
                           fontSize: 10,
                         ),
                       ),
-                    ),
+                    )),
                   ],
                 ),
                 const SizedBox(height: 2),
-                Text(
-                  "Coupon applied successfully",
+                Obx(() => Text(
+                  couponController.successMessage.value.isNotEmpty
+                      ? couponController.successMessage.value
+                      : "Coupon applied successfully",
                   style: textTheme.bodySmall?.copyWith(
                     color: AppColors.textMedium,
                     fontSize: 12,
                   ),
-                ),
+                )),
               ],
             ),
           ),
 
           // Remove Button
           GestureDetector(
-            onTap: _removeCoupon,
+            onTap: () {
+              couponController.removeCoupon();
+              _updateCouponOrderAmount(); // Update billing
+            },
             child: Container(
               padding: const EdgeInsets.all(6),
               decoration: BoxDecoration(
@@ -369,8 +442,8 @@ class CheckoutScreen extends StatelessWidget {
     );
   }
 
-// ✅ Minimalistic Coupon Input
-  Widget _buildCouponInputMinimal(TextTheme textTheme) {
+  // ✅ Coupon Input Widget
+  Widget _buildCouponInputWidget(TextTheme textTheme) {
     return Column(
       children: [
         // Header
@@ -413,7 +486,7 @@ class CheckoutScreen extends StatelessWidget {
                     ),
                   ),
                   child: TextField(
-                    controller: _couponController,
+                    controller: couponController.couponTextController,
                     textCapitalization: TextCapitalization.characters,
                     style: textTheme.bodyMedium?.copyWith(
                       fontWeight: FontWeight.w600,
@@ -431,15 +504,15 @@ class CheckoutScreen extends StatelessWidget {
                         vertical: 10,
                       ),
                     ),
-                    onSubmitted: (_) => _applyCoupon(),
+                    onSubmitted: (_) => _applyCouponWithBillingUpdate(),
                   ),
                 ),
               ),
               const SizedBox(width: 8),
 
               // Apply Button
-              GestureDetector(
-                onTap: _isCouponLoading.value ? null : _applyCoupon,
+              Obx(() => GestureDetector(
+                onTap: couponController.isLoading.value ? null : _applyCouponWithBillingUpdate,
                 child: Container(
                   height: 40,
                   padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -448,7 +521,7 @@ class CheckoutScreen extends StatelessWidget {
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Center(
-                    child: _isCouponLoading.value
+                    child: couponController.isLoading.value
                         ? const SizedBox(
                       width: 16,
                       height: 16,
@@ -466,62 +539,95 @@ class CheckoutScreen extends StatelessWidget {
                     ),
                   ),
                 ),
-              ),
+              )),
             ],
           ),
         ),
 
-        // Available Coupons (Compact)
-        if (_demoValidCoupons.isNotEmpty)
-          Container(
-            decoration: BoxDecoration(
-              color: AppColors.neutralBackground.withOpacity(0.3),
-              borderRadius: const BorderRadius.only(
-                bottomLeft: Radius.circular(12),
-                bottomRight: Radius.circular(12),
+        // Error/Success Messages
+        Obx(() {
+          if (couponController.errorMessage.value.isNotEmpty) {
+            return Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+              child: Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: AppColors.danger.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.error_outline, color: AppColors.danger, size: 16),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        couponController.errorMessage.value,
+                        style: textTheme.bodySmall?.copyWith(
+                          color: AppColors.danger,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
-            ),
-            padding: const EdgeInsets.all(12),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  "Available offers",
-                  style: textTheme.labelMedium?.copyWith(
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.textMedium,
-                    fontSize: 12,
+            );
+          }
+          return const SizedBox.shrink();
+        }),
+
+        // Available Coupons Preview
+        Obx(() {
+          if (couponController.availableCoupons.isNotEmpty) {
+            return Container(
+              decoration: BoxDecoration(
+                color: AppColors.neutralBackground.withOpacity(0.3),
+                borderRadius: const BorderRadius.only(
+                  bottomLeft: Radius.circular(12),
+                  bottomRight: Radius.circular(12),
+                ),
+              ),
+              padding: const EdgeInsets.all(12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    "Available offers",
+                    style: textTheme.labelMedium?.copyWith(
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.textMedium,
+                      fontSize: 12,
+                    ),
                   ),
-                ),
-                const SizedBox(height: 8),
-                Wrap(
-                  spacing: 6,
-                  runSpacing: 6,
-                  children: _demoValidCoupons.entries.take(4).map((entry) {
-                    return _buildCompactCouponChip(entry.key, entry.value, textTheme);
-                  }).toList(),
-                ),
-              ],
-            ),
-          ),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 6,
+                    runSpacing: 6,
+                    children: couponController.availableCoupons.take(3).map((coupon) {
+                      return _buildCompactCouponChip(coupon, textTheme);
+                    }).toList(),
+                  ),
+                ],
+              ),
+            );
+          }
+          return const SizedBox.shrink();
+        }),
       ],
     );
   }
 
-// ✅ Compact Coupon Chip
-  Widget _buildCompactCouponChip(
-      String code,
-      Map<String, dynamic> couponData,
-      TextTheme textTheme
-      ) {
-    final currentTotal = _calculateCartTotal();
-    final isUsable = currentTotal >= couponData['minOrder'];
+  // ✅ COMPLETELY FIXED: Compact Coupon Chip
+  Widget _buildCompactCouponChip(dynamic coupon, TextTheme textTheme) {
+    final isUsable = _isCouponUsable(coupon);
+    final couponCode = _getCouponCode(coupon);
+    final discountText = _getCouponDiscountText(coupon);
 
     return GestureDetector(
       onTap: () {
         if (isUsable) {
-          _couponController.text = code;
-          _applyCoupon();
+          _selectCouponSafely(coupon);
+          _applyCouponWithBillingUpdate();
         }
       },
       child: Container(
@@ -541,7 +647,7 @@ class CheckoutScreen extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             Text(
-              code,
+              couponCode,
               style: textTheme.labelSmall?.copyWith(
                 color: isUsable
                     ? AppColors.primaryPurple
@@ -552,9 +658,7 @@ class CheckoutScreen extends StatelessWidget {
             ),
             const SizedBox(width: 4),
             Text(
-              couponData['type'] == 'percentage'
-                  ? "${couponData['discount'].toInt()}%"
-                  : "₹${couponData['discount'].toInt()}",
+              discountText,
               style: textTheme.labelSmall?.copyWith(
                 color: isUsable
                     ? AppColors.primaryPurple
@@ -569,46 +673,22 @@ class CheckoutScreen extends StatelessWidget {
     );
   }
 
+  // ✅ UPDATED: Apply coupon with billing update
+  void _applyCouponWithBillingUpdate() async {
+    // Update subtotal for coupon calculation
+    final cartTotal = _calculateCartTotal();
+    couponController.setSubtotal(cartTotal);
 
-  // ✅ Method to get related products based on cart items' categories
-  List<ProductModel> _getRelatedProducts(List<Map<String, dynamic>> cartProductsWithDetails) {
-    // Get all products from ProductController
-    final allProducts = productController.allProducts;
-
-    // Extract unique category IDs from cart items
-    final Set<String> cartCategoryIds = {};
-    for (var entry in cartProductsWithDetails) {
-      final ProductModel product = entry['product'] as ProductModel;
-      if (product.categoryId.isNotEmpty) {
-        cartCategoryIds.add(product.categoryId);
-      }
+    // Validate and apply coupon
+    final couponCode = couponController.couponTextController.text.trim();
+    if (couponCode.isNotEmpty) {
+      await couponController.validateAndApplyCoupon(couponCode);
     }
 
-    // Get cart product IDs to exclude them from suggestions
-    final Set<String> cartProductIds = {};
-    for (var entry in cartProductsWithDetails) {
-      final ProductModel product = entry['product'] as ProductModel;
-      cartProductIds.add(product.id);
+    // Force UI rebuild
+    if (mounted) {
+      setState(() {});
     }
-
-    // Filter products that belong to same categories but aren't in cart
-    final relatedProducts = allProducts.where((product) {
-      // Must be from same category
-      final bool isSameCategory = cartCategoryIds.contains(product.categoryId);
-
-      // Must not be in cart already
-      final bool isNotInCart = !cartProductIds.contains(product.id);
-
-      // Must be active and have stock
-      final bool isAvailable = product.active &&
-          product.variants.entries.any((variant) => variant.value > 0);
-
-      return isSameCategory && isNotInCart && isAvailable;
-    }).toList();
-
-    // Shuffle and limit to reasonable number for suggestions
-    relatedProducts.shuffle();
-    return relatedProducts.take(10).toList(); // Show max 10 related products
   }
 
   // Method to navigate to payment method selection screen
@@ -624,27 +704,37 @@ class CheckoutScreen extends StatelessWidget {
     }
   }
 
-  // ✅ NEW: Enhanced place order method with automatic navigation
+  // ✅ UPDATED: Enhanced place order method with coupon data
   void _handlePlaceOrder(BuildContext context) async {
     final isAddressSelected = addressController.selectedAddress.value != null;
     final isCartEmpty = cartController.cartItems.isEmpty;
     final isPaymentMethodSelected = _selectedPaymentMethod.value.isNotEmpty;
 
-    // ✅ Silent validation with automatic navigation to fix issues
+    // ✅ BILLING VALIDATION: Check if final total is valid
+    final billingBreakdown = _calculateBillingBreakdown();
+    if (billingBreakdown['finalTotal']! <= 0) {
+      Get.snackbar(
+        'Invalid Order',
+        'Order total cannot be zero or negative',
+        snackPosition: SnackPosition.BOTTOM,
+        backgroundColor: AppColors.danger.withOpacity(0.9),
+        colorText: AppColors.white,
+      );
+      return;
+    }
+
+    // Silent validation with automatic navigation to fix issues
     if (!isAddressSelected) {
-      // Automatically navigate to address page
       Get.to(() => AddressPage());
       return;
     }
 
     if (isCartEmpty) {
-      // Navigate back since cart is empty
       Get.back();
       return;
     }
 
     if (!isPaymentMethodSelected) {
-      // Automatically navigate to payment method selection
       _navigateToPaymentMethodSelection(context);
       return;
     }
@@ -652,24 +742,77 @@ class CheckoutScreen extends StatelessWidget {
     // ✅ All validations passed, proceed with order
     orderController.isLoading.value = true;
 
-    if (_selectedPaymentMethod.value == 'COD') {
-      await orderController.placeOrder(method: 'COD');
-    } else if (_selectedPaymentMethod.value == 'Online') {
-      // ✅ Keep only positive feedback for online payment
+    try {
+      // ✅ UPDATED: Create order data with coupon information
+      final orderData = {
+        'items': cartController.cartItems,
+        'address': addressController.selectedAddress.value?.toJson(),
+        'paymentMethod': _selectedPaymentMethod.value,
+        'cartTotal': billingBreakdown['cartTotal'],
+        'deliveryCharge': billingBreakdown['deliveryCharge'],
+        'couponDiscount': billingBreakdown['couponDiscount'],
+        'finalTotal': billingBreakdown['finalTotal'],
+        // ✅ UPDATED: Include coupon data for backend
+        ...couponController.getOrderCouponData(),
+      };
+
+      if (_selectedPaymentMethod.value == 'COD') {
+        await orderController.placeOrder(method: 'COD');
+      } else if (_selectedPaymentMethod.value == 'Online') {
+        Get.snackbar(
+          'Online Payment',
+          'Initiating secure payment...',
+          snackPosition: SnackPosition.BOTTOM,
+          backgroundColor: AppColors.primaryPurple.withOpacity(0.8),
+          colorText: AppColors.white,
+          icon: const Icon(Icons.credit_card_outlined, color: AppColors.white),
+          margin: const EdgeInsets.all(10),
+          borderRadius: 10,
+        );
+        await orderController.placeOrder(method: 'Online');
+      }
+    } catch (e) {
+      print('Error placing order: $e');
       Get.snackbar(
-        'Online Payment',
-        'Initiating secure payment...',
+        'Order Failed',
+        'Please try again',
         snackPosition: SnackPosition.BOTTOM,
-        backgroundColor: AppColors.primaryPurple.withOpacity(0.8),
+        backgroundColor: AppColors.danger.withOpacity(0.9),
         colorText: AppColors.white,
-        icon: const Icon(Icons.credit_card_outlined, color: AppColors.white),
-        margin: const EdgeInsets.all(10),
-        borderRadius: 10,
-        animationDuration: const Duration(milliseconds: 300),
-        duration: const Duration(seconds: 2),
       );
-      await orderController.placeOrder(method: 'Online');
+    } finally {
+      orderController.isLoading.value = false;
     }
+  }
+
+  // ✅ Method to get related products
+  List<ProductModel> _getRelatedProducts(List<Map<String, dynamic>> cartProductsWithDetails) {
+    final allProducts = productController.allProducts;
+    final Set<String> cartCategoryIds = {};
+    for (var entry in cartProductsWithDetails) {
+      final ProductModel product = entry['product'] as ProductModel;
+      if (product.categoryId.isNotEmpty) {
+        cartCategoryIds.add(product.categoryId);
+      }
+    }
+
+    final Set<String> cartProductIds = {};
+    for (var entry in cartProductsWithDetails) {
+      final ProductModel product = entry['product'] as ProductModel;
+      cartProductIds.add(product.id);
+    }
+
+    final relatedProducts = allProducts.where((product) {
+      final bool isSameCategory = cartCategoryIds.contains(product.categoryId);
+      final bool isNotInCart = !cartProductIds.contains(product.id);
+      final bool isAvailable = product.active &&
+          product.variants.entries.any((variant) => variant.value > 0);
+
+      return isSameCategory && isNotInCart && isAvailable;
+    }).toList();
+
+    relatedProducts.shuffle();
+    return relatedProducts.take(10).toList();
   }
 
   @override
@@ -733,21 +876,8 @@ class CheckoutScreen extends StatelessWidget {
           };
         }).toList();
 
-        double itemTotal = cartProductsWithDetails.fold(0.0, (sum, entry) {
-          final ProductModel product = entry['product'] as ProductModel;
-          final int quantity = entry['quantity'] as int;
-          double itemPrice = 0.0;
-          if (product.sellingPrice.isNotEmpty &&
-              product.sellingPrice[0].price != null) {
-            itemPrice = product.sellingPrice[0].price!.toDouble();
-          }
-          return sum + itemPrice * quantity;
-        });
-
-        double deliveryCharge = itemTotal > 0 ? 40.0 : 0.0;
-        double gstCharge = 0.0;
-
-        // ✅ Get related products based on cart items' categories
+        // ✅ Get precise billing breakdown
+        final billingBreakdown = _calculateBillingBreakdown();
         final relatedProducts = _getRelatedProducts(cartProductsWithDetails);
 
         return SingleChildScrollView(
@@ -801,11 +931,11 @@ class CheckoutScreen extends StatelessWidget {
               ),
               const SizedBox(height: 20),
 
-              // ✅ NEW: Premium Coupon Section
+              // ✅ DYNAMIC COUPON SECTION
               _buildCouponSection(context),
               const SizedBox(height: 20),
 
-              // Bill Details Section (Updated to include coupon discount)
+              // ✅ PRECISE BILL DETAILS SECTION
               Container(
                 decoration: BoxDecoration(
                   color: AppColors.white,
@@ -818,16 +948,16 @@ class CheckoutScreen extends StatelessWidget {
                     ),
                   ],
                 ),
-                child: Obx(() => BillSection(
-                  itemTotal: itemTotal.toInt(),
-                  deliveryCharge: deliveryCharge.toInt(),
-                  couponDiscount: _couponDiscount.value.toInt(),
-                )),
+                child: BillSection(
+                  itemTotal: billingBreakdown['cartTotal']!.toInt(),
+                  deliveryCharge: billingBreakdown['deliveryCharge']!.toInt(),
+                  couponDiscount: billingBreakdown['couponDiscount']!.toInt(),
+                ),
               ),
 
               const SizedBox(height: 32),
 
-              // ✅ Updated "You might also like" section with related products
+              // Related Products Section
               if (relatedProducts.isNotEmpty) ...[
                 Row(
                   children: [
@@ -886,47 +1016,6 @@ class CheckoutScreen extends StatelessWidget {
                     },
                   ),
                 ),
-              ] else if (cartProductsWithDetails.isNotEmpty) ...[
-                // ✅ Fallback: Show message when no related products found
-                Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: AppColors.white,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: AppColors.neutralBackground),
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(
-                        Icons.lightbulb_outline,
-                        color: AppColors.primaryPurple,
-                        size: 24,
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'No related products found',
-                              style: textTheme.titleSmall?.copyWith(
-                                fontWeight: FontWeight.w600,
-                                color: AppColors.textDark,
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              'Explore more products after placing your order!',
-                              style: textTheme.bodySmall?.copyWith(
-                                color: AppColors.textMedium,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
               ],
 
               const SizedBox(height: 100),
@@ -976,7 +1065,7 @@ class CheckoutScreen extends StatelessWidget {
             ),
             const SizedBox(height: 16),
 
-            // Address Section (unchanged)
+            // Address Section
             Obx(() {
               final selected = addressController.selectedAddress.value;
 
@@ -1042,7 +1131,7 @@ class CheckoutScreen extends StatelessWidget {
             const Divider(height: 1, color: AppColors.neutralBackground),
             const SizedBox(height: 16),
 
-            // Pay Using & Place Order Buttons
+            // ✅ PRECISE BILLING: Pay Using & Place Order Buttons
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
@@ -1101,56 +1190,17 @@ class CheckoutScreen extends StatelessWidget {
                 Flexible(
                   flex: 3,
                   child: Obx(() {
-                    double subTotal = cartController.cartItems.fold(0.0, (sum, item) {
-                      final productData = item['productId'];
-                      final product = productData is Map<String, dynamic>
-                          ? ProductModel.fromJson(productData)
-                          : ProductModel(
-                          id: '',
-                          name: '',
-                          fullName: '',
-                          slug: '',
-                          description: '',
-                          images: [],
-                          sellingPrice: [],
-                          variants: {},
-                          active: false,
-                          newArrival: false,
-                          liked: false,
-                          bestSeller: false,
-                          recommended: false,
-                          categoryId: '',
-                          stockIds: [],
-                          orderIds: [],
-                          groupIds: [],
-                          totalStock: 0,
-                          descriptionPoints: [],
-                          keyInformation: []
-                      );
-                      final quantity = item['quantity'] ?? 1;
-                      double itemPrice = 0.0;
-                      if (product.sellingPrice.isNotEmpty &&
-                          product.sellingPrice[0].price != null) {
-                        itemPrice = product.sellingPrice[0].price!.toDouble();
-                      }
-                      return sum + itemPrice * quantity;
-                    });
-
-                    final deliveryCharge = subTotal > 0 ? 40.0 : 0.0;
-                    final gstCharge = 0.0;
-                    // ✅ Apply coupon discount to final total
-                    final displayTotal = (subTotal + deliveryCharge + gstCharge) - _couponDiscount.value;
+                    // ✅ BULLETPROOF BILLING: Use precise calculation
+                    final billingBreakdown = _calculateBillingBreakdown();
+                    final displayTotal = billingBreakdown['finalTotal']!;
 
                     final isAddressSelected = addressController.selectedAddress.value != null;
                     final isCartEmpty = cartController.cartItems.isEmpty;
                     final isPaymentMethodSelected = _selectedPaymentMethod.value.isNotEmpty;
 
-                    // ✅ FIXED: Only disable when loading OR cart is empty
-                    // Allow clicking when address or payment method is missing (for auto-navigation)
                     final bool isPlaceOrderDisabled = orderController.isLoading.value || isCartEmpty;
 
                     return InkWell(
-                      // ✅ FIXED: Always allow tap unless loading or cart empty
                       onTap: isPlaceOrderDisabled ? null : () => _handlePlaceOrder(context),
                       borderRadius: BorderRadius.circular(14),
                       child: Container(
@@ -1187,7 +1237,7 @@ class CheckoutScreen extends StatelessWidget {
                                         ),
                                       ),
                                       // ✅ Show savings indicator when coupon is applied
-                                      if (_isCouponApplied.value) ...[
+                                      if (couponController.isCouponApplied.value) ...[
                                         const SizedBox(width: 4),
                                         Icon(
                                           Icons.local_offer,
@@ -1198,8 +1248,8 @@ class CheckoutScreen extends StatelessWidget {
                                     ],
                                   ),
                                   Text(
-                                    _isCouponApplied.value
-                                        ? "Saved ₹${_couponDiscount.value.toStringAsFixed(0)}"
+                                    couponController.isCouponApplied.value
+                                        ? "Saved ₹${billingBreakdown['couponDiscount']!.toStringAsFixed(0)}"
                                         : "Total",
                                     style: textTheme.labelSmall?.copyWith(
                                       color: AppColors.white.withOpacity(0.8),

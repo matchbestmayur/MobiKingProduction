@@ -2,7 +2,6 @@ import 'package:get/get.dart';
 import 'package:dio/dio.dart' as dio;
 import 'package:get_storage/get_storage.dart';
 import 'package:flutter/material.dart';
-import 'dart:math'; // Add this for OTP generation
 
 // Custom exception for login service errors
 class LoginServiceException implements Exception {
@@ -28,60 +27,41 @@ class LoginService extends GetxService {
   // Constructor to receive the Dio instance and GetStorage box
   LoginService(this._dio, this.box);
 
+  // UPDATED: Use the same base URL as login service
   final String _baseUrl = 'https://mobiking-e-commerce-backend-prod.vercel.app/api/v1/users';
-
-  // UPDATED: SMS API Configuration for mylogin.co.in
-  final String _smsApiBaseUrl = 'https://api.mylogin.co.in/api/v2';
-  final String _smsApiKey = 'DmGRastE1TT0vCDJyjMJYMEi+peSX/vPuybBpFaCcZ8='; // Your actual API key
-  final String _smsClientId = 'a87c4262-3525-46c3-9abd-bc98d2427fbf'; // Your actual client ID
-  final String _smsSenderId = 'MOBIKING'; // Your registered sender ID
 
   void _log(String message) {
     print('[LoginService] $message');
   }
 
-  // ADD: Generate random 6-digit OTP
-  String generateOTP() {
-    Random random = Random();
-    return (100000 + random.nextInt(900000)).toString();
-  }
-
-  // CORRECTED: Send OTP via mylogin.co.in SMS API with proper formatting
-  Future<Map<String, dynamic>> sendOtpViaSms(String phoneNumber, String otp) async {
+  // UPDATED: Send OTP using backend API
+  Future<dio.Response> sendOtp(String phoneNumber) async {
     try {
-      // FIXED: Format phone number to 10-digit only (no country code)
+      _log('Sending OTP request to backend for: $phoneNumber');
+
+      // Format phone number - remove any non-digit characters
       String formattedPhoneNumber = phoneNumber.replaceAll(RegExp(r'[^\d]'), '');
 
-      // If it has country code (91 prefix), remove it
+      // If it has country code (91 prefix), remove it for 10-digit format
       if (formattedPhoneNumber.startsWith('91') && formattedPhoneNumber.length == 12) {
-        formattedPhoneNumber = formattedPhoneNumber.substring(2); // Remove '91'
+        formattedPhoneNumber = formattedPhoneNumber.substring(2);
       }
 
-      // If it starts with +91, remove it
+      // If it starts with +91, handle it
       if (phoneNumber.startsWith('+91')) {
         formattedPhoneNumber = phoneNumber.substring(3);
       }
 
-      // Ensure it's exactly 10 digits
+      // Validate 10-digit format
       if (formattedPhoneNumber.length != 10) {
-        throw Exception('Invalid phone number format. Expected 10 digits, got ${formattedPhoneNumber.length}');
+        throw LoginServiceException('Invalid phone number format. Expected 10 digits.');
       }
 
-      _log('Sending OTP via mylogin.co.in SMS API to: $formattedPhoneNumber (original: $phoneNumber)');
-
-      final message = 'Your OTP for Mobiking is: $otp. Valid for 5 minutes. Do not share this code.';
-
-      // Using GET method as per API documentation
-      final response = await _dio.get(
-        '$_smsApiBaseUrl/SendSMS',
-        queryParameters: {
-          'ApiKey': _smsApiKey,
-          'ClientId': _smsClientId,
-          'SenderId': _smsSenderId,
-          'Message': message,
-          'MobileNumbers': formattedPhoneNumber, // FIXED: Correct parameter name and 10-digit format
-          'Is_Flash': 'false', // Optional parameters
-          'Is_Unicode': 'false',
+      // Call backend sendOtp API
+      final response = await _dio.post(
+        '$_baseUrl/sendOtp',
+        data: {
+          'mobile': formattedPhoneNumber, // Based on your API image
         },
         options: dio.Options(
           headers: {
@@ -92,207 +72,42 @@ class LoginService extends GetxService {
         ),
       );
 
-      _log('API Response Status: ${response.statusCode}');
-      _log('API Response Data: ${response.data}');
+      _log('Send OTP API Response Status: ${response.statusCode}');
+      _log('Send OTP API Response Data: ${response.data}');
 
       if (response.statusCode == 200 && response.data != null) {
-        final responseData = response.data;
+        if (response.data['success'] == true) {
+          _log('OTP sent successfully via backend API');
 
-        if (responseData['ErrorCode'] == 0) {
-          _log('SMS sent successfully via mylogin.co.in to $formattedPhoneNumber');
-
-          // Extract MessageId from Data array
-          String? messageId;
-          if (responseData['Data'] != null && responseData['Data'] is List) {
-            final dataList = responseData['Data'] as List;
-            if (dataList.isNotEmpty) {
-              messageId = dataList[0]['MessageId'];
-            }
-          }
-
-          return {
-            'success': true,
-            'messageId': messageId,
-            'message': 'OTP sent successfully',
+          // Store OTP request data locally for reference
+          final otpData = {
+            'phoneNumber': formattedPhoneNumber,
+            'requestTime': DateTime.now().millisecondsSinceEpoch,
+            'expiresAt': DateTime.now().add(const Duration(minutes: 5)).millisecondsSinceEpoch,
           };
+
+          await box.write('currentOtpData', otpData);
+
+          return response;
         } else {
-          _log('SMS API returned error: Code ${responseData['ErrorCode']} - ${responseData['ErrorDescription']}');
-          return {
-            'success': false,
-            'error': responseData['ErrorDescription'] ?? 'Unknown SMS API error',
-          };
+          final errorMessage = response.data['message'] ?? 'Failed to send OTP';
+          throw LoginServiceException(errorMessage, statusCode: response.statusCode);
         }
       } else {
-        _log('Failed to send SMS: Status ${response.statusCode}');
-        return {
-          'success': false,
-          'error': 'HTTP ${response.statusCode}: Failed to send SMS',
-        };
+        throw LoginServiceException('Failed to send OTP', statusCode: response.statusCode);
       }
+
     } on dio.DioException catch (e) {
-      _log('SMS sending failed - Dio error: ${e.message}');
+      _log('Send OTP failed - Dio error: ${e.message}');
       if (e.response != null) {
         _log('Error response: ${e.response?.data}');
-      }
-      return {
-        'success': false,
-        'error': 'Network error: ${e.message}',
-      };
-    } catch (e) {
-      _log('SMS sending failed - Unexpected error: $e');
-      return {
-        'success': false,
-        'error': 'Unexpected error: $e',
-      };
-    }
-  }
-
-  // UPDATED: Check SMS delivery status using mylogin.co.in API
-  Future<String> checkSmsStatus(String messageId) async {
-    try {
-      _log('Checking SMS status for messageId: $messageId');
-
-      final response = await _dio.get(
-        '$_smsApiBaseUrl/MessageStatus',
-        queryParameters: {
-          'ApiKey': _smsApiKey,
-          'ClientId': _smsClientId,
-          'MessageId': messageId,
-        },
-        options: dio.Options(
-          headers: {
-            'Content-Type': 'application/json',
-          },
-        ),
-      );
-
-      if (response.statusCode == 200 && response.data != null) {
-        final responseData = response.data;
-
-        if (responseData['ErrorCode'] == 0) {
-          final status = responseData['Data']?['Status'] ?? 'UNKNOWN';
-          _log('SMS status: $status');
-          return status;
-        } else {
-          _log('Error getting SMS status: ${responseData['ErrorDescription']}');
-          return 'ERROR';
-        }
+        final errorMessage = e.response?.data?['message'] ?? 'Server error occurred';
+        throw LoginServiceException(errorMessage, statusCode: e.response?.statusCode);
       } else {
-        _log('Failed to get SMS status: Status ${response.statusCode}');
-        return 'FAILED';
+        throw LoginServiceException('Network error: ${e.message}');
       }
     } catch (e) {
-      _log('Error checking SMS status: $e');
-      return 'ERROR';
-    }
-  }
-
-  // UPDATED: Get SMS history using mylogin.co.in API
-  Future<List<Map<String, dynamic>>> getSmsHistory({
-    int start = 0,
-    int length = 50,
-    String? fromDate,
-    String? toDate,
-  }) async {
-    try {
-      _log('Fetching SMS history');
-
-      Map<String, dynamic> queryParams = {
-        'ApiKey': _smsApiKey,
-        'ClientId': _smsClientId,
-        'start': start.toString(),
-        'length': length.toString(),
-      };
-
-      if (fromDate != null) queryParams['fromdate'] = fromDate;
-      if (toDate != null) queryParams['enddate'] = toDate;
-
-      final response = await _dio.get(
-        '$_smsApiBaseUrl/SMS',
-        queryParameters: queryParams,
-        options: dio.Options(
-          headers: {
-            'Content-Type': 'application/json',
-          },
-        ),
-      );
-
-      if (response.statusCode == 200 && response.data != null) {
-        final responseData = response.data;
-
-        if (responseData['ErrorCode'] == 0) {
-          final messages = responseData['Data']?['messages'] as List? ?? [];
-          _log('Retrieved ${messages.length} SMS records');
-          return messages.cast<Map<String, dynamic>>();
-        } else {
-          _log('Error getting SMS history: ${responseData['ErrorDescription']}');
-          return [];
-        }
-      } else {
-        _log('Failed to get SMS history: Status ${response.statusCode}');
-        return [];
-      }
-    } catch (e) {
-      _log('Error fetching SMS history: $e');
-      return [];
-    }
-  }
-
-  // UPDATED: Send OTP Method with improved error handling
-  Future<dio.Response> sendOtp(String phoneNumber) async {
-    try {
-      _log('Initiating OTP send process for: $phoneNumber');
-
-      // Generate OTP
-      final otp = generateOTP();
-      _log('Generated OTP: $otp'); // Remove this in production
-
-      // Store OTP with expiry time (5 minutes)
-      final otpData = {
-        'otp': otp,
-        'phoneNumber': phoneNumber,
-        'createdAt': DateTime.now().millisecondsSinceEpoch,
-        'expiresAt': DateTime.now().add(const Duration(minutes: 5)).millisecondsSinceEpoch,
-        'messageId': null, // Will be updated after SMS is sent
-      };
-
-      await box.write('currentOtpData', otpData);
-      _log('OTP data stored locally');
-
-      // Send OTP via SMS
-      final smsResult = await sendOtpViaSms(phoneNumber, otp);
-
-      if (smsResult['success'] == true) {
-        _log('OTP sent successfully via SMS');
-
-        // Update stored OTP data with messageId for status tracking
-        if (smsResult['messageId'] != null) {
-          otpData['messageId'] = smsResult['messageId'];
-          await box.write('currentOtpData', otpData);
-        }
-
-        // Create a mock response for consistency
-        final response = dio.Response(
-          requestOptions: dio.RequestOptions(path: ''),
-          statusCode: 200,
-          data: {
-            'success': true,
-            'message': 'OTP sent successfully',
-            'data': {
-              'phoneNumber': phoneNumber,
-              'otpSent': true,
-              'messageId': smsResult['messageId'],
-            },
-          },
-        );
-
-        return response;
-      } else {
-        throw LoginServiceException('Failed to send OTP via SMS: ${smsResult['error']}');
-      }
-
-    } catch (e) {
-      _log('Error in sendOtp: $e');
+      _log('Send OTP failed - Unexpected error: $e');
       if (e is LoginServiceException) {
         rethrow;
       }
@@ -300,61 +115,114 @@ class LoginService extends GetxService {
     }
   }
 
-  // UPDATED: Verify OTP Method with SMS status checking
+  // UPDATED: Login method with OTP verification
+  Future<dio.Response> login(String phoneNumber, String otp) async {
+    try {
+      _log('Attempting login with OTP for: $phoneNumber');
+
+      // Format phone number consistently
+      String formattedPhoneNumber = phoneNumber.replaceAll(RegExp(r'[^\d]'), '');
+
+      if (formattedPhoneNumber.startsWith('91') && formattedPhoneNumber.length == 12) {
+        formattedPhoneNumber = formattedPhoneNumber.substring(2);
+      }
+
+      if (phoneNumber.startsWith('+91')) {
+        formattedPhoneNumber = phoneNumber.substring(3);
+      }
+
+      // Validate inputs
+      if (formattedPhoneNumber.length != 10) {
+        throw LoginServiceException('Invalid phone number format');
+      }
+
+      if (otp.length != 6) {
+        throw LoginServiceException('OTP must be 6 digits');
+      }
+
+      // Call backend login API with OTP
+      final response = await _dio.post(
+        '$_baseUrl/login',
+        data: {
+          'phoneNo': formattedPhoneNumber,
+          'otp': otp, // Include OTP in login request
+          'role': 'user',
+        },
+        options: dio.Options(
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          sendTimeout: const Duration(seconds: 30),
+          receiveTimeout: const Duration(seconds: 30),
+        ),
+      );
+
+      _log('Login API Response Status: ${response.statusCode}');
+      _log('Login API Response Data: ${response.data}');
+
+      if (response.statusCode == 200 && response.data['success'] == true) {
+        _log('Login successful with OTP verification');
+
+        // Store tokens from login response
+        if (response.data['data']?['accessToken'] != null) {
+          await box.write('accessToken', response.data['data']['accessToken']);
+        }
+        if (response.data['data']?['refreshToken'] != null) {
+          await box.write('refreshToken', response.data['data']['refreshToken']);
+        }
+
+        // Store user data if available
+        if (response.data['data']?['user'] != null) {
+          await box.write('user', response.data['data']['user']);
+        }
+
+        // Store token creation time for automatic refresh scheduling
+        await box.write('tokenCreationTime', DateTime.now().millisecondsSinceEpoch);
+
+        // Clear OTP data after successful login
+        await box.remove('currentOtpData');
+
+        return response;
+      } else {
+        final errorMessage = response.data?['message'] ?? 'Login failed. Invalid OTP or phone number.';
+        throw LoginServiceException(errorMessage, statusCode: response.statusCode);
+      }
+
+    } on dio.DioException catch (e) {
+      _log('Login failed - Dio error: ${e.message}');
+      if (e.response != null) {
+        _log('Login error response: ${e.response?.data}');
+        final errorMessage = e.response?.data?['message'] ?? 'Server error occurred during login';
+        throw LoginServiceException(errorMessage, statusCode: e.response?.statusCode);
+      } else {
+        throw LoginServiceException('Network error during login: ${e.message}');
+      }
+    } catch (e) {
+      _log('Login failed - Unexpected error: $e');
+      if (e is LoginServiceException) {
+        rethrow;
+      }
+      throw LoginServiceException('Login failed: $e');
+    }
+  }
+
+  // SIMPLIFIED: Verify OTP method - now just calls login
   Future<dio.Response> verifyOtp(String phoneNumber, String enteredOtp) async {
     try {
-      _log('Verifying OTP for: $phoneNumber');
+      _log('Verifying OTP and logging in for: $phoneNumber');
 
-      // Get stored OTP data
+      // Check if we have OTP request data
       final otpData = box.read('currentOtpData');
-
-      if (otpData == null) {
-        throw LoginServiceException('No OTP found. Please request a new OTP.');
+      if (otpData != null) {
+        final expiresAt = otpData['expiresAt'] as int?;
+        if (expiresAt != null && DateTime.now().millisecondsSinceEpoch > expiresAt) {
+          await box.remove('currentOtpData');
+          throw LoginServiceException('OTP has expired. Please request a new OTP.');
+        }
       }
 
-      final storedOtp = otpData['otp'] as String?;
-      final storedPhoneNumber = otpData['phoneNumber'] as String?;
-      final expiresAt = otpData['expiresAt'] as int?;
-      final messageId = otpData['messageId'] as String?;
-
-      // Validate OTP data
-      if (storedOtp == null || storedPhoneNumber == null || expiresAt == null) {
-        throw LoginServiceException('Invalid OTP data. Please request a new OTP.');
-      }
-
-      // Check if OTP is expired
-      if (DateTime.now().millisecondsSinceEpoch > expiresAt) {
-        await box.remove('currentOtpData');
-        throw LoginServiceException('OTP has expired. Please request a new OTP.');
-      }
-
-      // Check if phone number matches
-      if (storedPhoneNumber != phoneNumber) {
-        throw LoginServiceException('Phone number mismatch. Please request a new OTP.');
-      }
-
-      // Optional: Check SMS delivery status before verifying
-      if (messageId != null) {
-        final smsStatus = await checkSmsStatus(messageId);
-        _log('SMS delivery status: $smsStatus');
-      }
-
-      // Verify OTP
-      if (storedOtp == enteredOtp) {
-        _log('OTP verified successfully');
-
-        // Clear OTP data after successful verification
-        await box.remove('currentOtpData');
-
-        // Now proceed with actual login to get tokens
-        final loginResponse = await login(phoneNumber);
-
-        _log('Login completed after OTP verification');
-        return loginResponse;
-
-      } else {
-        throw LoginServiceException('Invalid OTP. Please check and try again.');
-      }
+      // Direct login with OTP
+      return await login(phoneNumber, enteredOtp);
 
     } catch (e) {
       _log('Error in verifyOtp: $e');
@@ -365,7 +233,7 @@ class LoginService extends GetxService {
     }
   }
 
-  // UPDATED: Enhanced OTP status with SMS tracking
+  // UPDATED: Get OTP status
   Map<String, dynamic> getOtpStatus() {
     final otpData = box.read('currentOtpData');
 
@@ -375,7 +243,6 @@ class LoginService extends GetxService {
         'isExpired': true,
         'phoneNumber': null,
         'timeRemaining': 0,
-        'messageId': null,
       };
     }
 
@@ -389,19 +256,8 @@ class LoginService extends GetxService {
       'isExpired': isExpired,
       'phoneNumber': otpData['phoneNumber'],
       'timeRemaining': timeRemaining,
-      'messageId': otpData['messageId'],
       'expiresAt': DateTime.fromMillisecondsSinceEpoch(expiresAt).toIso8601String(),
     };
-  }
-
-  // ADD: Method to check current OTP SMS status
-  Future<String> getCurrentOtpSmsStatus() async {
-    final otpData = box.read('currentOtpData');
-    if (otpData == null || otpData['messageId'] == null) {
-      return 'NO_OTP';
-    }
-
-    return await checkSmsStatus(otpData['messageId']);
   }
 
   // Resend OTP Method
@@ -425,51 +281,6 @@ class LoginService extends GetxService {
   Future<void> clearOtpData() async {
     await box.remove('currentOtpData');
     _log('OTP data cleared');
-  }
-
-  // Enhanced Login Method
-  Future<dio.Response> login(String phone) async {
-    try {
-      final response = await _dio.post(
-        '$_baseUrl/login',
-        data: {
-          'phoneNo': phone,
-          'role': 'user',
-        },
-      );
-
-      if (response.statusCode == 200 && response.data['success'] == true) {
-        _log('Login successful. Response data: ${response.data}');
-
-        // Store tokens and creation time from login response
-        if (response.data['data']?['accessToken'] != null) {
-          await box.write('accessToken', response.data['data']['accessToken']);
-        }
-        if (response.data['data']?['refreshToken'] != null) {
-          await box.write('refreshToken', response.data['data']['refreshToken']);
-        }
-
-        // Store token creation time for automatic refresh scheduling
-        await box.write('tokenCreationTime', DateTime.now().millisecondsSinceEpoch);
-
-        return response;
-      } else {
-        final errorMessage = response.data?['message'] ?? 'Login failed. Please try again.';
-        throw LoginServiceException(errorMessage, statusCode: response.statusCode);
-      }
-    } on dio.DioException catch (e) {
-      if (e.response != null) {
-        final errorMessage = e.response?.data?['message'] ?? 'Server error occurred.';
-        _log('Dio error during login: ${e.response?.statusCode} - $errorMessage');
-        throw LoginServiceException(errorMessage, statusCode: e.response?.statusCode);
-      } else {
-        _log('Network error during login: ${e.message}');
-        throw LoginServiceException('Network error: ${e.message}');
-      }
-    } catch (e) {
-      _log('Unexpected error during login: $e');
-      throw LoginServiceException('An unexpected error occurred during login: $e');
-    }
   }
 
   // Enhanced Logout Method
@@ -511,12 +322,12 @@ class LoginService extends GetxService {
       _log('Unexpected error during logout: $e');
       throw LoginServiceException('An unexpected error occurred during logout: $e');
     } finally {
-      // Enhanced: Clear all token-related data including OTP
+      // Clear all token-related data including OTP
       _clearAllTokenData();
     }
   }
 
-  // Comprehensive token data clearing (updated to include OTP data)
+  // Comprehensive token data clearing
   void _clearAllTokenData() {
     box.remove('accessToken');
     box.remove('refreshToken');
@@ -524,11 +335,11 @@ class LoginService extends GetxService {
     box.remove('accessTokenExpiry');
     box.remove('user');
     box.remove('cartId');
-    box.remove('currentOtpData'); // Clear OTP data on logout
+    box.remove('currentOtpData');
     _log('All authentication and user data cleared locally.');
   }
 
-  // Enhanced: refreshToken method with proper token storage
+  // refreshToken method with proper token storage
   Future<dio.Response> refreshToken(String refreshToken) async {
     if (refreshToken.isEmpty) {
       _log('Refresh token is empty. Cannot refresh access token.');
@@ -642,21 +453,21 @@ class LoginService extends GetxService {
   // Get token age in hours
   double getTokenAgeInHours() {
     final tokenCreationTime = box.read('tokenCreationTime');
-    if (tokenCreationTime == null) return 25.0; // Return > 24 to indicate expired
+    if (tokenCreationTime == null) return 25.0;
 
     final now = DateTime.now().millisecondsSinceEpoch;
     final tokenAge = now - tokenCreationTime;
-    return tokenAge / (1000 * 60 * 60); // Convert to hours
+    return tokenAge / (1000 * 60 * 60);
   }
 
-  // Check if token needs refresh - Changed to 12 hours
+  // Check if token needs refresh - 12 hours
   bool needsTokenRefresh() {
-    return getTokenAgeInHours() >= 12.0; // Refresh after 12 hours
+    return getTokenAgeInHours() >= 12.0;
   }
 
   // Check if token is expired
   bool isTokenExpired() {
-    return getTokenAgeInHours() >= 24.0; // Expire after 24 hours
+    return getTokenAgeInHours() >= 24.0;
   }
 
   // Get current access token
@@ -669,16 +480,14 @@ class LoginService extends GetxService {
     return box.read('refreshToken');
   }
 
-  // Validate token format (basic validation)
+  // Validate token format
   bool isValidTokenFormat(String? token) {
     if (token == null || token.isEmpty) return false;
-
-    // Basic JWT format check (header.payload.signature)
     final parts = token.split('.');
     return parts.length == 3 && parts.every((part) => part.isNotEmpty);
   }
 
-  // Get token status information with 12-hour refresh logic
+  // Get token status information
   Map<String, dynamic> getTokenStatus() {
     final accessToken = getCurrentAccessToken();
     final refreshToken = getCurrentRefreshToken();
@@ -721,16 +530,13 @@ class LoginService extends GetxService {
     return getCurrentAccessToken();
   }
 
-  // Emergency token cleanup (for extreme cases)
+  // Emergency token cleanup
   Future<void> emergencyTokenCleanup() async {
     try {
       _log('Performing emergency token cleanup...');
       _clearAllTokenData();
-
-      // Clear any cached data
       await box.remove('last_login_phone');
       await box.remove('user_preferences');
-
       _log('Emergency cleanup completed');
     } catch (e) {
       _log('Error during emergency cleanup: $e');

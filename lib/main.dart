@@ -43,6 +43,10 @@ import 'package:mobiking/app/services/connectivity_service.dart';
 import 'package:mobiking/app/controllers/connectivity_controller.dart';
 import 'package:mobiking/app/modules/no_network/no_network_screen.dart';
 
+// ✅ ADD COUPON IMPORTS
+import 'app/controllers/coupon_controller.dart';
+import 'app/services/coupon_service.dart';
+
 import 'app/controllers/fcm_controller.dart';
 import 'app/data/ParentCategory.dart';
 import 'app/data/key_information.dart';
@@ -99,21 +103,27 @@ Future<void> main() async {
   // Initialize it immediately as it sets up listeners for FCM messages.
   Get.put(FirebaseMessagingService()).init(); // Call .init() immediately after putting
 
-  // Put other services into GetX dependency injection
+  // ✅ SERVICES: Put services into GetX dependency injection (ORDER MATTERS)
   Get.put(LoginService(dioInstance, getStorageBox));
   Get.put(OrderService());
   Get.put(AddressService(dioInstance, getStorageBox));
   Get.put(ConnectivityService());
   Get.put(SoundService());
   Get.put(QueryService());
-  Get.put(CategoryController());
 
-  // Controllers (in order of dependency if applicable)
+  // ✅ ADD COUPON SERVICE: Initialize CouponService with Dio and GetStorage
+  Get.put(CouponService(dioInstance, getStorageBox));
+
+  // ✅ CONTROLLERS: Put controllers into GetX dependency injection (ORDER MATTERS)
+  Get.put(CategoryController());
   Get.put(ConnectivityController());
   Get.put(FcmController());
   Get.put(AddressController());
   Get.put(CartController());
   Get.put(HomeController());
+
+  // ✅ ADD COUPON CONTROLLER: Initialize CouponController (depends on CouponService)
+  Get.put(CouponController());
 
   Get.put(SubCategoryController());
   Get.put(WishlistController());

@@ -10,155 +10,304 @@ class PhoneAuthScreen extends StatelessWidget {
   PhoneAuthScreen({Key? key}) : super(key: key);
 
   final LoginController loginController = Get.find();
-  final SystemUIController systemUiController = Get.find<SystemUIController>();
+  final SystemUIController systemUiController = Get.find();
 
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
+    final screenHeight = MediaQuery.of(context).size.height;
+    final screenWidth = MediaQuery.of(context).size.width;
 
     return Scaffold(
-      backgroundColor: AppColors.white,
       body: AnnotatedRegion<SystemUiOverlayStyle>(
         value: SystemUIController.authScreenStyle,
-        child: SingleChildScrollView(
-          child: Column(
-            children: [
-              _buildHeader(context, textTheme),
-              const SizedBox(height: 40),
-              _buildPhoneInput(context, textTheme),
-              const SizedBox(height: 30),
-              _buildOtpButton(textTheme),
-              const SizedBox(height: 40),
-            ],
+        child: Container(
+          height: screenHeight,
+          width: screenWidth,
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                AppColors.primaryPurple,
+                AppColors.darkPurple,
+                AppColors.primaryPurple.withOpacity(0.9),
+              ],
+              stops: const [0.0, 0.6, 1.0],
+            ),
+          ),
+          child: SafeArea(
+            child: Column(
+              children: [
+                // Header section - 35% of screen
+                Expanded(
+                  flex: 35,
+                  child: _buildHeader(context, textTheme),
+                ),
+                // Main content - 65% of screen
+                Expanded(
+                  flex: 65,
+                  child: _buildMainContent(context, textTheme),
+                ),
+              ],
+            ),
           ),
         ),
       ),
     );
   }
 
-  // 🌄 Header with image and overlay text
+  // 🌄 Compact Header
   Widget _buildHeader(BuildContext context, TextTheme textTheme) {
     return Container(
-      height: 380,
       width: double.infinity,
-      decoration: BoxDecoration(
-        image: const DecorationImage(
-          image: AssetImage('assets/images/img.png'),
-          fit: BoxFit.cover,
-        ),
-        borderRadius: const BorderRadius.only(
-          bottomLeft: Radius.circular(30),
-          bottomRight: Radius.circular(30),
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.2),
-            blurRadius: 15,
-            offset: const Offset(0, 8),
+      child: Stack(
+        children: [
+          // Subtle decorative elements
+          Positioned(
+            top: 20,
+            right: -20,
+            child: Container(
+              width: 80,
+              height: 80,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: AppColors.white.withOpacity(0.08),
+              ),
+            ),
+          ),
+          Positioned(
+            top: 60,
+            left: -30,
+            child: Container(
+              width: 60,
+              height: 60,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: AppColors.accentNeon.withOpacity(0.15),
+              ),
+            ),
+          ),
+
+          // Main header content
+          Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                // App Icon
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: AppColors.white.withOpacity(0.15),
+                    border: Border.all(
+                      color: AppColors.white.withOpacity(0.2),
+                      width: 1,
+                    ),
+                  ),
+                  child: Icon(
+                    Icons.storefront_rounded,
+                    size: 40,
+                    color: AppColors.white,
+                  ),
+                ),
+
+                const SizedBox(height: 16),
+
+                // App name
+                Text(
+                  "Mobiking",
+                  style: textTheme.headlineLarge?.copyWith(
+                    color: AppColors.white,
+                    fontWeight: FontWeight.w800,
+                    fontSize: 32,
+                    letterSpacing: 1.0,
+                  ),
+                ),
+
+                Text(
+                  "Wholesale",
+                  style: textTheme.titleLarge?.copyWith(
+                    color: AppColors.white.withOpacity(0.85),
+                    fontWeight: FontWeight.w300,
+                    fontSize: 18,
+                    letterSpacing: 1.5,
+                  ),
+                ),
+              ],
+            ),
           ),
         ],
       ),
-      child: Container(
-        decoration: BoxDecoration(
-          borderRadius: const BorderRadius.only(
-            bottomLeft: Radius.circular(30),
-            bottomRight: Radius.circular(30),
-          ),
-          gradient: LinearGradient(
-            colors: [
-              Colors.black.withOpacity(0.3),
-              AppColors.primaryPurple.withOpacity(0.6),
-            ],
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-          ),
+    );
+  }
+
+  // 🎴 Main Content with Sign Up Card
+  Widget _buildMainContent(BuildContext context, TextTheme textTheme) {
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: AppColors.white,
+        borderRadius: const BorderRadius.only(
+          topLeft: Radius.circular(32),
+          topRight: Radius.circular(32),
         ),
-        alignment: Alignment.center,
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
         child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.storefront, size: 80, color: AppColors.white.withOpacity(0.9)),
-            const SizedBox(height: 16),
-            Text(
-              "Welcome to",
-              style: textTheme.headlineSmall?.copyWith(
-                color: AppColors.white.withOpacity(0.85),
-              ),
-            ),
-            Text(
-              "Mobiking Wholesale",
-              textAlign: TextAlign.center,
-              style: textTheme.headlineMedium?.copyWith(
-                color: AppColors.white,
-                fontWeight: FontWeight.w700,
-                fontSize: 36,
-              ),
-            ),
-            const SizedBox(height: 10),
-            Text(
-              "Your one-stop shop for mobile accessories.",
-              style: textTheme.bodyLarge?.copyWith(
-                color: AppColors.white.withOpacity(0.95),
-              ),
-            ),
+            // Card Header - Fixed spacing
+            _buildCardHeader(textTheme),
+
+            const SizedBox(height: 32),
+
+            // Phone Input - Fixed spacing
+            _buildPhoneInput(context, textTheme),
+
+            const SizedBox(height: 24),
+
+            // OTP Button - Fixed spacing
+            _buildOtpButton(textTheme),
+
+            // Spacer to push footer to bottom
+            const Spacer(),
+
+            // Footer text - Always at bottom
+            _buildFooter(textTheme),
           ],
         ),
       ),
     );
   }
 
+  // Card Header
+  Widget _buildCardHeader(TextTheme textTheme) {
+    return Column(
+      children: [
+        // Decorative line
+        Container(
+          width: 40,
+          height: 4,
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [
+                AppColors.primaryPurple,
+                AppColors.accentNeon,
+              ],
+            ),
+            borderRadius: BorderRadius.circular(2),
+          ),
+        ),
+
+        const SizedBox(height: 20),
+
+        Text(
+          "Welcome Back",
+          style: textTheme.headlineMedium?.copyWith(
+            fontWeight: FontWeight.w700,
+            color: AppColors.textDark,
+            fontSize: 26,
+          ),
+        ),
+
+        const SizedBox(height: 8),
+
+        Text(
+          "Enter your phone number to continue",
+          style: textTheme.bodyLarge?.copyWith(
+            color: AppColors.textLight,
+            fontSize: 15,
+          ),
+        ),
+      ],
+    );
+  }
+
   // 📱 Phone input field
   Widget _buildPhoneInput(BuildContext context, TextTheme textTheme) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 32),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            "Enter your Mobile Number",
-            style: textTheme.titleLarge?.copyWith(
-              fontWeight: FontWeight.w600,
-              color: AppColors.textDark,
-            ),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          "Mobile Number",
+          style: textTheme.titleMedium?.copyWith(
+            fontWeight: FontWeight.w600,
+            color: AppColors.textDark,
+            fontSize: 15,
           ),
-          const SizedBox(height: 20),
-          TextFormField(
+        ),
+
+        const SizedBox(height: 10),
+
+        Container(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(14),
+            boxShadow: [
+              BoxShadow(
+                color: AppColors.primaryPurple.withOpacity(0.08),
+                blurRadius: 6,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+          child: TextFormField(
             controller: loginController.phoneController,
             keyboardType: TextInputType.phone,
             maxLength: 10,
-            style: textTheme.headlineSmall?.copyWith(
-              fontWeight: FontWeight.bold,
+            style: textTheme.titleLarge?.copyWith(
+              fontWeight: FontWeight.w600,
               color: AppColors.textDark,
+              fontSize: 16,
             ),
             decoration: InputDecoration(
               filled: true,
-              fillColor: AppColors.white,
-              hintText: "e.g., 9876543210",
-              prefixIcon: Icon(Icons.phone_android, color: AppColors.primaryPurple),
-              hintStyle: textTheme.titleMedium?.copyWith(
-                color: AppColors.textLight.withOpacity(0.6),
+              fillColor: AppColors.neutralBackground,
+              hintText: "Enter 10-digit mobile number",
+              prefixIcon: Container(
+                margin: const EdgeInsets.all(10),
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  color: AppColors.primaryPurple.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Icon(
+                  Icons.phone_android_rounded,
+                  color: AppColors.primaryPurple,
+                  size: 18,
+                ),
+              ),
+              hintStyle: textTheme.bodyMedium?.copyWith(
+                color: AppColors.textLight.withOpacity(0.7),
+                fontWeight: FontWeight.w400,
               ),
               counterText: "",
-              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
+              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
               border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(16),
+                borderRadius: BorderRadius.circular(14),
                 borderSide: BorderSide.none,
               ),
               focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(16),
-                borderSide: BorderSide(color: AppColors.primaryPurple, width: 2),
+                borderRadius: BorderRadius.circular(14),
+                borderSide: BorderSide(
+                  color: AppColors.primaryPurple,
+                  width: 2,
+                ),
               ),
               enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(16),
-                borderSide: BorderSide(color: AppColors.lightPurple.withOpacity(0.7), width: 1.2),
+                borderRadius: BorderRadius.circular(14),
+                borderSide: BorderSide(
+                  color: AppColors.lightGreyBackground,
+                  width: 1,
+                ),
               ),
               errorBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(16),
+                borderRadius: BorderRadius.circular(14),
                 borderSide: BorderSide(color: AppColors.danger, width: 2),
               ),
               focusedErrorBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(16),
-                borderSide: BorderSide(color: AppColors.danger, width: 2.5),
+                borderRadius: BorderRadius.circular(14),
+                borderSide: BorderSide(color: AppColors.danger, width: 2),
               ),
             ),
             validator: (value) {
@@ -169,29 +318,49 @@ class PhoneAuthScreen extends StatelessWidget {
             },
             autovalidateMode: AutovalidateMode.onUserInteraction,
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 
-  // 🔐 OTP Button
+  // 🔐 OTP Button - UPDATED to call sendOtp and navigate
   Widget _buildOtpButton(TextTheme textTheme) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 32),
-      child: Obx(() => SizedBox(
-        width: double.infinity,
-        child: ElevatedButton(
-          style: ElevatedButton.styleFrom(
-            backgroundColor: AppColors.primaryPurple,
-            padding: const EdgeInsets.symmetric(vertical: 18),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-            elevation: 8,
-            shadowColor: AppColors.primaryPurple.withOpacity(0.3),
+    return Obx(() => Container(
+      width: double.infinity,
+      height: 52,
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: loginController.isOtpLoading.value // CHANGED: Use isOtpLoading instead
+              ? [
+            AppColors.textLight.withOpacity(0.5),
+            AppColors.textLight.withOpacity(0.7),
+          ]
+              : [
+            AppColors.primaryPurple,
+            AppColors.darkPurple,
+          ],
+        ),
+        borderRadius: BorderRadius.circular(14),
+        boxShadow: loginController.isOtpLoading.value
+            ? []
+            : [
+          BoxShadow(
+            color: AppColors.primaryPurple.withOpacity(0.3),
+            blurRadius: 8,
+            offset: const Offset(0, 4),
           ),
-          onPressed: loginController.isLoading.value
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(14),
+          onTap: loginController.isOtpLoading.value
               ? null
-              : () {
-            final phone = loginController.phoneController.text;
+              : () async { // CHANGED: Make async
+            final phone = loginController.phoneController.text.trim();
+
+            // Validate phone number
             if (phone.length != 10 || !GetUtils.isNumericOnly(phone)) {
               Get.snackbar(
                 "Invalid Phone Number",
@@ -204,23 +373,82 @@ class PhoneAuthScreen extends StatelessWidget {
               );
               return;
             }
-            Get.to(() => OtpVerificationScreen(phoneNumber: phone));
+
+            // CHANGED: Call sendOtp method instead of direct navigation
+            final otpSent = await loginController.sendOtp(phone);
+
+            // Navigate to OTP screen only if OTP was sent successfully
+            if (otpSent) {
+              Get.to(() => OtpVerificationScreen(phoneNumber: phone));
+            }
           },
-          child: loginController.isLoading.value
-              ? const CircularProgressIndicator(
-            color: Colors.white,
-            strokeWidth: 3.5,
-          )
-              : Text(
-            'Get OTP',
-            style: textTheme.titleLarge?.copyWith(
-              color: Colors.white,
-              fontWeight: FontWeight.w700,
-              fontSize: 20,
+          child: Center(
+            child: loginController.isOtpLoading.value
+                ? SizedBox(
+              width: 22,
+              height: 22,
+              child: CircularProgressIndicator(
+                color: AppColors.white,
+                strokeWidth: 2.5,
+              ),
+            )
+                : Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(
+                  'Get OTP', // CHANGED: Better text
+                  style: textTheme.titleLarge?.copyWith(
+                    color: AppColors.white,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 16,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Icon(
+                  Icons.sms_outlined, // CHANGED: More appropriate icon
+                  color: AppColors.white,
+                  size: 18,
+                ),
+              ],
             ),
           ),
         ),
-      )),
+      ),
+    ));
+  }
+
+  // Footer
+  Widget _buildFooter(TextTheme textTheme) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: RichText(
+        textAlign: TextAlign.center,
+        text: TextSpan(
+          style: textTheme.bodySmall?.copyWith(
+            color: AppColors.textLight,
+            height: 1.4,
+            fontSize: 12,
+          ),
+          children: [
+            const TextSpan(text: "By continuing, you agree to our "),
+            TextSpan(
+              text: "Terms of Service",
+              style: TextStyle(
+                color: AppColors.primaryPurple,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            const TextSpan(text: " and "),
+            TextSpan(
+              text: "Privacy Policy",
+              style: TextStyle(
+                color: AppColors.primaryPurple,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

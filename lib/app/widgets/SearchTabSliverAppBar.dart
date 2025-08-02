@@ -206,10 +206,10 @@ class _StickySearchAndTabBarDelegate extends SliverPersistentHeaderDelegate {
                         );
                       }),
                     ),
-                    Icon(
+                    /*Icon(
                       Icons.mic_none,
                       color: isCollapsed ? Colors.black : AppColors.textMedium,
-                    ),
+                    ),*/
                   ],
                 ),
               ),
